@@ -1,0 +1,257 @@
+﻿# The script of the game goes in this file.
+
+define dev_mode = True
+
+# Declare characters used by this game. The color argument colorizes the
+# name of the character.
+
+define e = Character("Eileen")
+define james = Character("Man", color="#662222")
+define you = Character("You")
+define beast = Character("The Beast", color="#e90505")
+
+
+# The game starts here.
+
+label start:
+
+    if cfg.DEV_MODE:
+        jump intro
+
+    stop music fadeout 1.0
+
+    scene black with fade
+
+    "Content warning: (Somewhat graphic descriptions of) violence, blood, alcohol, addiction, mental illness, emotional abuse."
+
+    "Some sexual content, if you pick the option that mentions it. Lots of profanity."
+
+    "..."
+
+    jump intro
+
+
+label intro:
+
+    $ cfg = renpy.store.cfg
+
+    # Show a background. This uses a placeholder by default, but you can
+    # add a file (named either "bg room.png" or "bg room.jpg") to the
+    # images directory to show it.
+
+    scene bg city main_menu
+
+    # This shows a character sprite. A placeholder is used, but you can
+    # replace it by adding a file named "eileen happy.png" to the images
+    # directory.
+
+    # show eileen happy
+
+    # start at hunger 3
+    $ renpy.store.state.set_hunger(3)
+    play sound audio.beastgrowl1
+
+    "You awaken the moment the sun goes down, and find yourself lying in a pile of garbage."
+
+    james "Holy shit, you're alive! Thought for sure you was dead."
+
+    "The return to consciousness is jarring, almost painful. Not at all like waking up from natural sleep, like you used to do. The man kneeling at your side reeks of cheap booze and body odor, but the concern on his face seems genuine."
+
+    james "You alright? You wasn't movin' at all. Like a dead body or something."
+
+    "At that, you instinctively practice your breathing. In and out. In... and out..."
+
+    "How you ended up in this dirty back alley is a question for later. For now, there's the matter of this man who saw you - and apparently spent some time around you - while you were compromised."
+
+    "You're not bound by the Tower or its rules, but like every other tick in this city you have a {i}visceral{/i} understanding of what happens when enough idiots violate the First of their \"Traditions\"."
+
+    "The Masquerade."
+
+    "The mortal masses have to be kept in the dark. The more they see, the more they learn, the more they talk, the more likely they are to draw the attention of the Inquisition's hunters."
+
+    "And that can't happen here. Not again."
+
+    menu:
+        beast "He's seen too much. He has to go. Drain him."
+
+        "He's seen too much so he has to go. Plus, I'm hungry. Let's get this over with - two birds with one stone.":
+            "The man sees the look on your face and takes a step back."
+
+            james "H-hey hold on, now-"
+
+            call roll_control("dexterity+athletics+2", "pool3") from drain_james
+            jump expression renpy.store.game.pass_fail(_return, "intro.man_drained", "intro.man_escapes_drain")
+
+        "Let him go. He only saw me \"passed out\" on the street. And who would believe a homeless drunk anyway?":
+            jump intro.man_spared
+
+        "I'm not going to kill this man just for being here. I don't even know how {i}I{/i} got here. But I could sure use a snack.":
+            "You flash him a sheepish grin."
+
+            you "Last night was pretty crazy. You got the time?"
+
+            "He actually does have a watch, surprisingly. When he glances down, you strike."
+
+            james "Someone musta took your phone, huh? It's abou-"
+
+            call roll_control("manipulation+intrigue+nosbane+1", "diff2") from sip_james
+            jump expression renpy.store.game.pass_fail(_return, "intro.man_sipped", "intro.man_escapes_sip")
+
+    label .man_drained:
+
+        play sound audio.feed_bite1
+        queue sound audio.feed_heartbeat
+
+        "His instincts kick in just a bit too late. He doesn't even have time to scream. Once your fangs are in he goes limp, like all the rest. A few minutes later and you've taken {i}everything{/i}."
+
+        $ renpy.store.state.set_humanity("-=1")
+        $ renpy.store.state.set_hunger(0)
+        $ state.intro_man_drank = state.intro_man_killed = True
+
+        "Everything he is, was, and could have been pours down your throat and floods into your veins. There's a pleasant coppery tang, and an incredible rush. For once you feel... whole."
+
+        stop sound
+        play sound audio.body_fall1
+
+        "But you know it won't last, and you have business to attend to."
+
+        jump intro.end
+
+    label .man_escapes_drain:
+
+        "Maybe you're still sluggish from daysleep, or maybe the man is quicker than he looked. Either way, something in your eyes spooked him, tipped him off."
+
+        "He staggers back and spins on his heels in an impressively smooth motion, and runs away without a word. You could chase him, but that would probably just make things worse."
+
+        "That could have gone better. No breakfast for you, it seems."
+
+        jump intro.end
+
+    label .man_spared:
+
+        "Marshalling your will to hold the Beast in check, you force your face into what you hope looks like a sheepish grin."
+
+        you "Nah, I'm fine. Just... partied a bit too hard."
+
+        james "Hah! I was young too, once 'pon a time. But it's rough out here, so you might wanna ease up a bit."
+
+        "You raise an eyebrow at that, and make a show of looking him up and down."
+
+        james "I ain't got nothin' left to lose, youngin'. You look like you might."
+
+        "You smile sadly, shake his hand, and set on your way."
+
+        jump intro.end
+
+    label .man_sipped:
+
+        play sound audio.feed_bite1
+        queue sound audio.feed_heartbeat
+
+        "He goes limp the moment your fangs pierce his neck, moaning softly. You take a few good mouthfuls - just enough to take the edge off. Then you gently lower him to the ground, lick the puncture wounds on his neck away, and set off into the night."
+
+        $ renpy.store.state.set_hunger("-=1")
+        $ state.intro_man_drank = True
+
+        stop sound
+
+        jump intro.end
+
+    label .man_escapes_sip:
+
+        james "The fuck you doin'?"
+
+        "He doesn't wait for your response. Just turns on his heels and runs. It'd probably be a bad idea to chase him, and you don't think he saw your fangs."
+
+        "So much for that snack."
+
+        jump intro.end
+
+    label .end:
+
+        jump haven.main
+
+
+label clan_choice:
+
+    $ state = renpy.store.state
+    # TODO: add flavor to make this more interesting later, same with predator type choices
+
+    if state.intro_man_drank and state.intro_man_killed:
+        "Having slaked your Hunger and secured the Masquerade around yourself - for the time being, anyway - you return to your haven."
+    elif state.intro_man_drank:
+        "Having temporarily brought your endless Hunger under control, you make your way back to your haven."
+    elif state.intro_man_killed:
+        "Having dealt with that minor Masquerade breach, you return to your haven."
+    else:
+        "You return to your haven, Hunger gnawing at the back of your brain."
+
+    "Here you're as safe and secure as you'll ever be, unless you somehow manage to improve your rather dismal situation."
+
+    python:
+        clan_choice_brujah = "{}, Clan {}".format(cfg.CLAN_BLURBS[cfg.CLAN_BRUJAH][cfg.REF_CLAN_EPITHET], cfg.CLAN_BRUJAH)
+        clan_choice_nosferatu = "{}, Clan {}".format(cfg.CLAN_BLURBS[cfg.CLAN_NOSFERATU][cfg.REF_CLAN_EPITHET], cfg.CLAN_NOSFERATU)
+        clan_choice_ravnos = "{}, Clan {}".format(cfg.CLAN_BLURBS[cfg.CLAN_RAVNOS][cfg.REF_CLAN_EPITHET], cfg.CLAN_RAVNOS)
+        clan_choice_ventrue = "{}, Clan {}".format(cfg.CLAN_BLURBS[cfg.CLAN_VENTRUE][cfg.REF_CLAN_EPITHET], cfg.CLAN_VENTRUE)
+
+    menu:
+        "As a member of-"
+
+        "[clan_choice_brujah]":
+            $ state.pc.choose_clan(cfg.CLAN_BRUJAH)
+            "You sometimes struggle to control your temper. Even more so than usual for a vampire, or so you've been told."
+
+        "[clan_choice_nosferatu]":
+            $ state.pc.choose_clan(cfg.CLAN_NOSFERATU)
+            "You were twisted and disfigured by your Embrace. You don't have it as bad as some of your cousins who have to stay down in the communal warrens - you can at least pass as human. Mostly. From a respectable distance."
+
+            "And in these modern nights there are plenty of ways to conceal or explain away the rest. But no matter what you do mortals still seem to get uneasy when you get close. Even Kindred of other clans tend not to appreciate your presence."
+
+        "[clan_choice_ravnos]":
+            $ state.pc.choose_clan(cfg.CLAN_RAVNOS)
+            "You feel it in your daysleep sometimes - a scream in a language you don't know. Loud like a roaring furnace, quiet like the hum of an incandescent bulb. Hotter than you could ever describe."
+
+            "You instinctively understood what would happen if you let it catch you. If you didn't {i}move{/i}. Every night, before dawn. Like a shark - if you stop moving for long enough, you die."
+
+        "[clan_choice_ventrue]":
+            $ state.pc.choose_clan(cfg.CLAN_VENTRUE)
+            "You sometimes envy the licks who are just out there drinking anybody. Members of your clan usually have specific dietary requirements, though it's different for every Blue Blood. Not just any mortal will do."
+
+            # TODO: choice of specific feeding requirements?
+
+    $ state.clan_chosen = True
+    "That can make things difficult, but you've adapted where it most counts. The hunt."
+
+    menu:
+        beast "We'll hunt your way. For now."
+
+        "I skip all the pretense and bullshit and just {i}take{/i} what I need. It ain't pretty, but it's usually quick and simple.":
+            "Your hunting blends in nicely with the city's mundane mortal crime. As long as you're careful and don't leave any obviously exsanguinated corpses lying around, things tend to work out okay."
+            $ state.pc.choose_predator_type(cfg.PT_ALLEYCAT)
+
+        "I didn't hunt my own food when I was alive. Why start now? I just drink the bagged stuff. Less dangerous." if state.pc_can_drink_swill():
+            "Realistically it's just a different kind of danger. Blood is a commodity even among mortals, and it tends to be closely watched."
+
+            "Statistical abnormalities or a careless lick caught on the wrong camera feed can draw the attention of law enforcement and hunters alike. But that's a less direct kind of danger, the kind you're much better at managing."
+            $ state.pc.choose_predator_type(cfg.PT_BAGGER)
+
+        "I feed on animals, usually. City's chock full of animals if you know where to look." if state.pc_can_drink_swill():
+            if state.intro_man_killed:
+                "Hunting animals is easier and safer than hunting people. Nobody notices or cares if vermin or strays go missing."
+            else:
+                "Hunting animals is a bit easier on the conscience, and a lot safer. Nobody notices or cares if vermin or strays go missing."
+
+            "They can say what they like. Just means more rat for you."
+            $ state.pc.choose_predator_type(cfg.PT_FARMER)
+
+        "My favorite way to feed is during sex. One pleasure heightens the other, for everyone involved.":
+            "Fucking your food is.... a choice. A choice you'd make {i}every{/i} time, if you could."
+            $ state.pc.choose_predator_type(cfg.PT_SIREN)
+
+    jump haven.post_main
+
+label end:
+
+    # This ends the game.
+
+    return

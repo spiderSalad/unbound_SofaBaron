@@ -1,0 +1,13 @@
+# Ignore content files, saves, cache, etc. Only want to track script files.
+
+audio/
+cache/
+gui/
+images/
+saves/
+tl/
+
+# Ignore compiled .rpyc files.
+
+scripts/**/*.rpyc
+scripts/**/*.bak
