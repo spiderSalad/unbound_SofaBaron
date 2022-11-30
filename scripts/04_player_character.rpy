@@ -95,6 +95,53 @@ init 1 python in game:
                 self.agg_damage = max(damage - amount, 0)
 
 
+    class SuperpowerArsenal:
+        def __init__(self, dnames):
+            self.dnames = dnames
+            # No setters for these protected properties
+            self._access = {}
+            self._levels = {}
+            self._pc_powers = {}
+            self.reset()
+
+        def reset(self):
+            for dname in self.dnames:
+                self._access[dname] = cfg.VAL_DISC_LOCKED
+                self._levels[dname] = cfg.MIN_SCORE
+                self._pc_powers[dname] = {}
+                for i in range(1, 6):
+                    score_word = cfg.SCORE_WORDS[i]
+                    self._pc_powers[dname][score_word] = None
+
+        @property
+        def access(self):
+            return self._access
+
+        @property
+        def levels(self):
+            return self._levels
+
+        @property
+        def pc_powers(self):
+            return self._pc_powers
+
+        def set_discipline_access(self, dname, access_level):
+            self._access[dname] = access_level
+
+        def unlock(self, dname, level):
+            # Has no effect if already unlocked at a higher level
+            if self.access[dname] < level:
+                self.set_discipline_access(dname, level)
+
+        def get_unlocked(self, access_level=None):
+            if access_level is None:
+                return [dname for dname in self.access if self.access[dname] > cfg.VAL_DISC_LOCKED]
+            else:
+                return [dname for dname in self.access if self.access[dname] >= access_level]
+
+        # def unlock_power(dname, power_name):
+        #     if power_name not in
+
     class PlayerChar:
         def __init__(self, anames, snames, dnames):
             self.nickname = "That lick from around the way"
@@ -111,9 +158,8 @@ init 1 python in game:
             self.attrs = {}
             self.skills = {}
             self._backgrounds = []
-            self.available_disciplines = {}
-            self.discipline_levels = {}
-            self.powers = []
+            self.disciplines = SuperpowerArsenal(self.dnames)
+            self.inventory = []
             self.reset_charsheet_stats()
 
         @property
@@ -146,9 +192,7 @@ init 1 python in game:
                 self.attrs[aname] = cfg.MIN_SCORE_ATTR
             for sname in self.snames:
                 self.skills[sname] = cfg.MIN_SCORE
-            for dname in self.dnames:
-                self.available_disciplines[dname] = cfg.VAL_DISC_LOCKED
-                self.discipline_levels[dname] = cfg.MIN_SCORE
+            self.disciplines.reset()
 
         def validate_charsheet_stats(self):
             for aname in self.anames:
@@ -179,10 +223,13 @@ init 1 python in game:
             self.hp.boxes = int(self.attrs[cfg.AT_STA]) + 3
             self.will.boxes = int(self.attrs[cfg.AT_COM]) + int(self.attrs[cfg.AT_RES])
 
-        def apply_background(self, background: (dict, str)):
-            bg = background
+        def apply_background(self, background: (dict, str), bg_key=None):
+            bg, key = background, bg_key
             if isinstance(background, str):
                 bg = cfg.CHAR_BACKGROUNDS[background]
+                key = background
+            if cfg.REF_BG_NAME not in bg:
+                bg[cfg.REF_BG_NAME] = key
             self._backgrounds.append(bg)
             self.recalculate_stats()
 
@@ -196,14 +243,14 @@ init 1 python in game:
                 self.shocked = impaired
 
         def get_fort_resilience_bonus(self):
-            if cfg.POWER_FORTITUDE_HP not in self.powers:
+            if cfg.POWER_FORTITUDE_HP not in self.disciplines.pc_powers:
                 return 0
-            return self.discipline_levels[cfg.DISC_FORTITUDE]
+            return self.disciplines.levels[cfg.DISC_FORTITUDE]
 
         def get_fort_toughness_armor(self):
-            if cfg.POWER_FORTITUDE_TOUGH not in self.powers:
+            if cfg.POWER_FORTITUDE_TOUGH not in self.disciplines.pc_powers:
                 return 0
-            return self.discipline_levels[cfg.DISC_FORTITUDE]
+            return self.disciplines.levels[cfg.DISC_FORTITUDE]
 
         def choose_clan(self, clan):
             self.clan = clan
@@ -262,9 +309,7 @@ init 1 python in game:
             self.recalculate_stats()
 
         def unlock_discipline(self, disc, level):
-            # Has no effect if already unlocked at a higher level
-            if self.available_disciplines[disc] < level:
-                self.available_disciplines[disc] = level
+            self.disciplines.unlock(disc, level)
 
         def handle_demise(self, tracker_type):
             pass
@@ -287,7 +332,7 @@ init 1 python in state:
             return False
         if pc.blood_potency > 4:
             return False
-        if pc.blood_potency > 2 and cfg.POWER_ANIMALISM_SUCCULENCE not in pc.powers:
+        if pc.blood_potency > 2 and cfg.POWER_ANIMALISM_SUCCULENCE not in pc.disciplines.pc_powers:
             return False
         return True
 

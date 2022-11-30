@@ -28,8 +28,8 @@ init 1 python in game:
                     self.num_dice += pc.attrs[stat]
                 elif stat in pc.skills:
                     self.num_dice += pc.skills[stat]
-                elif stat in pc.discipline_levels:
-                    self.num_dice += pc.discipline_levels[stat]
+                elif stat in pc.disciplines.get_unlocked():
+                    self.num_dice += pc.disciplines.levels[stat]
                 elif stat == cfg.AT_CHA or stat == cfg.SK_DIPL:
                     self.has_bonuses = True
                     if pc.clan == cfg.CLAN_NOSFERATU:

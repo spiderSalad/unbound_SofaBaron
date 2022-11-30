@@ -13,6 +13,9 @@ init 0 python in cfg:
     DOT_NUMBERS = ("zero", "one", "two", "three", "four", "five")
 
     REF_TYPE = "type"
+    REF_DESC = "description"
+    REF_TOOLTIP = "tooltip"
+    REF_DOTS = "dots"
     REF_EID = "eid"
     REF_GOTO_MOMENT = "goto"
     REF_MOMENTS = "moments"
@@ -44,6 +47,23 @@ init 0 python in cfg:
     KILL_HUNT_HUMANITY_THRESHOLD_INC = 4
     RESIST_MAX_HUNGER_HUMANITY_THRESHOLD_INC = 8
     WEAK_TO_HUNGER_HUMANITY_THRESHOLD_INC = 5
+
+    HUNGER_BLURBS = [
+        ["{i}Goddamn{/i} that feels good.", "I feel... whole.", "The emptiness is gone, just for a bit.", "Oh God, what have I done?"],
+        ["Eh... I could eat.", "I'm fine...", "I'm good.", "I'm good."],
+        ["Time to hunt...", "Time to hunt...", "Eh, I could eat.", "Eh, I could eat."],
+        ["Ayyy where my juicebags at?", "Should feed soon...", "Getting pretty hungry...", "It can wait, if need be."],
+        ["FEED. NOW.", "'Bout to grab me a fuckin' drink!", "Come on. Mind over matter.", "The Beast doesn't rule me. {i}I{/i} rule me."],
+        ["Can't think. Blood...", "FUCKFUCKFUCKFUCKFUCK", "I need to feed before I lose control...", "I need to feed before I lose control..."]
+    ]
+    HUMANITY_BLURBS = [
+        "Loathsome tick",
+        "Callous predator",
+        "Jaded, cynical leech",
+        "Concerned Kindred",
+        "Doggedly principled neonate",
+        "Serenely absolved undead"
+    ]
 
     CLAN_BRUJAH = "Brujah"
     CLAN_NOSFERATU = "Nosferatu"
@@ -82,6 +102,7 @@ init 0 python in cfg:
     MIN_SCORE_ATTR = 1
     MIN_SCORE = 0
     SCORE_WORDS = ["zero", "one", "two", "three", "four", "five"]
+    DEFAULT_DOT_COLOR = "red"
 
     TRACK_HP = "hit_points"
     TRACK_WILL = "willpower"
@@ -105,6 +126,8 @@ init 0 python in cfg:
     AT_WIT = "Wits"
     AT_RES = "Resolve"
 
+    REF_ATTR_ORDER = [AT_STR, AT_DEX, AT_STA, AT_CHA, AT_MAN, AT_COM, AT_INT, AT_WIT, AT_RES]
+
     SK_ATHL = "Athletics"
     SK_CLAN = "Clandestine"  # Larceny, Stealth
     SK_COMB = "Combat"  # Brawl, Melee
@@ -121,23 +144,39 @@ init 0 python in cfg:
     SK_SCIE = "Science"  # Science, Medicine
     SK_TECH = "Technology"
 
-    REF_BG_NAME = "background_name"
+    REF_SKILL_ORDER = [
+        SK_ATHL, SK_CLAN, SK_COMB, SK_FIRE, SK_TRAV,
+        SK_DIPL, SK_INTI, SK_INTR, SK_LEAD, SK_STWS,
+        SK_ACAD, SK_INSP, SK_OCCL, SK_SCIE, SK_TECH
+    ]
+
     ROLL_TEST = "diff"
     ROLL_CONTEST = "pool"
     REF_ROLL_BONUS_PREFIX = "bonus_"
     REF_ROLL_EVENT_BONUS = "bonus_current_event"
     REF_ROLL_FORCE_NOSBANE = "nosbane"
+    REF_BG_NAME = "background_name"
+
+    REF_BG_PAST = "Past"  # Collection of stat bonuses, not a merit/flaw in the V5 parlance
+    REF_BG_MERIT = "Merit"
+    REF_BG_FLAW = "Flaw"
+
+    BG_BEAUTIFUL = "Beautiful"
+    BG_ENEMY = "Enemy"
+
     CHAR_BACKGROUNDS = {
-        "test_bg_med_student": {
-            REF_BG_NAME: "Med Student",
+        "Med Student": {
+            REF_TYPE: REF_BG_PAST, REF_DESC: "You could have become a doctor, one day.",
             REF_ATTRS_ALL: 1, AT_DEX: 1, AT_CHA: -1, AT_COM: 1, AT_INT: 1, AT_RES: 1,
-            REF_SKILLS_ALL: 1, SK_TECH: 1, SK_SCIE: 2, SK_LEAD: 1, SK_ACAD: 2, SK_INSP: 2, SK_INTI: -1,
-            SK_ATHL: -1
+            REF_SKILLS_ALL: 1, SK_TECH: 1, SK_SCIE: 2, SK_LEAD: 1, SK_ACAD: 2, SK_INSP: 2, SK_INTI: -1, SK_ATHL: -1
+        },
+        BG_BEAUTIFUL: {REF_TYPE: REF_BG_MERIT, REF_DOTS: 2, REF_DESC: "You've got beguiling, head-turning looks."},
+        BG_ENEMY: {
+            REF_TYPE: REF_BG_FLAW, REF_DESC: "Some mortal has it out for you. They may even know who you are, though hopefully not {i}what{/i}."
         }
     }
 
-    BG_BEAUTIFUL = "Beautiful"
-
+    REF_PREDATOR_TYPE = "predator_type"
     PT_ALLEYCAT = "Alley Cat"  # +1 Combat, +1 Intimidation, +1 Potence, -1 Humanity, +3 Contacts
     PT_BAGGER = "Bagger"  # +1 Clandestine, +Streetwise, +1 Obfuscate, more notoriety
     PT_FARMER = "Farmer"  # +1 Diplomacy, +1 Traversal, +1 Animalism, +1 Humanity, costs willpower to feed on humans
@@ -180,9 +219,9 @@ init 0 python in cfg:
     DISC_POTENCE = "Potence"
     DISC_PRESENCE = "Presence"
 
-    VAL_DISC_LOCKED = 0  # Cost multipliers, with 0 being locked.
-    VAL_DISC_OUTCLAN = 1.4
-    VAL_DISC_CAITIFF = 1.2
+    VAL_DISC_LOCKED = 0  # XP multipliers, with 0 meaning locked.
+    VAL_DISC_OUTCLAN = float(5) / 7
+    VAL_DISC_CAITIFF = float(5) / 6
     VAL_DISC_INCLAN = 1
 
     POWER_ANIMALISM_FAMULUS = "Bond Famulus"
@@ -224,7 +263,79 @@ init 0 python in cfg:
     POWER_PRESENCE_ENTRANCE = "Entracement"
     POWER_PRESENCE_SCARYFACE = "Dread Gaze"
 
+    REF_DISC_POWER_TREES = {
+        DISC_ANIMALISM: [
+            [POWER_ANIMALISM_FAMULUS],
+            [POWER_ANIMALISM_SPEAK],
+            [POWER_ANIMALISM_HIVE, POWER_ANIMALISM_QUELL, POWER_ANIMALISM_SUCCULENCE]
+        ],
+        DISC_CELERITY: [
+            [POWER_CELERITY_GRACE, POWER_CELERITY_TWITCH],
+            [POWER_CELERITY_SPEED],
+            [POWER_CELERITY_BLINK]
+        ],
+        DISC_DOMINATE: [
+            [POWER_DOMINATE_COMPEL, POWER_DOMINATE_FORGET],
+            [POWER_DOMINATE_MESMERIZE, POWER_DOMINATE_DEVOTION],
+            [POWER_DOMINATE_REWRITE]
+        ],
+        DISC_FORTITUDE: [
+            [POWER_FORTITUDE_HP, POWER_FORTITUDE_WILL],
+            [POWER_FORTITUDE_TOUGH],
+            [POWER_FORTITUDE_BANE]
+        ],
+        DISC_OBFUSCATE: [
+            [POWER_OBFUSCATE_FADE],
+            [POWER_OBFUSCATE_STEALTH, POWER_OBFUSCATE_ILLUSION],
+            [POWER_OBFUSCATE_MASK, POWER_OBFUSCATE_LAUGHINGMAN]
+        ],
+        DISC_POTENCE: [
+            [POWER_POTENCE_FATALITY, POWER_POTENCE_SUPERJUMP],
+            [POWER_POTENCE_PROWESS],
+            [POWER_POTENCE_MEGASUCK, POWER_POTENCE_RAGE]
+        ],
+        DISC_PRESENCE: [
+            [POWER_PRESENCE_AWE, POWER_PRESENCE_DAUNT],
+            [],
+            [POWER_PRESENCE_ENTRANCE, POWER_PRESENCE_SCARYFACE]
+        ]
+    }
+
     SEM_HUB_MAIN = "haven-hub-default"
+
+    REP_MIN = 0 # -100
+    REP_MAX = 200 # 100
+    REP_VALUE_ADJUST = 100
+
+    TOOLTIP_TABLE = {  # TODO finish these
+        AT_STR: "Lifting, pulling, pushing, punching, kicking, etc.",
+        AT_DEX: "Coordination, acuity, speed. Everything from sprinting to aiming a gun.",
+        AT_STA: "How much punishment I can take if I have to. Or want to.",
+        AT_CHA: "Getting people to like me, fear me, want me. Making them {i}feel{/i}.",
+        AT_MAN: "Getting people to do what I say, however they feel about me.",
+        AT_COM: "Staying cool in the moment so I don't lose my shit again.",
+        AT_INT: "Learning, reasoning, problem-solving, memory. The stuff they're always trying to test people for.",
+        AT_WIT: "Reaction, intuition, thinking on your feet!",
+        AT_RES: "Focus and determination not to let things go like before.",
+
+        SK_ATHL: "Experience, form, and training for various types of coordinated physical exertion.",
+        SK_CLAN: "Sneaking around, breaking into things, etc. Doing dirt.",
+        SK_COMB: "Throwing hands, or wielding the kinds of weapons that you bash, cut, or stab with.",
+        SK_FIRE: "Handling and using guns. Blue Bloods don't get to do superhero shit like the other Clans, so coming strapped is a good idea.",
+        SK_TRAV: "sdfdsfdsfdsfdsHandling a car beyond just getting from point A to point B.",
+        SK_INTI: "Getting people to back off or fall in line without resorting to mind control.",
+        SK_INTR: "Dissembling, sophistry, subtlety, and straight up lies. Concealing motives and intentions.",
+        SK_LEAD: "DFdsfdsThe skills and wherewithal to play the necessary role, whether that's dancing well or using proper etiquette.",
+        SK_DIPL: "Getting people to genuinely see things my way.",
+        SK_STWS: "What's really going on in this city? How do things work on the margins?",
+        SK_ACAD: "All of the assorted knowledge I've accumulated, from grade school to dropping out of college.",
+        SK_INSP: "Paying attention at the right time. Methodical collection and analysis of information and evidence in the field.",
+        SK_OCCL: "Supernatural stuff and how it works. I guess it makes sense that if vampires exist, so would other things.",
+        SK_SCIE: "",
+        SK_TECH: "In my line of work this is mostly worrying about encryption and hardware security for laptops and smartphones."
+    }
+
+    MERIT_DISPLAY_MAX = 4
 
     DP_DISCLAIMER = "This game was created as a part of Vampire: The Masquerade game jam. "
     DP_DISCLAIMER += "Events portrayed in this game are not canon within World of Darkness."
