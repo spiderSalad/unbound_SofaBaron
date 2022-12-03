@@ -24,9 +24,9 @@ label haven:
             "What do you want to do?"
 
             "I need to hunt." if can_hunt:
-                "you hunt"
+                call expression "hunt_" + str(pc.predator_type).replace(" ", "_").lower() pass (None) from main_hub_hunt
 
-            "Stagnation and complacency are deadly enemies. What can I do to improve?":
+            "Stagnation and complacency are a Kindred's deadliest enemies. What can I do to improve?":
                 "get swole son"
 
             "Enemies closing in. Need to counterattack before I'm cornered.":

@@ -300,8 +300,8 @@ define gui.notify_frame_borders = Borders(24, 8, 60, 8)
 define gui.frame_tile = False
 
 ## Dot frames for ability scores (CHANGED)
-define gui.dot_frame_width      = 270
-define gui.dot_frame_height     = 40
+define gui.dot_frame_width      = 320 # 270
+define gui.dot_frame_height     = 50
 
 define gui.GRID_ROWS_ALLSCORES  = 3
 define gui.GRID_COLS_ATTRS      = 3

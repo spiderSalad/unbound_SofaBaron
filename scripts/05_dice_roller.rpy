@@ -179,8 +179,11 @@ init 1 python in game:
             self.current_roll.calculate()
             return self.current_roll
 
-    def pass_fail(retval, win_label, loss_label):
-        return win_label if retval in V5DiceRoll.RESULT_ANY_WIN else loss_label
+    def pass_fail(roll_obj, win_label, loss_label):
+        try:
+            return win_label if roll_obj.outcome in V5DiceRoll.RESULT_ANY_WIN else loss_label
+        except:
+            return loss_label
 
 
 init python in state:
@@ -220,7 +223,6 @@ init python in state:
         delim = " "
         global pool_readout
         pool_readout = str(temp_rconfig.pool_text).replace(" ", delim)
-        print("AY YO - ", pool_readout)
         if temp_rconfig.has_opponent:
             test_summary = "Versus {}, margin of {}".format(temp_roll.opp_ws, temp_roll.margin)
         else:
@@ -265,6 +267,8 @@ label roll_control(pool_str, test_str):
         if not state.pc:
             state.pc = game.PlayerChar(anames=state.attr_names, snames=state.skill_names, dnames=state.discipline_names)
 
+    play sound dice_roll_many
+
     "Rolling..."
 
     python:
@@ -275,12 +279,13 @@ label roll_control(pool_str, test_str):
             diff = str(test_str).split(cfg.ROLL_TEST)[1]
         state.roll_config = renpy.store.game.RollConfig(pool_str, has_opp=(cfg.ROLL_CONTEST in test_str))
         state.roll_bones(opp_pool=opool, difficulty=diff)
-        results_readout = state.roll_display(rconfig=state.roll_config, roll=state.current_roll)
-        dice_pool_desc = state.get_pool_readout()
 
     label .choices:
 
-        $ renpy.block_rollback()
+        python:
+            results_readout = state.roll_display(rconfig=state.roll_config, roll=state.current_roll)
+            dice_pool_desc = state.get_pool_readout()
+            renpy.block_rollback()
 
         show roll_desc "{size=+5}[dice_pool_desc]{/size}"
 
@@ -291,10 +296,12 @@ label roll_control(pool_str, test_str):
                 jump roll_control.end
 
             "Focus your will and overcome the challenge (Re-roll)" if state.can_reroll_to_improve:
+                play sound dice_roll_few
                 $ state.reroll()
                 jump roll_control.choices
 
             "Focus your will and try to suppress the Beast (Re-roll)" if state.can_reroll_to_avert_mc:
+                play sound dice_roll_few
                 $ state.reroll(messy=True)
                 jump roll_control.choices
 
@@ -302,4 +309,4 @@ label roll_control(pool_str, test_str):
 
     hide roll_desc
 
-    return state.current_roll.outcome
+    return state.current_roll

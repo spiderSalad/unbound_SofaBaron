@@ -62,6 +62,9 @@ init 1 python in utils:
             e.__repr__()
             return False
 
+    def get_random_list_elem(collection):
+        return random_choices(collection, k=1)
+
     def generate_random_id_str(leng=6, label: str = None):
         return "{}_{}".format(label if label else "rid", ''.join(random_choices(string.ascii_letters, k=leng)))
 

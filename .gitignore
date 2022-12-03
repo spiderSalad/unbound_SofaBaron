@@ -11,3 +11,8 @@ tl/
 
 scripts/**/*.rpyc
 scripts/**/*.bak
+
+# Ignore notes and TODO
+
+TODO.txt
+notes.txt

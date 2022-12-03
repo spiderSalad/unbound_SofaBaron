@@ -6,14 +6,17 @@ define dev_mode = True
 # name of the character.
 
 define e = Character("Eileen")
-define james = Character("Man", color="#662222")
 define you = Character("You")
 define beast = Character("The Beast", color="#e90505")
+define james = Character("Man", color="#662222")
 
 
 # The game starts here.
 
 label start:
+
+    if cfg.DEV_MUTE_MUSIC:
+        stop music
 
     if cfg.DEV_MODE:
         jump intro
@@ -94,6 +97,8 @@ label intro:
 
             james "Someone musta took your phone, huh? It's abou-"
 
+            # $ state.set_hunger(1)
+
             call roll_control("manipulation+intrigue+nosbane+1", "diff2") from sip_james
             jump expression renpy.store.game.pass_fail(_return, "intro.man_sipped", "intro.man_escapes_sip")
 
@@ -104,8 +109,7 @@ label intro:
 
         "His instincts kick in just a bit too late. He doesn't even have time to scream. Once your fangs are in he goes limp, like all the rest. A few minutes later and you've taken {i}everything{/i}."
 
-        $ renpy.store.state.set_humanity("-=1")
-        $ renpy.store.state.set_hunger(0)
+        $ renpy.store.state.set_hunger(0, killed=True, innocent=True)
         $ state.intro_man_drank = state.intro_man_killed = True
 
         "Everything he is, was, and could have been pours down your throat and floods into your veins. There's a pleasant coppery tang, and an incredible rush. For once you feel... whole."
@@ -120,6 +124,8 @@ label intro:
     label .man_escapes_drain:
 
         "Maybe you're still sluggish from daysleep, or maybe the man is quicker than he looked. Either way, something in your eyes spooked him, tipped him off."
+
+        play sound fleeing_footsteps1
 
         "He staggers back and spins on his heels in an impressively smooth motion, and runs away without a word. You could chase him, but that would probably just make things worse."
 
@@ -161,6 +167,8 @@ label intro:
 
         james "The fuck you doin'?"
 
+        play sound fleeing_footsteps1
+
         "He doesn't wait for your response. Just turns on his heels and runs. It'd probably be a bad idea to chase him, and you don't think he saw your fangs."
 
         "So much for that snack."
@@ -193,12 +201,20 @@ label clan_choice:
         clan_choice_nosferatu = "{}, Clan {}".format(cfg.CLAN_BLURBS[cfg.CLAN_NOSFERATU][cfg.REF_CLAN_EPITHET], cfg.CLAN_NOSFERATU)
         clan_choice_ravnos = "{}, Clan {}".format(cfg.CLAN_BLURBS[cfg.CLAN_RAVNOS][cfg.REF_CLAN_EPITHET], cfg.CLAN_RAVNOS)
         clan_choice_ventrue = "{}, Clan {}".format(cfg.CLAN_BLURBS[cfg.CLAN_VENTRUE][cfg.REF_CLAN_EPITHET], cfg.CLAN_VENTRUE)
+        clan_choice_caitiff = "I am Clanless - one of the so-called Caitiff"
 
     menu:
         "As a member of-"
 
         "[clan_choice_brujah]":
             $ state.pc.choose_clan(cfg.CLAN_BRUJAH)
+            $ state.clan_slur = pc.clan_blurbs[cfg.REF_CLAN_SLUR]
+            "\"The Learned Clan\". Someone's idea of a joke, you guess."
+
+            "Or maybe not. Apparently your Clan used to be something more than lowly ticks scrabbling in the dirt."
+
+            "Well, at least your Clan can bite harder than most. Even the lowliest [state.clan_slur] can expect"
+
             "You sometimes struggle to control your temper. Even more so than usual for a vampire, or so you've been told."
 
         "[clan_choice_nosferatu]":
@@ -219,7 +235,25 @@ label clan_choice:
 
             # TODO: choice of specific feeding requirements?
 
-    $ state.clan_chosen = True
+        "[clan_choice_caitiff]":
+            $ state.pc.choose_clan(cfg.CLAN_NONE_CAITIFF)
+            "Out here, in the places the Camarilla has deemed beneath them, there's less need to hide it. Though you certainly don't advertise."
+
+            "You claim no Blood, and no Blood claims you. You don't remember your Embrace and God knows who your sire might be. {i}Proper{/i} Kindred tend to look down on your kind."
+
+            "If you're lucky, that is - in some domains you're treated no better than the thin-bloods, who aren't even real vampires!"
+
+            "There are upsides, of course. Other Kindred argue in hushed whispers about the nature of the Clans and their Banes. None of that shit is your problem."
+
+            "But you're adrift and unmoored in Kindred society, even by Anarch standards."
+
+    python:
+        state.clan_chosen = True
+        if not state.clan_slur:
+            state.clan_slur = pc.clan_blurbs[cfg.REF_CLAN_SLUR]
+        if not state.clan_nickname:
+            state.clan_nickname = pc.clan_blurbs[cfg.REF_CLAN_NICKNAME]
+
     "That can make things difficult, but you've adapted where it most counts. The hunt."
 
     menu:

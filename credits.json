@@ -810,5 +810,38 @@
             {"site":"freesound.org", "handle":"EFlexMusic", "url":"https://freesound.org/people/EFlexMusic/"},
             {"site":"youtube.com", "handle":"EFlexMusic", "url":"http://bit.ly/EFlexOnYouTube"}
         ]
+    },
+    {
+        "name":"dermotte",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"dice_06", "licenseUrl":"https://creativecommons.org/licenses/by/3.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"dermotte", "url":"https://freesound.org/people/dermotte/"}
+        ]
+    },
+    {
+        "name":"nettimato",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"rolling dice 1", "licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"dermotte", "url":"https://freesound.org/people/nettimato/"}
+        ]
+    },
+    {
+        "name":"Rudmer Rotteveel",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Footsteps Running Away Fading", "licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"Rudmer_Rotteveel", "url":"https://freesound.org/people/Rudmer_Rotteveel/"}
+        ]
     }
 ]

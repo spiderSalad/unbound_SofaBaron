@@ -2,6 +2,7 @@ init 0 python in cfg:
     from string import ascii_letters, digits
 
     DEV_MODE = True
+    DEV_MUTE_MUSIC = False
     KEY_INPUT_ENABLED = False
     KEY_INPUT_WATCH = ascii_letters + digits
     SAVE_FILE_PREFIX = "Sofa_Baron_Save#"
@@ -38,6 +39,26 @@ init 0 python in cfg:
     # REF_ANY_WIN = [REF_WIN, REF_CRIT, REF_MESSYCRIT]
     # REF_ANY_FAIL = [REF_FAIL, REF_BEASTFAIL]
 
+    PN_SHE_HE_THEY = "pn_subjective"
+    PN_HER_HIM_THEM = "pn_objective"
+    PN_STRANGER = "pn_stranger"
+
+    PN_MEN = {
+        PN_SHE_HE_THEY: "he",
+        PN_HER_HIM_THEM: "him",
+        PN_STRANGER: "man"
+    }
+    PN_WOMEN = {
+        PN_SHE_HE_THEY: "she",
+        PN_HER_HIM_THEM: "her",
+        PN_STRANGER: "woman"
+    }
+    PN_NONBINARY = {
+        PN_SHE_HE_THEY: "they",
+        PN_HER_HIM_THEM: "them",
+        PN_STRANGER: "person"
+    }
+
     HUNGER_MAX = 5
     HUNGER_MAX_CALM = 2
     HUNGER_MIN = 1
@@ -65,10 +86,14 @@ init 0 python in cfg:
         "Serenely absolved undead"
     ]
 
+    MASQUERADE_MAX = 100
+    MASQUERADE_MIN = 0
+
     CLAN_BRUJAH = "Brujah"
     CLAN_NOSFERATU = "Nosferatu"
     CLAN_RAVNOS = "Ravnos"
     CLAN_VENTRUE = "Ventrue"
+    CLAN_NONE_CAITIFF = "Caitiff"
 
     REF_CLAN_EPITHET = "clan_epithet"
     REF_CLAN_NICKNAME = "clan_nickname"
@@ -94,7 +119,12 @@ init 0 python in cfg:
         CLAN_VENTRUE: {
             REF_CLAN_EPITHET: "the Clan of Kings",
             REF_CLAN_NICKNAME: "Blue Blood",
-            REF_CLAN_SLUR: "Blue Blood"
+            REF_CLAN_SLUR: "Tyrant"
+        },
+        CLAN_NONE_CAITIFF: {
+            REF_CLAN_EPITHET: "the Clanless",
+            REF_CLAN_NICKNAME: "Orphan",
+            REF_CLAN_SLUR: "Trash"
         }
     }
 
@@ -181,6 +211,26 @@ init 0 python in cfg:
     PT_BAGGER = "Bagger"  # +1 Clandestine, +Streetwise, +1 Obfuscate, more notoriety
     PT_FARMER = "Farmer"  # +1 Diplomacy, +1 Traversal, +1 Animalism, +1 Humanity, costs willpower to feed on humans
     PT_SIREN = "Siren"  # +1 Diplomacy, +1 Intrigue, +1 Presence, +Beautiful, more notoriety?
+
+    CHAR_PT_STATBLOCKS = {
+        PT_ALLEYCAT: {
+            REF_TYPE: REF_PREDATOR_TYPE, REF_DESC: "A true predator, you stalk unwary kine and {i}take{/i} what you need.",
+            SK_COMB: 1, SK_INTI: 1, AT_STR: 1
+        },
+        PT_BAGGER: {
+            REF_TYPE: REF_PREDATOR_TYPE, REF_DESC: "You prefer the bagged stuff, either negotiating or \"negotiating\" for it.",
+            SK_CLAN: 1, SK_STWS: 1, AT_INT: 1
+        },
+        PT_FARMER: {
+            REF_TYPE: REF_PREDATOR_TYPE, REF_DESC: "You don't feed from human beings at all if you can help it, hunting animals instead.",
+            SK_DIPL: 1, SK_TRAV: 1, AT_RES: 1
+        },
+        PT_SIREN: {
+            REF_TYPE: REF_PREDATOR_TYPE,
+            REF_DESC: "Feeding via seduction is a time-honored classic, and pretty reliable if you're alluring enough.",
+            SK_DIPL: 1, SK_INTR: 1, AT_CHA: 1
+        }
+    }
 
     # REF_PT_POOLS = {
     #     PT_ALLEYCAT: [
@@ -355,3 +405,6 @@ define audio.feed_heartbeat     = "audio/sound/608241__newlocknew__heart-beat-ca
 define audio.body_fall1         = "audio/sound/372226__eflexmusic__bodyfall-3-mixed.mp3"
 define audio.body_fall2         = "audio/sound/502553__kneeling__goblin-fall.mp3"
 define audio.footsteps1         = "audio/sound/318900__robinhood76__05934-heels-walking-on-pavement-looping.mp3"
+define audio.dice_roll_many     = "audio/sound/220744__dermotte__dice-06.mp3"
+define audio.dice_roll_few      = "audio/sound/353975__nettimato__rolling-dice-1.mp3"
+define audio.fleeing_footsteps1 = "audio/sound/316924__rudmer-rotteveel__footsteps-running-away-fading.mp3"

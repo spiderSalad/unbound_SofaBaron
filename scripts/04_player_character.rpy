@@ -147,12 +147,13 @@ init 1 python in game:
             self.nickname = "That lick from around the way"
             self.pronouns = {}  # TODO: implement this
             self.clan = None
-            self.predator_type = self.predator_pools = None
+            self.predator_type = None
             self.blood_potency = 1
             self._hunger = 1
             self._humanity = 7
             self.hp, self.will = Tracker(self, 3, cfg.TRACK_HP), Tracker(self, 3, cfg.TRACK_WILL)
             self.crippled, self.shocked = False, False
+            self._status = "(All clear)"
             self.clan_blurbs = {}
             self.anames, self.snames, self.dnames = anames, snames, dnames
             self.attrs = {}
@@ -161,6 +162,21 @@ init 1 python in game:
             self.disciplines = SuperpowerArsenal(self.dnames)
             self.inventory = []
             self.reset_charsheet_stats()
+
+        @property
+        def status(self):
+            status_list = []
+            if self.hunger >= cfg.HUNGER_MAX:
+                status_list.append("Starving")
+            if self.crippled:
+                status_list.append("Maimed")
+            if self.shocked:
+                status_list.append("Shellshocked")
+            if len(status_list) == 0:
+                self._status = "\"Fine\""
+            else:
+                self._status = ", ".join(status_list)
+            return self._status
 
         @property
         def hunger(self):
@@ -263,17 +279,17 @@ init 1 python in game:
                 self.unlock_discipline(cfg.DISC_ANIMALISM, cfg.VAL_DISC_INCLAN)
                 self.unlock_discipline(cfg.DISC_OBFUSCATE, cfg.VAL_DISC_INCLAN)
                 self.unlock_discipline(cfg.DISC_POTENCE, cfg.VAL_DISC_INCLAN)
-                # self.clan_blurbs[cfg.REF_CLAN_CHOSEN] = "Your curse makes feeding a hassle. People don't react well to getting a good look at you."
             elif clan == cfg.CLAN_RAVNOS:
                 self.unlock_discipline(cfg.DISC_ANIMALISM, cfg.VAL_DISC_INCLAN)
                 self.unlock_discipline(cfg.DISC_OBFUSCATE, cfg.VAL_DISC_INCLAN)
                 self.unlock_discipline(cfg.DISC_PRESENCE, cfg.VAL_DISC_INCLAN)
-                # self.clan_blurbs[cfg.REF_CLAN_CHOSEN] = "Feeding isn't the problem so much as finding a place to crash afterward."
             elif clan == cfg.CLAN_VENTRUE:
                 self.unlock_discipline(cfg.DISC_DOMINATE, cfg.VAL_DISC_INCLAN)
                 self.unlock_discipline(cfg.DISC_FORTITUDE, cfg.VAL_DISC_INCLAN)
                 self.unlock_discipline(cfg.DISC_PRESENCE, cfg.VAL_DISC_INCLAN)
-                # self.clan_blurbs[cfg.REF_CLAN_CHOSEN] = "You have certain... dietary restrictions. It's not easy being a picky vampire."
+            elif clan == cfg.CLAN_NONE_CAITIFF:
+                for dname in self.dnames:
+                    self.unlock_discipline(dname, cfg.VAL_DISC_CAITIFF)
             else:
                 raise ValueError("Invalid clan \"{}\".".format(clan))
 
@@ -282,7 +298,6 @@ init 1 python in game:
                 self.humanity -= 1
                 self.skills[cfg.SK_COMB] += 1
                 self.skills[cfg.SK_INTI] += 1
-                self.predator_pools = []
                 self.unlock_discipline(cfg.DISC_CELERITY, cfg.VAL_DISC_OUTCLAN)
                 self.unlock_discipline(cfg.DISC_POTENCE, cfg.VAL_DISC_OUTCLAN)
             elif pt == cfg.PT_BAGGER:
@@ -305,6 +320,7 @@ init 1 python in game:
                 # TODO: Enemy (1)
             else:
                 raise ValueError("\"{}\" is not a valid predator type.".format(pt))
+            self.apply_background(cfg.CHAR_PT_STATBLOCKS[pt])
             self.predator_type = pt
             self.recalculate_stats()
 
@@ -340,7 +356,7 @@ init 1 python in state:
         new_hunger = utils.nudge_int_value(pc.hunger, delta, "Hunger", floor=cfg.HUNGER_MIN_KILL if killed else cfg.HUNGER_MIN, ceiling=7)
         pc.hunger = new_hunger
         if killed and innocent:
-            pc.set_humanity("-=1")
+            set_humanity("-=1")
         if pc.hunger > cfg.HUNGER_MAX_CALM:
             renpy.show_screen(_screen_name="hungerlay", _layer = "hunger_layer", _tag = "hungerlay", _transient = False)
         else:
