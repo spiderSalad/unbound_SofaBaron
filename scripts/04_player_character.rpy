@@ -2,6 +2,7 @@ init 1 python in game:
     from math import ceil as math_ceil
 
     cfg, utils = renpy.store.cfg, renpy.store.utils
+    # NOTE: this persists between game load/cycles, as it's run when Ren'py starts - NOT when the game starts.
 
     class Tracker:
         def __init__(self, pc, boxes: int, trackertype: str, armor: int = 0, bonus: int = 0):
@@ -142,6 +143,72 @@ init 1 python in game:
         # def unlock_power(dname, power_name):
         #     if power_name not in
 
+    class Supply:
+        IT_MONEY = "money"
+        IT_WEAPON = "melee_weapon"
+        IT_FIREARM = "firearm"
+        IT_EQUIPMENT = "equipment"
+        IT_QUEST = "quest_item"
+        IT_MISC = "miscellaneous"
+        IT_JUNK = "junk"
+        IT_CLUE = "clue"
+
+        ITEM_COLOR_KEYS = {
+            IT_MONEY: "#399642", IT_JUNK: "#707070", IT_CLUE: "#ffffff", IT_WEAPON: "#8f8f8f",
+            IT_EQUIPMENT: "#cbcbdc", IT_QUEST: "#763cb7", IT_MISC: "#cbcbdc", IT_FIREARM: "#71797E"
+        }
+
+        def __init__(self, type, name, key=None, num=1, desc=None, **kwargs):
+            self.item_type = type
+            self.quantity = num
+            self.color_key = Supply.ITEM_COLOR_KEYS[self.item_type]
+            self.key = key
+            if self.key is None:
+                self.key = utils.generate_random_id_str(label="supply#{}".format(self.item_type))
+            self.name = name
+            if desc:
+                self.description = desc
+            else:
+                pass
+            for kwarg in kwargs:
+                setattr(self, kwarg, kwargs[kwarg])
+            if self.item_type == Supply.IT_FIREARM:
+                if not hasattr(self, "concealable"):
+                    self.concealable = True
+
+
+    class Inventory:
+        ITEM_TYPES = [it for it in Supply.__dict__ if str(it).startswith("IT_")]
+
+        def __init__(self, *items: Supply, **kwargs):
+            self.items = []
+            self.items += items
+
+        def __len__(self):
+            return len(self.items)
+
+        def __contains__(self, key):
+            if key in Inventory.ITEM_TYPES:
+                for item in self.items:
+                    if item.item_type == key:
+                        return True
+            else:
+                for item in self.items:
+                    if item.name == key:
+                        return True
+            return False
+
+        def add(self, new_item: Supply):
+            if new_item.item_type == Supply.IT_MONEY:
+                cash = next((it for it in self.items if it.item_type == Supply.IT_MONEY), None)
+                if cash is None:
+                    self.items.append(new_item)
+                else:
+                    cash.quantity += new_item.quantity
+            else:
+                self.items.append(new_item)
+
+
     class PlayerChar:
         def __init__(self, anames, snames, dnames):
             self.nickname = "That lick from around the way"
@@ -158,9 +225,10 @@ init 1 python in game:
             self.anames, self.snames, self.dnames = anames, snames, dnames
             self.attrs = {}
             self.skills = {}
+            self.mortal_backstory = None
             self._backgrounds = []
             self.disciplines = SuperpowerArsenal(self.dnames)
-            self.inventory = []
+            self.inventory = Inventory()
             self.reset_charsheet_stats()
 
         @property
@@ -320,7 +388,7 @@ init 1 python in game:
                 # TODO: Enemy (1)
             else:
                 raise ValueError("\"{}\" is not a valid predator type.".format(pt))
-            self.apply_background(cfg.CHAR_PT_STATBLOCKS[pt])
+            self.apply_background(cfg.CHAR_PT_STATBLOCKS[pt], bg_key=pt)
             self.predator_type = pt
             self.recalculate_stats()
 
@@ -332,13 +400,16 @@ init 1 python in game:
 
 
 init 1 python in state:
-    pc = None
+    # pc = None
     cfg, utils = renpy.store.cfg, renpy.store.utils
+
+    from store.game import Supply, Inventory
+
     gdict = cfg.__dict__
     attr_names = [getattr(cfg, aname) for aname in gdict if str(aname).startswith("AT_")]
     skill_names = [getattr(cfg, sname) for sname in gdict if str(sname).startswith("SK_")]
     discipline_names = [getattr(cfg, dname) for dname in gdict if str(dname).startswith("DISC_")]
-    pc = renpy.store.game.PlayerChar(anames=attr_names, snames=skill_names, dnames=discipline_names)
+    # pc = renpy.store.game.PlayerChar(anames=attr_names, snames=skill_names, dnames=discipline_names)
 
     def available_pc_will():
         return pc.will.boxes - (pc.will.spf_damage + pc.will.agg_damage)
@@ -371,3 +442,25 @@ init 1 python in state:
             pc.hp.damage(dtype, amount)
         else:
             pc.will.damage(dtype, amount)
+
+
+    loot_table = Inventory(
+        Supply(Supply.IT_MONEY, "Money", num=int(12.5 * 1000 * 1000 * 1000), desc="Local city's entire GDP"),
+        Supply(Supply.IT_EQUIPMENT, "Smartphone", desc="The latest and greatest in rooted burner phones. GPS disabled."),
+        Supply(Supply.IT_JUNK, "Bubble Gum", desc="You were hoping this would help with blood-breath. It doesn't."),
+        Supply(
+            Supply.IT_WEAPON, "Switchblade", lethality=2,
+            desc="You know what they say about knife fights. Good thing you're already dead."
+        ),
+        Supply(Supply.IT_FIREARM, "S & W Model 500", lethality=3, concealable=False, desc="Do you feel lucky?"),
+        Supply(
+            Supply.IT_FIREARM, "Stolen Ruger LCP", key="gun_ruger_1", lethality=2, desc="Confiscated and then re-confiscated."
+        ),
+        Supply(
+            Supply.IT_FIREARM, "Blood-spattered Colt 45", key="police_colt", lethality=2,
+            desc="I'm sure I'll need this, wherever I'm going..."
+        )
+    )
+
+
+    

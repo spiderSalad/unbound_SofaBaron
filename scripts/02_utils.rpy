@@ -1,6 +1,19 @@
 init 1 python in utils:
     from random import randint, choices as random_choices
+    from string import ascii_letters
     import json
+
+    def parse_pool_string(pool_str):
+        raw_pool_str = str(pool_str)
+        phases, contests = raw_pool_str.split(","), []
+        for phase in phases:
+            pools, phase_options = phase.split("/"), []
+            for pool in pools:
+                 pool_params = [str(prm).capitalize() for prm in pool.split("+")]
+                 pretty_pool_str = " + ".join(pool_params)
+                 phase_options.append(pretty_pool_str)
+            contests.append(phase_options)
+        return contests
 
     def translate_dice_pool_params(pool_params):
         adjusted_params = []
@@ -66,7 +79,7 @@ init 1 python in utils:
         return random_choices(collection, k=1)
 
     def generate_random_id_str(leng=6, label: str = None):
-        return "{}_{}".format(label if label else "rid", ''.join(random_choices(string.ascii_letters, k=leng)))
+        return "{}_{}".format(label if label else "rid", ''.join(random_choices(ascii_letters, k=leng)))
 
     def make_dice_roll(max_val, num_dice):
         return [randint(1, max_val) for _ in range(num_dice)]

@@ -12,16 +12,11 @@
 
 label hunt_confirm(pool_desc_raw, hunt_warning):
     python:
-        hunt_phases = pool_desc_raw.split(",")
-        phase_desc_full = []
-        for hp in hunt_phases:
-            hunt_options = hp.split("/")
-            hopt_desc_full = []
-            for hopt in hunt_options:
-                hopt_params = [str(op).capitalize() for op in hopt.split("+")]
-                hopt_desc_full.append("{}".format(" + ".join(hopt_params)))
-            phase_desc_full.append(" or ".join(hopt_desc_full))
-        final_text = ", then ".join(phase_desc_full)
+        pool_org, pool_tokens = renpy.store.utils.parse_pool_string(pool_desc_raw), []
+        for phase in pool_org:
+            phase_str = "/".join(phase)
+            pool_tokens.append(phase_str)
+        final_text = ", then ".join(pool_tokens)
 
 
     menu:
@@ -66,9 +61,12 @@ label hunt_alley_cat(status):
 
         "You park in a secluded spot and start looking for a good mark - someone tired, someone drunk (but not {i}too{/i} drunk), someone unwary."
 
+        call generic_hunt_results("wits+streetwise", "diff3", "strength+combat", "diff3") from alley_cat_temp_test_river
+        jump .end
+
         # TODO: add Blood Surge, probably a button that's always there and sometimes enabled
 
-        call roll_control("wits+streetwise", "diff3") from hunt_river_phase1
+        # call roll_control("wits+streetwise", "diff3") from hunt_river_phase1
 
         label .river_drain:
             ""
@@ -88,7 +86,10 @@ label hunt_alley_cat(status):
 
     label .plaza:
 
-        ""
+        "plaza test"
+
+        call generic_hunt_results("wits+inspection", "diff3", "charisma+intimidation", "diff3") from alley_cat_temp_test_plaza
+        jump .end
 
     label .end:
 
@@ -125,11 +126,15 @@ label hunt_bagger(status):
 
     label .plug:
 
-        ""
+        call generic_hunt_results("intelligence+streetwise", "diff3", "composure+intrigue", "diff3") from bagger_temp_test_plug
+        "bagger.plug hunt test end"
+        jump .end
 
     label .clinic:
 
-        ""
+        call generic_hunt_results("resolve+technology", "diff3", "manipulation+academics", "diff3") from bagger_temp_test_clinic
+        "bagger.clinic hunt test end"
+        jump .end
 
     label .end:
 
@@ -155,7 +160,7 @@ label hunt_farmer(status):
 
             $ hw = "{b}It's pretty humiliating either way{/b}. Even if other Kindred don't witness our shame, {i}we{/i} will."
 
-            call hunt_confirm("intelligence+streetwise,composure+intrigue", hw) from farmer_trash
+            call hunt_confirm("intelligence+traversal,composure+clandestine", hw) from farmer_trash
             if _return:
                 jump hunt_farmer.trash
             jump hunt_farmer.options
@@ -165,11 +170,12 @@ label hunt_farmer(status):
 
     label .trash:
 
-        ""
+        call generic_hunt_results("intelligence+traversal", "diff3", "composure+clandestine", "diff3") from farmer_temp_test
+        jump .end
 
     label .shelter:
 
-        ""
+        "shelter test (not implemented)"
 
     label .end:
 
@@ -225,7 +231,9 @@ label hunt_siren(status):
         else:
             $ desired = state.siren_orientation
 
-        ""
+        # TODO: specific hunting text
+        call generic_hunt_results("composure+streetwise", "diff3", "charisma+intrigue", "diff3") from siren_temp_test
+        jump .end
 
     label .party_maybe:
 
@@ -234,7 +242,8 @@ label hunt_siren(status):
         else:
             $ desired = state.siren_orientation
 
-        ""
+        "party (maybe?) test - not implemented"
+        jump .end
 
     label .end:
 
@@ -242,48 +251,68 @@ label hunt_siren(status):
 
 
 label generic_hunt_results(scoping_pool, scoping_test, feeding_pool, feeding_test):
-
     call roll_control(scoping_pool, scoping_test) from generic_hunt_scope_roll
-    jump expression renpy.store.game.pass_fail(_return, ".scope_win", ".scope_fail")
+    $ tll = "generic_hunt_results"
+    jump expression renpy.store.game.pass_fail(_return, ".scope_win", ".scope_fail", top_label=tll)
 
     label .scope_win:
         "> Successfully scoped out target."
-        $ state.roll_bonus = roll_obj.margin
+        $ state.roll_bonus = state.current_roll.margin
         jump .feed_roll
 
     label .scope_fail:
         "> Difficulty scoping out target. Penalty applied."
-        $ state.roll_malus = abs(roll_obj.margin)
+        $ state.roll_malus = abs(state.current_roll.margin)
         jump .feed_roll
 
 
     label .feed_roll:
         call roll_control(feeding_pool, feeding_test)
+        $ tll = "generic_hunt_results"
+        jump expression renpy.store.game.manual_roll_route(_return, ".win", ".fail", mc=".messy", crit=".crit", bfail=".beastfail", top_label=tll)
 
 
     label .messy:  # A dead body - you also get here if your hunger is high and you fail a willpower roll
-
-        ""
+        $ state.set_hunger(0, killed=True, innocent=True)
+        "You find yourself standing over a dead body. The problem of your Hunger is dealt with, but now you have a different problem."
+        return
 
     label .crit:  # You feed successfully and get a bonus
-        ""
+        $ state.set_hunger("-=2")
+        "That could hardly have gone better."
+        return
 
     label .win:  # successful feeding, hunger slaked depends on margin (always 1 or 2, or 3 if humanity is low)
-        ""
+        $ temp_margin, max_slaked = state.current_roll.margin, 2 if pc.humanity > cfg.KILL_HUNT_HUMANITY_THRESHOLD_INC else 3
+        $ slaked_hunger = max(1, min(max_slaked, int(temp_margin)))
+        $ state.set_hunger("-={}".format(slaked_hunger))
+        if slaked_hunger > 2:
+            "You drink your fill, and leave your prey in a daze. They'll be fine, assuming someone notices them in time."
+        elif slaked_hunger == 2:
+            "You drink deeply, but not {i}too{/i} deeply."
+        else:
+            "You take a few good gulps; just enough to take the edge off before you have to split."
+        return
 
     label .fail:  # You fail to feed
-        ""
+        "That could have gone better. You fail to feed, but manage a clean escape."
+        return
 
     label .beastfail:  # You fail to feed and get penalized further
-        ""
+        beast "YOU INCOMPETENT, MISERABLE LITTLE-"
 
-    return
+        "Your vision goes red. There are screams, the sound of shattering glass, and what might have been a gunshot."
+
+        "You come to your senses in an alley."
+        return
+
+    $ raise ValueError("Shouldn't reach here!")
 
 
 label pc_gender_preference:
 
     menu:
-        beast "So... what are we looking for?"
+        beast "So... who are we looking for?"
 
         "Men.":
             $ state.siren_orientation = cfg.PN_MEN

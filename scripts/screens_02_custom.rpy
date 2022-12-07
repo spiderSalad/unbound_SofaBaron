@@ -95,8 +95,8 @@ screen repbar(trueValue, trueMax, valueAdjust, includeName = None):
 
 
 # Screen that just builds grids
-screen buildGrid(nrows, ncols, numItems, _xspacing = 10, _yspacing = 10, _xpadding = 5, _ypadding = 5, _transpose = False):
-    $ numdummies = (nrows * ncols) - numItems
+screen buildGrid(nrows, ncols, num_items, _xspacing = 10, _yspacing = 10, _xpadding = 5, _ypadding = 5, _transpose = False):
+    $ num_dummies = (nrows * ncols) - num_items
     frame style style.utility_frame padding (_xpadding, _ypadding) xalign 0.5:
         grid nrows ncols align (0.5, 0.5) xfill True yfill True:
             transpose _transpose
@@ -104,7 +104,7 @@ screen buildGrid(nrows, ncols, numItems, _xspacing = 10, _yspacing = 10, _xpaddi
             yspacing _yspacing
 
             transclude
-            for count in range(numdummies):
+            for count in range(num_dummies):
                 null align (0.5, 0.5)
 
 
@@ -125,8 +125,9 @@ screen codexTopRow():
                     text "[pc.nickname]\n[pc.clan]\n11th {color=#cc0000}([pc.blood_potency]){/color}[ptname]" text_align 1.0 size 18 xalign 1.0 line_spacing 7
 
             frame id "pane_soulstate" align (0.4, 0.0) xysize (202, 126):
-                $ humanityPhrase = cfg.HUMANITY_BLURBS[pc.humanity - 4]
-                $ hungerPhrase = cfg.HUNGER_BLURBS[pc.hunger][int(pc.humanity) - cfg.MIN_HUMANITY]
+                $ humanityPhrase = cfg.HUMANITY_BLURBS[pc.humanity - cfg.MIN_HUMANITY]
+                $ hung_hum_index = max(0, int(pc.humanity) - cfg.MIN_HUMANITY - 1)
+                $ hungerPhrase = cfg.HUNGER_BLURBS[pc.hunger][hung_hum_index]
                 vbox spacing 2:
                     use dotchain("Humanity", pc.humanity - 3, dotcolor="bright", format="stack", dfsize=(190, 60), tool_tip=humanityPhrase)
                     use dotchain("Hunger", pc.hunger, format="stack", dfsize = (190, 60), tool_tip=hungerPhrase)
@@ -181,7 +182,7 @@ screen codexScoresPage(*args):
     $ pc, cfg = renpy.store.state.pc, renpy.store.cfg
 
     use codexBaseFrame("scores"):  # TODO: re-implement tool_tips, resize everything
-        style_prefix "codex_panel"
+        style_prefix "codex_panel"  # Current pane heights: 240 + 14 + 325 in baseframe of 580
         vbox spacing 14:
             frame id "pane_attributes" xalign 0.5 ysize 240:
                 use buildGrid(gui.GRID_ROWS_ALLSCORES, gui.GRID_COLS_ATTRS, gui.GRID_ROWS_ALLSCORES * gui.GRID_COLS_ATTRS, _transpose = True):
@@ -199,7 +200,7 @@ screen codexScoresPage(*args):
 
 
 # Character sheet tab showing discipline powers and maybe merits/Hardestadt loresheet if I get that far
-screen codexPowersPage(*args):
+screen codexPowersPage(*args):  # current pane heights: 120 + 14 + 445 = 579/580
     tag codexPage
     modal False
     $ cfg, pc = renpy.store.cfg, renpy.store.state.pc
@@ -207,7 +208,7 @@ screen codexPowersPage(*args):
     use codexBaseFrame("powers"):
         style_prefix "codex_panel"
         vbox spacing 14:
-            frame id "pane_merits" xalign 0.5 ysize 80 padding (10, 10):
+            frame id "pane_merits" xalign 0.5 ysize 120 padding (10, 10):
                 #$ leng = len(pc.merits)
                 if len(merits_and_flaws) > 0: # Shouldn't be more than 3
                     hbox xfill True:
@@ -222,7 +223,7 @@ screen codexPowersPage(*args):
                 else:
                     hbox xfill True yalign 0.5:
                         text "Nothing special unlocked or discovered." text_align 0.5 xalign 0.5 yalign 0.5
-            frame id "pane_disciplines" xalign 0.5 ysize 220:  # TODO: left off here, and in new SuperpowerArsenal class
+            frame id "pane_disciplines" xalign 0.5 ysize 445:  # TODO: left off here, and in new SuperpowerArsenal class
                 $ unlocked_ds = pc.disciplines.get_unlocked()
                 hbox xfill True:
                     for count, ul_disc in enumerate(unlocked_ds):
@@ -257,16 +258,25 @@ screen codexStatusPage(*args):
         $ pc = state.pc
         style_prefix "codex_panel"
         vbox spacing 14:
-            frame id "pane_opinions" xalign 0.5 ysize 120 padding (10, 15):
+            frame id "pane_opinions" xalign 0.5 ysize 205 padding (10, 15):
                 use buildGrid(gui.REP_GRID_ROWS, gui.REP_GRID_COLS, len(state.opinions), 10, 15):
                     for count, reputation in enumerate(state.opinions):
                         use repbar(state.opinions[reputation], cfg.REP_MAX, cfg.REP_VALUE_ADJUST, includeName=reputation)
-            frame id "pane_backgrounds" xalign 0.5 ysize 180 padding (10, 10):
-                use buildGrid(gui.BG_GRID_ROWS, gui.BG_GRID_COLS, len(pc.backgrounds), 10, 10):
+            frame id "pane_backgrounds" xalign 0.5 ysize 360 padding (10, 10):
+                #use buildGrid(gui.BG_GRID_ROWS, gui.BG_GRID_COLS, len(pc.backgrounds), 10, 10):
+                use buildGrid(2, 4, len(pc.backgrounds), 10, 10):
                     for count, asset in enumerate(pc.backgrounds):
                         $ dcolor = "dark" if asset[cfg.REF_TYPE] == cfg.REF_BG_FLAW else "red"
+                        $ print("\n\nAAAAH\n\n", asset)
                         $ altname = (asset[cfg.REF_BG_NAME] + " Flaw") if asset[cfg.REF_TYPE] == cfg.REF_BG_FLAW else (asset[cfg.REF_BG_NAME])
-                        use dotchain(asset[cfg.REF_BG_NAME], asset[cfg.REF_DOTS], altname=altname, dotcolor=dcolor, format="merit")
+                        if asset[cfg.REF_TYPE] == cfg.REF_BG_PAST:
+                            $ print("---1----REF TYPE is {}".format(asset[cfg.REF_TYPE]))
+                            use hovertext("Mortal background: {}".format(asset[cfg.REF_BG_NAME]), asset[cfg.REF_DESC], "big")
+                        elif asset[cfg.REF_TYPE] == cfg.REF_PREDATOR_TYPE:
+                            use hovertext("Predator Type: {}".format(asset[cfg.REF_BG_NAME]), asset[cfg.REF_DESC], "big")
+                        else:
+                            $ print("---2----REF TYPE is {}".format(asset[cfg.REF_TYPE]))
+                            use dotchain(asset[cfg.REF_BG_NAME], asset[cfg.REF_DOTS], altname=altname, dotcolor=dcolor, format="merit")
 
 
 # Shows character inventory and case notes, i.e. quest log
@@ -277,9 +287,9 @@ screen codexCasefilesPage(*args):
     use codexBaseFrame("casefiles"):
         style_prefix "codex_panel"
         vbox spacing 14:
-            frame id "pane_inventory" xalign 0.5 ysize 130:
+            frame id "pane_inventory" xalign 0.5 ysize 250:
                 use buildGrid(4, 3, len(state.pc.inventory), 5, 10):
-                    for count, item in enumerate(state.pc.inventory):
+                    for count, item in enumerate(state.pc.inventory.items):
                         frame style style.utility_frame:
                             python:
                                 global itemTable
@@ -301,7 +311,7 @@ screen codexCasefilesPage(*args):
                                 action NullAction()
                                 hovered ShowTransient("hovertip", None, "{}".format(tool_tip))
                                 unhovered Hide("hovertip", None)
-            frame id "pane_case_log" xalign 0.5 ysize 170 padding (10, 10):
+            frame id "pane_case_log" xalign 0.5 ysize 315 padding (10, 10):
                 text "This will basically be a quest log."
 
 
@@ -312,7 +322,7 @@ screen codexInfoPage(*args):
 
     use codexBaseFrame("info"):
         style_prefix "codex_panel"
-        frame id "glossary" ysize 314 padding (10, 10):
+        frame id "glossary" ysize 579 padding (10, 10):
             text "Glossary goes here, eventually"
 
 
@@ -354,12 +364,12 @@ screen disciplineTree(*args):
 # Used to display tool_tips
 screen hovertip(tip, *args):
     frame background Frame("gui/frame.png", Borders(5, 5, 5, 5)):
-        xmaximum 250
-        ymaximum 160
+        xmaximum 312
+        ymaximum 200
         # ysize 80
         pos renpy.get_mouse_pos()
         padding (10, 10)
-        text "[tip]" size 12 xfill True yfill True
+        text "[tip]" size 18 xfill True yfill True
 
 # Should show at 3 hunger or more and intensify
 screen hungerlay():

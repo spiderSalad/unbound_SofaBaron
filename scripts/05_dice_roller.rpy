@@ -179,11 +179,31 @@ init 1 python in game:
             self.current_roll.calculate()
             return self.current_roll
 
-    def pass_fail(roll_obj, win_label, loss_label):
+
+    def pass_fail(roll_obj, win_label, loss_label, top_label=""):
         try:
-            return win_label if roll_obj.outcome in V5DiceRoll.RESULT_ANY_WIN else loss_label
+            return top_label + win_label if roll_obj.outcome in V5DiceRoll.RESULT_ANY_WIN else top_label + loss_label
         except:
-            return loss_label
+            return top_label + loss_label
+
+    def manual_roll_route(roll_obj, win, fail, mc=None, crit=None, bfail=None, top_label=""):
+        if mc is None and crit is None and bfail is None:
+            return pass_fail(roll_obj, win, fail, top_label=top_label)
+        outcome = roll_obj.outcome
+        if outcome == V5DiceRoll.RESULT_MESSY_CRIT:
+            if mc or crit:
+                return top_label + mc if mc else top_label + crit
+            return top_label + win
+        elif outcome == V5DiceRoll.RESULT_CRIT:
+            return top_label + crit if crit else top_label + win
+        elif outcome == V5DiceRoll.RESULT_BESTIAL_FAIL:
+            return top_label + bfail if bfail else top_label + fail
+        elif outcome == V5DiceRoll.RESULT_WIN:
+            return top_label + win
+        elif outcome == V5DiceRoll.RESULT_FAIL:
+            return top_label + fail
+        else:
+            raise ValueError("\"{}\" is not a valid roll outcome.".format(outcome))
 
 
 init python in state:

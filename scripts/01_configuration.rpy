@@ -1,6 +1,7 @@
 init 0 python in cfg:
     from string import ascii_letters, digits
 
+    # NOTE: this persists between game load/cycles, as it's run when Ren'py starts - NOT when the game starts.
     DEV_MODE = True
     DEV_MUTE_MUSIC = False
     KEY_INPUT_ENABLED = False
@@ -156,7 +157,10 @@ init 0 python in cfg:
     AT_WIT = "Wits"
     AT_RES = "Resolve"
 
-    REF_ATTR_ORDER = [AT_STR, AT_DEX, AT_STA, AT_CHA, AT_MAN, AT_COM, AT_INT, AT_WIT, AT_RES]
+    REF_PHYSICAL_ATTRS = [AT_STR, AT_DEX, AT_STA]
+    REF_SOCIAL_ATTRS = [AT_CHA, AT_MAN, AT_COM]
+    REF_MENTAL_ATTRS = [AT_INT, AT_WIT, AT_RES]
+    REF_ATTR_ORDER = REF_PHYSICAL_ATTRS + REF_SOCIAL_ATTRS + REF_MENTAL_ATTRS
 
     SK_ATHL = "Athletics"
     SK_CLAN = "Clandestine"  # Larceny, Stealth
@@ -174,11 +178,10 @@ init 0 python in cfg:
     SK_SCIE = "Science"  # Science, Medicine
     SK_TECH = "Technology"
 
-    REF_SKILL_ORDER = [
-        SK_ATHL, SK_CLAN, SK_COMB, SK_FIRE, SK_TRAV,
-        SK_DIPL, SK_INTI, SK_INTR, SK_LEAD, SK_STWS,
-        SK_ACAD, SK_INSP, SK_OCCL, SK_SCIE, SK_TECH
-    ]
+    REF_PHYSICAL_SKILLS = [SK_ATHL, SK_CLAN, SK_COMB, SK_FIRE, SK_TRAV]
+    REF_SOCIAL_SKILLS = [SK_DIPL, SK_INTI, SK_INTR, SK_LEAD, SK_STWS]
+    REF_MENTAL_SKILLS = [SK_ACAD, SK_INSP, SK_OCCL, SK_SCIE, SK_TECH]
+    REF_SKILL_ORDER = REF_PHYSICAL_SKILLS + REF_SOCIAL_SKILLS + REF_MENTAL_SKILLS
 
     ROLL_TEST = "diff"
     ROLL_CONTEST = "pool"
@@ -195,16 +198,68 @@ init 0 python in cfg:
     BG_ENEMY = "Enemy"
 
     CHAR_BACKGROUNDS = {
-        "Med Student": {
-            REF_TYPE: REF_BG_PAST, REF_DESC: "You could have become a doctor, one day.",
-            REF_ATTRS_ALL: 1, AT_DEX: 1, AT_CHA: -1, AT_COM: 1, AT_INT: 1, AT_RES: 1,
-            REF_SKILLS_ALL: 1, SK_TECH: 1, SK_SCIE: 2, SK_LEAD: 1, SK_ACAD: 2, SK_INSP: 2, SK_INTI: -1, SK_ATHL: -1
+        "Nursing Student": {
+            REF_TYPE: REF_BG_PAST, REF_DESC: "You could have become a nurse one day. You could have helped people.",
+            REF_ATTRS_ALL: 1, AT_MAN: 1, AT_COM: 1, AT_INT: 1, AT_RES: 1,
+            REF_SKILLS_ALL: 1, SK_TECH: 1, SK_SCIE: 2, SK_LEAD: 1, SK_ACAD: 2, SK_INSP: 2, SK_INTI: -1, SK_ATHL: -1, SK_FIRE: -1
+        },
+        "Star Athlete": {
+            REF_TYPE: REF_BG_PAST, REF_DESC: "You can still remember it all. The sweat, the adrenaline, the sun on your face, the cheers...",
+            REF_ATTRS_ALL: 1, AT_STR: 1, AT_DEX: 1, AT_STA: 2, AT_CHA: 1, AT_COM: 1, AT_RES: 1,
+            REF_SKILLS_ALL: 1, SK_DIPL: 1, SK_LEAD: 1, SK_ACAD: 1, SK_ATHL: 2, SK_OCCL: -1
+        },
+        "Bartender": {
+            REF_TYPE: REF_BG_PAST, REF_DESC: "You exist at the intersection of so many lives. One of the few things that hasn't changed.",
+            REF_ATTRS_ALL: 1, AT_STR: -1, AT_DEX: 1, AT_CHA: 2, AT_MAN: 1, AT_COM: 1, AT_WIT: 1,
+            REF_SKILLS_ALL: 1, SK_DIPL: 2, SK_INSP: 1, SK_STWS: 2, SK_INTR: 2, SK_TRAV: 1,
+            SK_ATHL: -1, SK_FIRE: -1, SK_OCCL: -1, SK_SCIE: -1
+        },
+        "Veteran": {
+            REF_TYPE: REF_BG_PAST, REF_DESC: "The more things change, the more they stay the same.",
+            REF_ATTRS_ALL: 1, AT_DEX: 1, AT_STA: 1, AT_CHA: -1, AT_COM: 1, AT_WIT: 2,
+            SK_ACAD: 1, SK_ATHL: 2, SK_COMB: 3, SK_TRAV: 2, SK_FIRE: 3, SK_INSP: 2, SK_STWS: 2, SK_INTR: 1, SK_INTI: 3, SK_TECH: 2
         },
         BG_BEAUTIFUL: {REF_TYPE: REF_BG_MERIT, REF_DOTS: 2, REF_DESC: "You've got beguiling, head-turning looks."},
         BG_ENEMY: {
             REF_TYPE: REF_BG_FLAW, REF_DESC: "Some mortal has it out for you. They may even know who you are, though hopefully not {i}what{/i}."
         }
     }
+
+    for key in CHAR_BACKGROUNDS:
+        bg = CHAR_BACKGROUNDS[key]
+        if REF_TYPE in bg and bg[REF_TYPE] == REF_BG_PAST:
+            phys_attr_points, phys_skill_points = 0, 0
+            socl_attr_points, socl_skill_points = 0, 0
+            ment_attr_points, ment_skill_points = 0, 0
+            for key2 in bg:
+                val = bg[key2]
+                if key2 == REF_ATTRS_ALL:
+                    phys_attr_points += val * 3
+                    socl_attr_points += val * 3
+                    ment_attr_points += val * 3
+                elif key2 == REF_SKILLS_ALL:
+                    phys_skill_points += val * 5
+                    socl_skill_points += val * 5
+                    ment_skill_points += val * 5
+                elif key2 in REF_PHYSICAL_ATTRS:
+                    phys_attr_points += val
+                elif key2 in REF_SOCIAL_ATTRS:
+                    socl_attr_points += val
+                elif key2 in REF_MENTAL_ATTRS:
+                    ment_attr_points += val
+                elif key2 in REF_PHYSICAL_SKILLS:
+                    phys_skill_points += val
+                elif key2 in REF_SOCIAL_SKILLS:
+                    socl_skill_points += val
+                elif key2 in REF_MENTAL_SKILLS:
+                    ment_skill_points += val
+            attr_points = phys_attr_points + socl_attr_points + ment_attr_points
+            skill_points = phys_skill_points + socl_skill_points + ment_skill_points
+            print("\"{}\":\nAttr points: ({} physical/{} social/{} mental) ({} total)\nSkill points: ({} physical/{} social/{} mental) ({} total)".format(
+                key, phys_attr_points, socl_attr_points, ment_attr_points, attr_points,
+                phys_skill_points, socl_skill_points, ment_skill_points, skill_points
+            ))
+
 
     REF_PREDATOR_TYPE = "predator_type"
     PT_ALLEYCAT = "Alley Cat"  # +1 Combat, +1 Intimidation, +1 Potence, -1 Humanity, +3 Contacts

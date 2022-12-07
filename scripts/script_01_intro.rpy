@@ -36,7 +36,8 @@ label start:
 
 label intro:
 
-    $ cfg = renpy.store.cfg
+    $ cfg, game = renpy.store.cfg, renpy.store.game
+    $ state.pc = game.PlayerChar(anames=state.attr_names, snames=state.skill_names, dnames=state.discipline_names)
 
     # Show a background. This uses a placeholder by default, but you can
     # add a file (named either "bg room.png" or "bg room.jpg") to the
@@ -51,10 +52,12 @@ label intro:
     # show eileen happy
 
     # start at hunger 3
-    $ renpy.store.state.set_hunger(3)
+    $ state.set_hunger(3)
     play sound audio.beastgrowl1
 
     "You awaken the moment the sun goes down, and find yourself lying in a pile of garbage."
+
+    $ state.pc.inventory.add(game.Supply(game.Supply.IT_MONEY, "Cash", num=105))
 
     james "Holy shit, you're alive! Thought for sure you was dead."
 
@@ -177,22 +180,68 @@ label intro:
 
     label .end:
 
-        jump haven.main
+        #jump haven.main
+        jump backstory
+
+
+label backstory:
+
+    $ state = renpy.store.state
+    # TODO: add flavor to make this more interesting later, same with clan and predator type choices
+
+    if state.intro_man_drank and state.intro_man_killed:
+        $ blurb_having = "Having slaked your Hunger and secured the Masquerade around yourself - for the time being, anyway - "
+    elif state.intro_man_drank:
+        $ blurb_having = "Having temporarily brought your endless Hunger under control, "
+    elif state.intro_man_killed:
+        $ blurb_having = "Having dealt with that minor Masquerade breach, "
+    else:
+        $ blurb_having = "Doing your best to ignore the Hunger gnawing at the back of your brain, "
+
+    "[blurb_having]you begin the long trek back to your haven."
+
+    "It takes a few minutes for you to figure out where you actually are, but eventually you spot a familiar underpass and head north."
+
+    if state.pc.hunger > 2:
+        $ blurb_having = "Even with the throbbing ache in your head that burns its way down into your gums and behind your eyes, the "
+    else:
+        $ blurb_having = "The "
+
+    "[blurb_having]walk is long enough that your mind begins to drift."
+
+    "Back to the days when you walked in the sun, before the life was drained from you in a twitching paroxysm of pleasure and horror and shame."
+
+    "Before the deep, black, numb {i}nothingness{/i} that felt like an eternity (later you learned it was less than half an hour)."
+
+    "Before the red-hot hooks of the Hunger burrowed down to your core and dragged you from the void, kicking and screaming."
+
+    "It wasn't {i}that{/i} long ago in the grand scheme of things. You're still a neonate, after all."
+
+    menu:
+        "But before, you were..."
+
+        "A nursing student in residency.":  # Mental (3), Social (3), Physical (1)
+            $ state.pc.mortal_backstory = "Nursing Student"
+
+        "A star athlete, attending college on a scholarship.":  # Physical (3), Social (2), Mental (2)
+            $ state.pc.mortal_backstory = "Star Athlete"
+
+        "Bartender and host at a club across town":  # Social (3), Physical (2), Mental (2)
+            $ state.pc.mortal_backstory = "Bartender"
+
+        "A veteran between jobs and houses.":  # Physical (4), Mental (2), Social (1)
+            $ state.pc.mortal_backstory = "Veteran"
+
+    $ state.pc.apply_background(cfg.CHAR_BACKGROUNDS[state.pc.mortal_backstory], bg_key=state.pc.mortal_backstory)
+
+    beast "Enough navel-gazing, \"[state.pc.mortal_backstory]\". We're almost home."
+
+    "And you are, though you take a circuitous route that doubles back on itself a few times. Less likely you're followed that way."
+
+    jump haven.main
 
 
 label clan_choice:
-
-    $ state = renpy.store.state
-    # TODO: add flavor to make this more interesting later, same with predator type choices
-
-    if state.intro_man_drank and state.intro_man_killed:
-        "Having slaked your Hunger and secured the Masquerade around yourself - for the time being, anyway - you return to your haven."
-    elif state.intro_man_drank:
-        "Having temporarily brought your endless Hunger under control, you make your way back to your haven."
-    elif state.intro_man_killed:
-        "Having dealt with that minor Masquerade breach, you return to your haven."
-    else:
-        "You return to your haven, Hunger gnawing at the back of your brain."
 
     "Here you're as safe and secure as you'll ever be, unless you somehow manage to improve your rather dismal situation."
 
@@ -211,11 +260,11 @@ label clan_choice:
             $ state.clan_slur = pc.clan_blurbs[cfg.REF_CLAN_SLUR]
             "\"The Learned Clan\". Someone's idea of a joke, you guess."
 
-            "Or maybe not. Apparently your Clan used to be something more than lowly ticks scrabbling in the dirt."
+            "Or maybe not. Apparently your Clan used to be something more than ornery ticks scrabbling in the dirt."
 
-            "Well, at least your Clan can bite harder than most. Even the lowliest [state.clan_slur] can expect"
+            "At least the other breeds of tick understand that your Clan bites hardest. Smart Kindred think twice before pissing off even the lowliest [state.clan_slur]. In person, anyway."
 
-            "You sometimes struggle to control your temper. Even more so than usual for a vampire, or so you've been told."
+            "You often struggle to control your temper. Even more so than what's normal for vampires, or so you've been told."
 
         "[clan_choice_nosferatu]":
             $ state.pc.choose_clan(cfg.CLAN_NOSFERATU)
