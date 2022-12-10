@@ -111,14 +111,14 @@ screen say(who, what):
         text what id "what"
 
     # CHANGED: sidebar, components, and transform below
-    frame id "calendar" align (0.0, 0.0) xysize (100, 40) background Frame("gui/frame.png"):
+    frame id "calendar" align (0.0, 0.0) xysize (270, 40) background Frame("gui/frame.png"):
         padding (7, 5)
         xfill False
         yfill False
 
-        $ global day
+        $ state = renpy.store.state
 
-        text "Night [renpy.store.state.night]" id "nightcounter" text_align 0.5 align(0.5, 0.5) size 18
+        text "Night [state.clock.night]:  [state.clock.hours] hours left" id "nightcounter" text_align 0.5 align(0.5, 0.5) size 18
 
     window id "sidebar" align (1.0, 0.0) ysize 224 background Frame("gui/frame.png"):
         padding (10, 15, 10, 0)

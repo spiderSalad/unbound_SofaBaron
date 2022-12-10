@@ -52,6 +52,10 @@ label hunt_alley_cat(status):
                 jump hunt_alley_cat.plaza
             jump hunt_alley_cat.options
 
+        "Actually, I'd rather not hunt right now.":
+            $ state.outside_haven = False
+            return
+
 
     label .river:
 
@@ -88,7 +92,7 @@ label hunt_alley_cat(status):
 
         "plaza test"
 
-        call generic_hunt_results("wits+inspection", "diff3", "charisma+intimidation", "diff3") from alley_cat_temp_test_plaza
+        call generic_hunt_results("wits+inspection", "diff3", "charisma+intimidation/manipulation+diplomacy", "diff3") from alley_cat_temp_test_plaza
         jump .end
 
     label .end:
@@ -123,6 +127,10 @@ label hunt_bagger(status):
                 jump hunt_bagger.clinic
             jump hunt_bagger.options
 
+        "Actually, I'd rather not hunt right now.":
+            $ state.outside_haven = False
+            return
+
 
     label .plug:
 
@@ -132,7 +140,7 @@ label hunt_bagger(status):
 
     label .clinic:
 
-        call generic_hunt_results("resolve+technology", "diff3", "manipulation+academics", "diff3") from bagger_temp_test_clinic
+        call generic_hunt_results("resolve+technology", "diff3", "manipulation+academics/wits+clandestine", "diff3") from bagger_temp_test_clinic
         "bagger.clinic hunt test end"
         jump .end
 
@@ -150,13 +158,13 @@ label hunt_farmer(status):
     menu:
         beast "You realize that the other Kindred are all laughing at us, don't you? The {i}thinbloods{/i} are probably laughing at us."
 
-        "I think I'll check out the dumpsters behind some of the more questionable restaurants. Spotty health standards means lots of vermin.":
+        "I think I'll check out the dumpsters behind some of the more questionable restaurants. Spotty health standards mean lots of vermin.":
 
             "So long as you pick a secluded spot that will stay deserted long enough for you to drink your fill."
 
             "You're not sure where getting caught sucking on live rats falls on the sliding scale of Masquerade violations..."
 
-            "...but what a humiliating reason to be dragged before one of the Barons - or worse, the actual Sheriff."
+            "...but it'd be a pretty humiliating reason to be dragged before one of the Barons - or worse, the actual Sheriff."
 
             $ hw = "{b}It's pretty humiliating either way{/b}. Even if other Kindred don't witness our shame, {i}we{/i} will."
 
@@ -166,6 +174,10 @@ label hunt_farmer(status):
             jump hunt_farmer.options
 
         # TBA: Break into a kill shelter
+
+        "Actually, I'd rather not hunt right now.":
+            $ state.outside_haven = False
+            return
 
 
     label .trash:
@@ -180,6 +192,8 @@ label hunt_farmer(status):
     label .end:
 
         "So ends another hunt."
+
+    return
 
 
 label hunt_siren(status):
@@ -213,15 +227,20 @@ label hunt_siren(status):
             $ hw = "Careful, friend. You never know which trashblood tick might have staked a claim over this or that watering hole or dance floor."
 
             call hunt_confirm("composure+streetwise,charisma+intrigue/charisma+diplomacy", hw) from siren_club
+            $ retval = _return
 
             if not state.siren_type_chosen:
                 call pc_gender_preference from siren_first_hunt
 
-            if _return:
+            if retval:
                 jump hunt_siren.club
             jump hunt_siren.options
 
         # TBA: Some other hookup spot
+
+        "Actually, I'd rather not hunt right now.":
+            $ state.outside_haven = False
+            return
 
 
     label .club:
@@ -232,7 +251,7 @@ label hunt_siren(status):
             $ desired = state.siren_orientation
 
         # TODO: specific hunting text
-        call generic_hunt_results("composure+streetwise", "diff3", "charisma+intrigue", "diff3") from siren_temp_test
+        call generic_hunt_results("composure+streetwise", "diff3", "charisma+intrigue/charisma+diplomacy", "diff3") from siren_temp_test
         jump .end
 
     label .party_maybe:
@@ -249,54 +268,67 @@ label hunt_siren(status):
 
         "So ends another hunt."
 
+    return
+
 
 label generic_hunt_results(scoping_pool, scoping_test, feeding_pool, feeding_test):
     call roll_control(scoping_pool, scoping_test) from generic_hunt_scope_roll
-    $ tll = "generic_hunt_results"
+    $ cfg = store.cfg
+    $ tll, time_spent = "generic_hunt_results", cfg.STANDARD_HUNT_TIME
     jump expression renpy.store.game.pass_fail(_return, ".scope_win", ".scope_fail", top_label=tll)
 
     label .scope_win:
-        "> Successfully scoped out target."
-        $ state.roll_bonus = state.current_roll.margin
+        $ state.roll_bonus, state.roll_malus = state.current_roll.margin, 0
+        $ time_spent = max(time_spent - state.roll_bonus, cfg.MIN_ACTIVITY_TIME)
+        "> Successfully scoped out target. Hunt duration reduced to [time_spent] hours, +[state.roll_bonus] to feed roll."
         jump .feed_roll
 
     label .scope_fail:
-        "> Difficulty scoping out target. Penalty applied."
-        $ state.roll_malus = abs(state.current_roll.margin)
+        $ state.roll_malus, state.roll_bonus = abs(state.current_roll.margin), 0
+        $ time_spent = min(time_spent + state.roll_malus, cfg.MAX_HUNT_TIME)
+        "> Difficulty scoping out target. Hunt duration increased to [time_spent], -[state.roll_malus] to feed roll."
         jump .feed_roll
 
-
     label .feed_roll:
-        call roll_control(feeding_pool, feeding_test)
+        python:
+            if state.roll_bonus > 0:
+                final_feeding_pool = "{}+{}".format(feeding_pool, state.roll_bonus)
+            elif state.roll_malus > 0:
+                final_feeding_pool = "{}+{}".format(feeding_pool, -1 * state.roll_malus)
+            else:
+                final_feeding_pool = feeding_pool
+        call roll_control(final_feeding_pool, feeding_test)
         $ tll = "generic_hunt_results"
         jump expression renpy.store.game.manual_roll_route(_return, ".win", ".fail", mc=".messy", crit=".crit", bfail=".beastfail", top_label=tll)
-
 
     label .messy:  # A dead body - you also get here if your hunger is high and you fail a willpower roll
         $ state.set_hunger(0, killed=True, innocent=True)
         "You find yourself standing over a dead body. The problem of your Hunger is dealt with, but now you have a different problem."
-        return
+        jump .end
 
     label .crit:  # You feed successfully and get a bonus
         $ state.set_hunger("-=2")
         "That could hardly have gone better."
-        return
+        jump .end
 
-    label .win:  # successful feeding, hunger slaked depends on margin (always 1 or 2, or 3 if humanity is low)
-        $ temp_margin, max_slaked = state.current_roll.margin, 2 if pc.humanity > cfg.KILL_HUNT_HUMANITY_THRESHOLD_INC else 3
-        $ slaked_hunger = max(1, min(max_slaked, int(temp_margin)))
+    label .win:  # successful feeding, hunger slaked depends on margin (1 or 2, 3 or 4 if humanity is low)
+        $ temp_margin = state.current_roll.margin
+        $ max_slaked = 2 if pc.humanity > cfg.KILLHUNT_HUMANITY_MAX else min(4, 3 + (cfg.KILLHUNT_HUMANITY_MAX - pc.humanity))
+        $ slaked_hunger = min(max_slaked, 1 + int(temp_margin))
         $ state.set_hunger("-={}".format(slaked_hunger))
-        if slaked_hunger > 2:
+        if slaked_hunger > 3:
+            "You drink your fill. Your prey will live, assuming someone notices them in time."
+        elif slaked_hunger > 2:
             "You drink your fill, and leave your prey in a daze. They'll be fine, assuming someone notices them in time."
         elif slaked_hunger == 2:
             "You drink deeply, but not {i}too{/i} deeply."
         else:
             "You take a few good gulps; just enough to take the edge off before you have to split."
-        return
+        jump .end
 
     label .fail:  # You fail to feed
         "That could have gone better. You fail to feed, but manage a clean escape."
-        return
+        jump .end
 
     label .beastfail:  # You fail to feed and get penalized further
         beast "YOU INCOMPETENT, MISERABLE LITTLE-"
@@ -304,6 +336,10 @@ label generic_hunt_results(scoping_pool, scoping_test, feeding_pool, feeding_tes
         "Your vision goes red. There are screams, the sound of shattering glass, and what might have been a gunshot."
 
         "You come to your senses in an alley."
+        jump .end
+
+    label .end:
+        call pass_time(time_spent) from generic_hunt_results_end
         return
 
     $ raise ValueError("Shouldn't reach here!")
@@ -331,3 +367,26 @@ label pc_gender_preference:
     beast "Lovely. Let's go find someone you like so we can eat."
 
     return
+
+
+label hunger_frenzy:
+
+    beast "Blood. BLOOD. FEED FEED FEED FEEDFEEDFEEDFEEDFEEDFEEDFEED"
+
+    "..."
+    # TODO: even more nasty consequences, and some crazy sounds
+
+    # masquerade penalty
+
+    python:
+        hf_kill = True if utils.random_int_range(0, 4) > 3 else False
+        hf_innocent = True if hf_kill and utils.random_int_range(0, 3) > 2 else False
+        hf_hours_lost = utils.random_int_range(0, 3)
+        hf_outside_haven = True if utils.random_int_range(0, 1) > 0 else False
+        state.set_hunger(0, killed=hf_kill, innocent=hf_innocent)
+
+    call pass_time(hf_hours_lost, in_shelter=not hf_outside_haven) from hunger_frenzy_blackout
+
+    "You come to your senses some time later, your jaw and chest slick with gore. What have you done?"
+
+    jump haven.main

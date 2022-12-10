@@ -3,6 +3,8 @@ init 1 python in utils:
     from string import ascii_letters
     import json
 
+    cfg = renpy.store.cfg
+
     def parse_pool_string(pool_str):
         raw_pool_str = str(pool_str)
         phases, contests = raw_pool_str.split(","), []
@@ -18,10 +20,12 @@ init 1 python in utils:
     def translate_dice_pool_params(pool_params):
         adjusted_params = []
         for param in pool_params:
-            if param == renpy.store.cfg.REF_ROLL_FORCE_NOSBANE:
+            if param == cfg.REF_ROLL_LOOKS:
                 adjusted_params.append(malus_color("Nosferatu"))
-            elif param == renpy.store.cfg.BG_BEAUTIFUL:
+            elif param == cfg.BG_BEAUTIFUL:
                 adjusted_params.append(bonus_color("Beautiful"))
+            elif param == cfg.BG_REPULSIVE:
+                adjusted_params.append(malus_color("Repulsive"))
             else:
                 adjusted_params.append(str(param).capitalize())
         return " + ".join([str(p) for p in adjusted_params])
@@ -84,6 +88,9 @@ init 1 python in utils:
     def make_dice_roll(max_val, num_dice):
         return [randint(1, max_val) for _ in range(num_dice)]
 
+    def random_int_range(min_val, max_val):
+        return randint(min_val, max_val)
+
     def get_excerpt(exstr: str, start_token, end_token):
         tokens = exstr.split(start_token, maxsplit=1)
         if len(tokens) < 2:
@@ -103,7 +110,7 @@ init 1 python in utils:
     def get_credits_json():
         # global creditsFile
         # global creditsJSON
-        credits_file = renpy.file(renpy.store.cfg.PATH_CREDITS_JSON)
+        credits_file = renpy.file(cfg.PATH_CREDITS_JSON)
         credits_json = json.load(credits_file)
         return credits_json
 
@@ -121,3 +128,40 @@ init 1 python in utils:
 
     def log(*args):
         print(*args)
+
+    for key in cfg.CHAR_BACKGROUNDS:
+        bg = cfg.CHAR_BACKGROUNDS[key]
+        if cfg.REF_TYPE in bg and bg[cfg.REF_TYPE] == cfg.REF_BG_PAST:
+            phys_attr_points, phys_skill_points = 3, 0
+            socl_attr_points, socl_skill_points = 3, 0
+            ment_attr_points, ment_skill_points = 3, 0
+            for key2 in bg:
+                val = bg[key2]
+                if key2 == cfg.REF_ATTRS_ALL:
+                    phys_attr_points += val * 3
+                    socl_attr_points += val * 3
+                    ment_attr_points += val * 3
+                elif key2 == cfg.REF_SKILLS_ALL:
+                    phys_skill_points += val * 5
+                    socl_skill_points += val * 5
+                    ment_skill_points += val * 5
+                elif key2 in cfg.REF_PHYSICAL_ATTRS:
+                    phys_attr_points += val
+                elif key2 in cfg.REF_SOCIAL_ATTRS:
+                    socl_attr_points += val
+                elif key2 in cfg.REF_MENTAL_ATTRS:
+                    ment_attr_points += val
+                elif key2 in cfg.REF_PHYSICAL_SKILLS:
+                    phys_skill_points += val
+                elif key2 in cfg.REF_SOCIAL_SKILLS:
+                    socl_skill_points += val
+                elif key2 in cfg.REF_MENTAL_SKILLS:
+                    ment_skill_points += val
+            attr_points = phys_attr_points + socl_attr_points + ment_attr_points
+            skill_points = phys_skill_points + socl_skill_points + ment_skill_points
+            print("\n\"{}\":\nAttr points: ({} physical/{} social/{} mental) ({} total)".format(
+                key, phys_attr_points, socl_attr_points, ment_attr_points, attr_points
+            ))
+            print("Skill points: ({} physical/{} social/{} mental) ({} total)".format(
+                phys_skill_points, socl_skill_points, ment_skill_points, skill_points
+            ))

@@ -4,59 +4,77 @@ init 1 python in game:
 
     class RollConfig:
         OPTIONAL_STATS = [
-            cfg.REF_ROLL_FORCE_NOSBANE, cfg.BG_BEAUTIFUL
+            cfg.REF_ROLL_LOOKS
         ]
 
         def __init__(self, pool_text, has_opp=False, **kwargs):
             utils = renpy.store.utils
             self.num_dice = 0
-            self.pool_stats = str(pool_text).split('+')
-            self.required_stats = []
-            self.optional_stats = []
-            for stat in self.pool_stats:
-                if stat in RollConfig.OPTIONAL_STATS:
-                    self.optional_stats.append(stat)
-                else:
-                    self.required_stats.append(stat)
+            # self.pool_stats = str(pool_text).split('+')  # TODO: here is where I need to implement optional pools denoted by "/"
             self.has_opponent = has_opp
-            self.has_bonuses = False
+            self.contests = utils.parse_pool_string(pool_text)
+            if len(self.contests) != 1:
+                raise ValueError("There should be exactly one phase per RollConfig object, not {}.".format(len(self.contests)))
+            self.pool_options = self.contests[0]
+            self.roll_config_options = [self.evaluate(po) for po in self.pool_options]
+            # Here we do a max or something
+            print("\nAAAAAA-------oooooooo-----\n")
+            print(self.roll_config_options)
+            self.chosen_rc_opt = max(self.roll_config_options, key=lambda rco: rco.num_dice)
+            for i, rco in enumerate(self.roll_config_options):
+                print("OPTION #{}: {} with {} dice".format(i, rco.pool_text, rco.num_dice))
+            print("WE HAVE CHOSEN: {} with {} dice".format(self.chosen_rc_opt.pool_text, self.chosen_rc_opt.num_dice))
+            for key in self.chosen_rc_opt.__dict__:
+                val = getattr(self.chosen_rc_opt, key)
+                setattr(self, key, val)
+            print("FINALLY MYSELF")
+            print(self)
+
+        def evaluate(self, pool_option):
+            print("HEY\nHEY\npool_option = {}".format(pool_option))
+            required_stats, optional_stats = [], [] # TODO: what was I doing here?
+            pool_stats = pool_option.replace(" ", "").split("+")
+            pool_choice = object()
+            for stat in pool_stats: # self.pool_stats:
+                if stat in RollConfig.OPTIONAL_STATS:
+                    optional_stats.append(stat)
+                else:
+                    required_stats.append(stat)
+            pool_choice.num_dice = 0
+            pool_choice.has_bonuses = False
             bonus_key, bonus_total = cfg.REF_ROLL_BONUS_PREFIX, 0
             pc = renpy.store.state.pc
-            for stat in self.pool_stats:
+            for stat in pool_stats:  # self.pool_stats:
                 stat = str(stat).capitalize()
                 if stat in pc.attrs:
-                    self.num_dice += pc.attrs[stat]
+                    pool_choice.num_dice += pc.attrs[stat]
                 elif stat in pc.skills:
-                    self.num_dice += pc.skills[stat]
+                    pool_choice.num_dice += pc.skills[stat]
                 elif stat in pc.disciplines.get_unlocked():
-                    self.num_dice += pc.disciplines.levels[stat]
-                elif stat == cfg.AT_CHA or stat == cfg.SK_DIPL:
-                    self.has_bonuses = True
-                    if pc.clan == cfg.CLAN_NOSFERATU:
-                        setattr(self, bonus_key + cfg.CLAN_NOSFERATU,-2)
-                        pc.required_stats.append("Nosferatu Bane")
-                    else:
-                        bg_names = [bg[cfg.REF_BG_NAME] for bg in pc.backgrounds]
-                        if cfg.BG_BEAUTIFUL in bg_names:
-                            setattr(self, bonus_key + cfg.BG_BEAUTIFUL,2)
-                            pc.required_stats.append("Beautiful")
-                elif str(stat).lower() == cfg.REF_ROLL_FORCE_NOSBANE:
-                    if pc.clan == cfg.CLAN_NOSFERATU:
-                        self.has_bonuses = True
-                        setattr(self, bonus_key + cfg.CLAN_NOSFERATU, -2)
-                        pc.required_stats.append("Nosferatu Bane")
+                    pool_choice.num_dice += pc.disciplines.levels[stat]
+                elif stat == cfg.AT_CHA or stat == cfg.SK_DIPL or stat == cfg.REF_ROLL_LOOKS:
+                    bg_names = [bg[cfg.REF_BG_NAME] for bg in pc.backgrounds]
+                    if cfg.BG_BEAUTIFUL in bg_names:
+                        pool_choice.has_bonuses = True
+                        setattr(pool_choice, bonus_key + cfg.BG_BEAUTIFUL, 1)
+                        required_stats.append("Beautiful")
+                    elif cfg.BG_REPULSIVE in bg_names:
+                        pool_choice.has_bonuses = True
+                        setattr(pool_choices, bonus_key + cfg.BG_REPULSIVE, -2)
+                        required_stats.append("Repulsive")
                 elif utils.is_number(stat) and utils.has_int(stat):
-                    self.has_bonuses = True
-                    setattr(self, cfg.REF_ROLL_EVENT_BONUS, stat)
+                    pool_choice.has_bonuses = True
+                    setattr(pool_choice, cfg.REF_ROLL_EVENT_BONUS, stat)
                 else:
                     # TODO: backgrounds, banes
                     raise ValueError("Stat \"{}\" is not an attribute, skill, or discipline.".format(stat))
-            self.pool_text = utils.translate_dice_pool_params(self.required_stats)
-            for key in self.__dict__:
+            pool_choice.pool_text = utils.translate_dice_pool_params(required_stats)
+            for key in pool_choice.__dict__:
                 if str(key).startswith(bonus_key):
-                    bonus_total += int(getattr(self, key))
-            self.num_dice += bonus_total
-            self.bonuses_total = bonus_total
+                    bonus_total += int(getattr(pool_choice, key))
+            pool_choice.num_dice += bonus_total
+            pool_choice.bonuses_total = bonus_total
+            return pool_choice
 
     class V5DiceRoll:
         D10_WIN_INC = 6
@@ -79,9 +97,9 @@ init 1 python in game:
             self.black_tens, self.black_failures = 0, 0
             self.result_descriptor = V5DiceRoll.RESULT_FAIL
             self.rerolled = self.crit = False
-            self.black_failures = self.num_successes = 0
+            self.num_successes = 0
             self.outcome, self.margin = None, 0
-            self.black_pool = pool - max(self.hunger, 0) if include_hunger else pool
+            self.black_pool = max(pool - self.hunger, 0) if include_hunger else pool
             self.black_results = renpy.store.utils.make_dice_roll(V5DiceRoll.D10_MAX, self.black_pool)
             self.included_hunger = include_hunger
             if self.included_hunger:
@@ -90,7 +108,7 @@ init 1 python in game:
 
         def calculate(self):
             successes = [dv for dv in self.black_results if dv >= V5DiceRoll.D10_WIN_INC]  # TODO: here!!
-            self.black_failures = self.black_pool - len(successes)
+            self.black_failures = len(self.black_results) - len(successes)
             self.black_tens = len([ten for ten in successes if ten >= V5DiceRoll.D10_MAX])
             if self.included_hunger:  # and not self.rerolled:  TODO: why did I do this?
                 red_successes = [dv for dv in self.red_results if dv >= V5DiceRoll.D10_WIN_INC]
@@ -126,14 +144,19 @@ init 1 python in game:
 
         def test(self, pool, difficulty, hunger=1, include_hunger=True):
             self.current_opp_roll = None
+            self.can_reroll_to_improve = self.can_reroll_to_avert_mc = False
             self.current_roll = V5DiceRoll(int(pool), int(difficulty), hunger=hunger, include_hunger=include_hunger)
             if self.current_roll.black_failures > 0:
+                print("\n[test] Can reroll, because black failures = {}".format(self.current_roll.black_failures))
                 self.can_reroll_to_improve = True
+            else:
+                print("\n[test] Cannot reroll, because black failures = {}".format(self.current_roll.black_failures))
             if self.current_roll.outcome == V5DiceRoll.RESULT_MESSY_CRIT and self.current_roll.red_tens < 2 and self.current_roll.black_tens < 4:
                 self.can_reroll_to_avert_mc = True
             return self.current_roll
 
         def contest(self, pool1, pool2, hunger=1, include_hunger=True):
+            self.can_reroll_to_improve = self.can_reroll_to_avert_mc = False
             self.current_opp_roll = V5DiceRoll(int(pool2), 0, include_hunger=False)
             self.current_roll = V5DiceRoll(int(pool1), self.current_opp_roll.num_successes, hunger=hunger, include_hunger=include_hunger)
             margin = self.current_roll.num_successes - self.current_opp_roll.num_successes
@@ -142,7 +165,10 @@ init 1 python in game:
             if margin >= 0:
                 self.player_wins = True
             if self.current_roll.black_failures > 0:
+                print("\n[contest] Can reroll, because black failures = {}".format(self.current_roll.black_failures))
                 self.can_reroll_to_improve = True
+            else:
+                print("\n[contest] Cannot reroll, because black failures = {}".format(self.current_roll.black_failures))
             if self.current_roll.outcome == V5DiceRoll.RESULT_MESSY_CRIT and self.current_roll.red_tens < 2 and self.current_roll.black_tens < 4:
                 self.can_reroll_to_avert_mc = True
             return self.current_roll
@@ -225,6 +251,8 @@ init python in state:
         global current_roll
         global roll_config
 
+        del current_roll
+
         if opp_pool:
             current_roll = diceroller.contest(pool1=roll_config.num_dice, pool2=opp_pool, hunger=pc.hunger)
         elif difficulty:
@@ -234,6 +262,9 @@ init python in state:
 
         roll_config.can_reroll_to_improve = diceroller.can_reroll_to_improve
         roll_config.can_reroll_to_avert_mc = diceroller.can_reroll_to_avert_mc
+        print("RIGHT AFTER TEST: black_failures = {}".format(current_roll.black_failures))
+        print("diceroller.can_reroll_to_improve = {}".format(diceroller.can_reroll_to_improve))
+        print("roll_config.can_reroll_to_improve = {}".format(roll_config.can_reroll_to_improve))
 
     def roll_display(rconfig=None, roll=None):
         if rconfig and roll:
@@ -242,7 +273,8 @@ init python in state:
             temp_rconfig, temp_roll = roll_config, current_roll
         delim = " "
         global pool_readout
-        pool_readout = str(temp_rconfig.pool_text).replace(" ", delim)
+        plus_min_tmp = str(temp_rconfig.pool_text).replace(" ", "").replace("+-", " - ")
+        pool_readout = plus_min_tmp.replace("+", " + ")
         if temp_rconfig.has_opponent:
             test_summary = "Versus {}, margin of {}".format(temp_roll.opp_ws, temp_roll.margin)
         else:
@@ -260,6 +292,10 @@ init python in state:
         else:
             can_reroll_to_improve = False
             can_reroll_to_avert_mc = False
+        print("\n\nEND OF ROLL Display: (black_failures = {})".format(temp_roll.black_failures))
+        print("can_reroll_to_improve = {}".format(can_reroll_to_improve))
+        print("diceroller.can_reroll_to_improve = {}".format(diceroller.can_reroll_to_improve))
+        print("temp_rconfig.can_reroll_to_improve = {}".format(temp_rconfig.can_reroll_to_improve))
         return '\n\n'.join([roll_result, actual_dice_repr])  # pool_readout excluded and placed in character name
 
     def reroll(messy=False):
@@ -278,12 +314,24 @@ init python in state:
             return "Roll: {}".format(renpy.store.state.pool_readout)
         return "Roll: (Empty)"
 
+    def rouse_check(num_checks=1, reroll=False):
+        num_dice, hungrier = 2 if reroll else 1, False
+        for i in range(num_checks):
+            rc_roll = utils.make_dice_roll(renpy.store.game.V5DiceRoll.D10_MAX, num_dice)
+            rc_score = max(rc_roll)
+            if rc_score < renpy.store.game.V5DiceRoll.D10_WIN_INC:
+                set_hunger("+=1")
+                hungrier = True
+        return hungrier
+
 
 label roll_control(pool_str, test_str):
 
     python:
         if not state.diceroller:
             state.diceroller = game.DiceRoller()
+            state.diceroller_creation_count += 1
+            print("\n\nCREATED NEW DICEROLLER for time #{}".format(state.diceroller_creation_count), state.diceroller)
         if not state.pc:
             state.pc = game.PlayerChar(anames=state.attr_names, snames=state.skill_names, dnames=state.discipline_names)
 

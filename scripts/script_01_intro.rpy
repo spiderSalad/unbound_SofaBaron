@@ -36,8 +36,13 @@ label start:
 
 label intro:
 
-    $ cfg, game = renpy.store.cfg, renpy.store.game
-    $ state.pc = game.PlayerChar(anames=state.attr_names, snames=state.skill_names, dnames=state.discipline_names)
+    python:
+        cfg, game = renpy.store.cfg, renpy.store.game
+        state.pc = game.PlayerChar(anames=state.attr_names, snames=state.skill_names, dnames=state.discipline_names)
+        state.pc.inventory = game.Inventory()
+        state.pc.inventory.add(game.Supply(game.Supply.IT_MONEY, "Cash", key="Money", num=105, desc="Cash on hand."))
+        state.clock = state.GameClock(1, 9)
+        state.diceroller_creation_count = 0
 
     # Show a background. This uses a placeholder by default, but you can
     # add a file (named either "bg room.png" or "bg room.jpg") to the
@@ -56,8 +61,6 @@ label intro:
     play sound audio.beastgrowl1
 
     "You awaken the moment the sun goes down, and find yourself lying in a pile of garbage."
-
-    $ state.pc.inventory.add(game.Supply(game.Supply.IT_MONEY, "Cash", num=105))
 
     james "Holy shit, you're alive! Thought for sure you was dead."
 
@@ -102,7 +105,7 @@ label intro:
 
             # $ state.set_hunger(1)
 
-            call roll_control("manipulation+intrigue+nosbane+1", "diff2") from sip_james
+            call roll_control("manipulation+intrigue+looks+1", "diff2") from sip_james
             jump expression renpy.store.game.pass_fail(_return, "intro.man_sipped", "intro.man_escapes_sip")
 
     label .man_drained:
@@ -190,7 +193,7 @@ label backstory:
     # TODO: add flavor to make this more interesting later, same with clan and predator type choices
 
     if state.intro_man_drank and state.intro_man_killed:
-        $ blurb_having = "Having slaked your Hunger and secured the Masquerade around yourself - for the time being, anyway - "
+        $ blurb_having = "Having slaked your Hunger and eaten the only witness (you doubt anyone will find the body in time for it to seem unusual), "
     elif state.intro_man_drank:
         $ blurb_having = "Having temporarily brought your endless Hunger under control, "
     elif state.intro_man_killed:
@@ -220,17 +223,23 @@ label backstory:
     menu:
         "But before, you were..."
 
-        "A nursing student in residency.":  # Mental (3), Social (3), Physical (1)
+        "A nursing student in residency.":
             $ state.pc.mortal_backstory = "Nursing Student"
 
-        "A star athlete, attending college on a scholarship.":  # Physical (3), Social (2), Mental (2)
+        "A star athlete, attending college on a scholarship.":
             $ state.pc.mortal_backstory = "Star Athlete"
 
-        "Bartender and host at a club across town":  # Social (3), Physical (2), Mental (2)
+        "Bartender and host at a club across town.":
             $ state.pc.mortal_backstory = "Bartender"
 
-        "A veteran between jobs and houses.":  # Physical (4), Mental (2), Social (1)
+        "A veteran between jobs and houses.":
             $ state.pc.mortal_backstory = "Veteran"
+
+        "Pursuing your Master's in Chemical Engineering":
+            $ state.pc.mortal_backstory = "Grad Student"
+
+        "An insurance salesperson.":
+            $ state.pc.mortal_backstory = "Salesperson"
 
     $ state.pc.apply_background(cfg.CHAR_BACKGROUNDS[state.pc.mortal_backstory], bg_key=state.pc.mortal_backstory)
 
@@ -238,6 +247,7 @@ label backstory:
 
     "And you are, though you take a circuitous route that doubles back on itself a few times. Less likely you're followed that way."
 
+    call pass_time(1) from intro_post_mortal_bg
     jump haven.main
 
 
@@ -247,9 +257,13 @@ label clan_choice:
 
     python:
         clan_choice_brujah = "{}, Clan {}".format(cfg.CLAN_BLURBS[cfg.CLAN_BRUJAH][cfg.REF_CLAN_EPITHET], cfg.CLAN_BRUJAH)
+        # clan_choice_brujah = str(clan_choice_brujah).capitalize()
         clan_choice_nosferatu = "{}, Clan {}".format(cfg.CLAN_BLURBS[cfg.CLAN_NOSFERATU][cfg.REF_CLAN_EPITHET], cfg.CLAN_NOSFERATU)
+        # clan_choice_nosferatu = str(clan_choice_nosferatu).capitalize()
         clan_choice_ravnos = "{}, Clan {}".format(cfg.CLAN_BLURBS[cfg.CLAN_RAVNOS][cfg.REF_CLAN_EPITHET], cfg.CLAN_RAVNOS)
+        # clan_choice_ravnos = str(clan_choice_ravnos).capitalize()
         clan_choice_ventrue = "{}, Clan {}".format(cfg.CLAN_BLURBS[cfg.CLAN_VENTRUE][cfg.REF_CLAN_EPITHET], cfg.CLAN_VENTRUE)
+        # clan_choice_ventrue = str(clan_choice_ventrue).capitalize()
         clan_choice_caitiff = "I am Clanless - one of the so-called Caitiff"
 
     menu:
@@ -282,6 +296,8 @@ label clan_choice:
             $ state.pc.choose_clan(cfg.CLAN_VENTRUE)
             "You sometimes envy the licks who are just out there drinking anybody. Members of your clan usually have specific dietary requirements, though it's different for every Blue Blood. Not just any mortal will do."
 
+            call ventrue_feeding_choice from clan_choice_ventrue_1
+
             # TODO: choice of specific feeding requirements?
 
         "[clan_choice_caitiff]":
@@ -306,7 +322,7 @@ label clan_choice:
     "That can make things difficult, but you've adapted where it most counts. The hunt."
 
     menu:
-        beast "We'll hunt your way. For now."
+        beast "We'll do it your way. For now."
 
         "I skip all the pretense and bullshit and just {i}take{/i} what I need. It ain't pretty, but it's usually quick and simple.":
             "Your hunting blends in nicely with the city's mundane mortal crime. As long as you're careful and don't leave any obviously exsanguinated corpses lying around, things tend to work out okay."
@@ -331,10 +347,47 @@ label clan_choice:
             "Fucking your food is.... a choice. A choice you'd make {i}every{/i} time, if you could."
             $ state.pc.choose_predator_type(cfg.PT_SIREN)
 
+    # No time passes here
     jump haven.post_main
+
+
+label ventrue_feeding_choice:
+
+    "Your \"palate\" manifested itself over time. At first you could feed at will, but as the nights went by you found it harder and harder to drink from most people."
+
+    menu:
+        "With one increasingly clear exception."
+
+        "People who are used to giving orders.":  # +2 to Dominate
+            ""
+
+        "People in physical pain.":  # +2 to Fortitude
+            ""
+
+        "People who spend a lot of time or money maintaining their appearance.":  # +2 to Presence
+            ""
+
+    return
+
 
 label end:
 
     # This ends the game.
+    if pc.cause_of_death == cfg.COD_SUN:
+        "Unable to escape the merciless wrath of the sun, you crumple to the ground in a smoldering heap."
+
+        "By that time, of course, your mind was already gone."
+    else:
+        "The ability of the vampiric to absorb punishment that would kill a mortal several times over is nothing short of extraordinary."
+
+        "But it has its limits, and in your case they've been reached. Your unnatural body begins to behave like the corpse it is."
+
+        "For a moment it seems as if you can feel yourself being lowered back into that pit of absolute emptiness."
+
+        "The one you were dragged out of so many years ago. The Hunger is gone. The need is gone."
+
+        "There's just nothing."
+
+    "And so ends your unlife. Thanks for playing."
 
     return

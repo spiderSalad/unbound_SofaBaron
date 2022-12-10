@@ -3,8 +3,8 @@
 ################################################################################
 
 
-# Generates textbutton with tool_tip
-screen hovertext(txt, tool_tip=None, _style="medium", _xalign=0.0):
+# Generates textbutton with tooltip
+screen hovertext(txt, tooltip=None, _style="medium", _xalign=0.0):
     textbutton "[txt]" xalign _xalign:
         if _style == "medium":
             text_style "codex_hoverable_text"
@@ -13,12 +13,12 @@ screen hovertext(txt, tool_tip=None, _style="medium", _xalign=0.0):
         else:
             text_style "codex_hoverable_text_small"
         action NullAction()
-        hovered ShowTransient("hovertip", None, str(tool_tip))
+        hovered ShowTransient("hovertip", None, str(tooltip))
         unhovered Hide("hovertip", None)
 
 
 # Widget showing dots indicating ability scores
-screen dotchain(name, score, dotcolor=renpy.store.cfg.DEFAULT_DOT_COLOR, format="bar", dfsize=None, altname=None, tool_tip=None):
+screen dotchain(name, score, dotcolor=renpy.store.cfg.DEFAULT_DOT_COLOR, format="bar", dfsize=None, altname=None, tooltip=None):
     python:
         cfg = renpy.store.cfg
         global scoreWords
@@ -37,16 +37,16 @@ screen dotchain(name, score, dotcolor=renpy.store.cfg.DEFAULT_DOT_COLOR, format=
 
         if format == "bar":
             hbox xfill True yalign 0.5:
-                use hovertext(str(name), tool_tip, "big")
+                use hovertext(str(name), tooltip, "big")
                 image "gui/shapes/dots_[dotcolor]_[scoreWord].png" zoom 0.7 xalign 1.0 yalign 0.5
         elif format == "stack":
             vbox xfill True yalign 0.1 spacing 2:
-                use hovertext(str(name), tool_tip, "small", 0.5)
+                use hovertext(str(name), tooltip, "small", 0.5)
                 image "gui/shapes/dots_[dotcolor]_[scoreWord].png" zoom 0.6 xalign 0.5
         elif format == "merit":
             vbox xfill True yfill True yalign 0.5 spacing 2:
-                $ sendstr = "{name}\n({sz}{altname}{esz})".format(name = name, altname = altname, sz = "{size=11}", esz = "{/size}")
-                use hovertext(sendstr, tool_tip, _xalign = 0.5)
+                $ sendstr = "{name}\n({sz}{altname}{esz})".format(name=name, altname=altname, sz="{size=11}", esz="{/size}")
+                use hovertext(sendstr, tooltip, _xalign = 0.5)
                 image "gui/shapes/dots_[dotcolor]_[scoreWord].png" zoom 0.4 align (0.5, 1.0)
         else:
             $ raise ValueError("[Error]: That's not a known dotchain display format.")
@@ -70,6 +70,22 @@ screen trackerline(name, total, clearboxes, spfdamage, bonus = 0, bonusName = ""
                 use trackerbox(boxname, "superficial", count)
             else:
                 use trackerbox(boxname, "aggravated", count)
+
+
+screen xpbar(value, max, name, color="#232323"):
+    python:
+        ratio = float(value) / float(max)
+
+    frame style style.utility_frame:
+        hbox spacing 10:
+            text "[name]" align (0.0, 0.5) size 18
+            bar value StaticValue(value, max) xysize (160, 15):
+                align (0.5, 0.5)
+                xmaximum 160
+                ymaximum 10
+                left_bar color
+                right_bar "#707070"
+            text "[value]" yalign 0.5 size 20
 
 
 # Widget displaying opinion for a faction or character, from -100 to 100
@@ -129,8 +145,8 @@ screen codexTopRow():
                 $ hung_hum_index = max(0, int(pc.humanity) - cfg.MIN_HUMANITY - 1)
                 $ hungerPhrase = cfg.HUNGER_BLURBS[pc.hunger][hung_hum_index]
                 vbox spacing 2:
-                    use dotchain("Humanity", pc.humanity - 3, dotcolor="bright", format="stack", dfsize=(190, 60), tool_tip=humanityPhrase)
-                    use dotchain("Hunger", pc.hunger, format="stack", dfsize = (190, 60), tool_tip=hungerPhrase)
+                    use dotchain("Humanity", pc.humanity - 3, dotcolor="bright", format="stack", dfsize=(190, 60), tooltip=humanityPhrase)
+                    use dotchain("Hunger", pc.hunger, format="stack", dfsize = (190, 60), tooltip=hungerPhrase)
 
             frame id "pane_trackers" align (1.0, 0.0) xysize (420, 126) style style.codex_panel_frame:
                 style_prefix "boxtracker"
@@ -153,10 +169,11 @@ screen codexTopRow():
                                 use trackerline("Willpower", pc.will.boxes, clearWillpower, pc.will.spf_damage)
 
                     frame id "status_effect" xsize 380 align(1.0, 0.8):
+                        $ pc_status = pc.status
                         hbox:
                             text "Status" text_align 1.0 xfill False xsize 50 align (0.0, 0.5) style style.codex_panel_text # codex_panel_button_text
                             frame id "status_text" xsize 280 align (1.0, 0.5):
-                                text "[pc.status]" text_align 0.0 style style.codex_panel_text
+                                text "[pc_status]" text_align 0.0 style style.codex_panel_text
 
 
 # Every codex panel uses this
@@ -181,7 +198,7 @@ screen codexScoresPage(*args):
 
     $ pc, cfg = renpy.store.state.pc, renpy.store.cfg
 
-    use codexBaseFrame("scores"):  # TODO: re-implement tool_tips, resize everything
+    use codexBaseFrame("scores"):  # TODO: re-implement tooltips, resize everything
         style_prefix "codex_panel"  # Current pane heights: 240 + 14 + 325 in baseframe of 580
         vbox spacing 14:
             frame id "pane_attributes" xalign 0.5 ysize 240:
@@ -190,13 +207,13 @@ screen codexScoresPage(*args):
                         $ keydex = cfg.REF_ATTR_ORDER[count]
                         frame style style.utility_frame:
                             $ the_score = pc.attrs[keydex]
-                            use dotchain(keydex, the_score, tool_tip="{at1}".format(at1="tool_tip tbd"))# tool_tipTable[keydex]))
+                            use dotchain(keydex, the_score, tooltip="{at1}".format(at1="tooltip tbd"))# tooltipTable[keydex]))
             frame id "pane_skills" xalign 0.5 ysize 325:
                 use buildGrid(gui.GRID_ROWS_ALLSCORES, gui.GRID_COLS_SKILLS, gui.GRID_ROWS_ALLSCORES * gui.GRID_COLS_SKILLS, _transpose = True):
                     for count, skill in enumerate(pc.skills):
                         $ keydex = cfg.REF_SKILL_ORDER[count]
                         frame style style.utility_frame:
-                            use dotchain(keydex, pc.skills[keydex], tool_tip="{st1}".format(st1="tool_tip tbd"))#tool_tipTable[keydex]))
+                            use dotchain(keydex, pc.skills[keydex], tooltip="{st1}".format(st1="tooltip tbd"))#tooltipTable[keydex]))
 
 
 # Character sheet tab showing discipline powers and maybe merits/Hardestadt loresheet if I get that far
@@ -209,42 +226,62 @@ screen codexPowersPage(*args):  # current pane heights: 120 + 14 + 445 = 579/580
         style_prefix "codex_panel"
         vbox spacing 14:
             frame id "pane_merits" xalign 0.5 ysize 120 padding (10, 10):
-                #$ leng = len(pc.merits)
-                if len(merits_and_flaws) > 0: # Shouldn't be more than 3
-                    hbox xfill True:
-                        for count in range(min(len(merits_and_flaws), cfg.MERIT_DISPLAY_MAX)):
-                            frame style style.utility_frame yfill True:
-                                python:
-                                    m_f = merits_and_flaws[count]
-                                    dcolor = "red" if m_f[cfg.REF_TYPE] == cfg.REF_BG_FLAW else "red"
-                                    altname = m_f[cfg.REF_TYPE]
-                                    tool_tip = m_f[cfg.REF_TOOLTIP] if cfg.REF_TOOLTIP in m_f else None
-                                use dotchain(m_f[cfg.REF_BG_NAME], m_f[cfg.REF_DOTS], altname=altname, dotcolor=dcolor, format="merit", tool_tip=tool_tip)
-                else:
-                    hbox xfill True yalign 0.5:
-                        text "Nothing special unlocked or discovered." text_align 0.5 xalign 0.5 yalign 0.5
-            frame id "pane_disciplines" xalign 0.5 ysize 445:  # TODO: left off here, and in new SuperpowerArsenal class
+                # #$ leng = len(pc.merits)
+                # if len(merits_and_flaws) > 0: # Shouldn't be more than 3
+                #     hbox xfill True:
+                #         for count in range(min(len(merits_and_flaws), cfg.MERIT_DISPLAY_MAX)):
+                #             frame style style.utility_frame yfill True:
+                #                 python:
+                #                     m_f = merits_and_flaws[count]
+                #                     dcolor = "red" if m_f[cfg.REF_TYPE] == cfg.REF_BG_FLAW else "red"
+                #                     altname = m_f[cfg.REF_TYPE]
+                #                     tooltip = m_f[cfg.REF_TOOLTIP] if cfg.REF_TOOLTIP in m_f else None
+                #                 use dotchain(m_f[cfg.REF_BG_NAME], m_f[cfg.REF_DOTS], altname=altname, dotcolor=dcolor, format="merit", tooltip=tooltip)
+                # else:
+                #     hbox xfill True yalign 0.5:
+                #         text "Nothing special unlocked or discovered." text_align 0.5 xalign 0.5 yalign 0.5
+                use buildGrid(3, 2, 6):
+                    use xpbar(state.resonances[cfg.RESON_ANIMAL], 1000, "Animal", color="#da8a18")
+                    use xpbar(state.resonances[cfg.RESON_CHOLERIC], 1000, "Choleric", color="#faf604")
+                    use xpbar(state.resonances[cfg.RESON_MELANCHOLIC], 1000, "Melancholic", color="#36347c")
+                    use xpbar(state.resonances[cfg.RESON_PHLEGMATIC], 1000, "Phlegmatic", color="#09f3a2")
+                    use xpbar(state.resonances[cfg.RESON_SANGUINE], 1000, "Sanguine", color="#f73939")
+                    use xpbar(state.resonances[cfg.RESON_EMPTY], 1000, "\"Empty\"", color="#101010")
+
+
+            frame id "pane_disciplines" xalign 0.5 ysize 445 padding (0, 0):
                 $ unlocked_ds = pc.disciplines.get_unlocked()
-                hbox xfill True:
-                    for count, ul_disc in enumerate(unlocked_ds):
-                        $ xalv = float(count) / float(len(unlocked_ds) - 1)
-                        frame style style.utility_frame yfill True xalign xalv:  # TODO: adjust this scheme later for horizontal scrolling
-                            vbox spacing 7:
-                                use dotchain(ul_disc, pc.disciplines.levels[ul_disc], tool_tip="tool_tip tbd")
-                                $ ul_disc_prefix = "POWER_{}".format(str(ul_disc).upper())
-                                $ disc_powers = cfg.REF_DISC_POWER_TREES[ul_disc]# [getattr(cfg, pw) for pw in cfg.__dict__ if str(pw).startswith(ul_disc_prefix)]
-                                # $ unlocked_powers = [pw for pw in disc_powers if pw in pc.powers]
-                                $ power_list = pc.disciplines.pc_powers[ul_disc]
-                                for pkey in power_list:
-                                    $ power = power_list[pkey] if power_list[pkey] else None
-                                    if power:
-                                        frame style style.utility_frame left_padding 5 xalign 0.0:
-                                            textbutton str(count + 1) + ". [power]":
-                                                text_style style.codex_hoverable_text
-                                                action NullAction()
-                                                hovered ShowTransient("hovertip", None, "{tt}".format(tt="tool_tip tbd"))
-                                                unhovered Hide("hovertip", None)
-                                            # text str(count + 1) + ". [power]" text_align 1.0 xfill True
+                # hbox xfill True:
+                # NOTE: Viewport doesn't take a background property; it can't be substituted for a frame
+                if len(unlocked_ds) > 3:
+                    viewport scrollbars "horizontal" mousewheel "horizontal" draggable True:# child_size (300, None):
+                        use codexPowersSubpage(unlocked_ds, len(unlocked_ds))
+                else:
+                    frame padding(0, 0) style style.utility_frame:
+                        use codexPowersSubpage(unlocked_ds, 3)
+
+
+screen codexPowersSubpage(unlocked_ds, num_ds):
+    $ total_scroll_width = (num_ds * 360) + ((num_ds - 1) * 10) + 20
+    hbox spacing 10 xfill False xsize total_scroll_width:
+        for count, ul_disc in enumerate(unlocked_ds):
+            frame style style.utility_frame xsize 300 yfill True:
+                vbox spacing 7:
+                    use dotchain(ul_disc, pc.disciplines.levels[ul_disc], tooltip="tooltip tbd")
+                    $ ul_disc_prefix = "POWER_{}".format(str(ul_disc).upper())
+                    $ disc_powers = cfg.REF_DISC_POWER_TREES[ul_disc]
+                    # $ unlocked_powers = [pw for pw in disc_powers if pw in pc.powers]
+                    $ power_list = pc.disciplines.pc_powers[ul_disc]
+                    for pkey in power_list:
+                        $ power = power_list[pkey] if power_list[pkey] else None
+                        if power:
+                            frame style style.utility_frame left_padding 5 xalign 0.0:
+                                textbutton str(count + 1) + ". [power]":
+                                    text_style style.codex_hoverable_text
+                                    action NullAction()
+                                    hovered ShowTransient("hovertip", None, "{tt}".format(tt="tooltip tbd"))
+                                    unhovered Hide("hovertip", None)
+                                # text str(count + 1) + ". [power]" text_align 1.0 xfill True
 
 
 # Character sheet tab showing status, i.e. opinions, backgrounds, inventory
@@ -264,19 +301,21 @@ screen codexStatusPage(*args):
                         use repbar(state.opinions[reputation], cfg.REP_MAX, cfg.REP_VALUE_ADJUST, includeName=reputation)
             frame id "pane_backgrounds" xalign 0.5 ysize 360 padding (10, 10):
                 #use buildGrid(gui.BG_GRID_ROWS, gui.BG_GRID_COLS, len(pc.backgrounds), 10, 10):
-                use buildGrid(2, 4, len(pc.backgrounds), 10, 10):
+                use buildGrid(3, 3, len(pc.backgrounds), 10, 10):
                     for count, asset in enumerate(pc.backgrounds):
-                        $ dcolor = "dark" if asset[cfg.REF_TYPE] == cfg.REF_BG_FLAW else "red"
-                        $ print("\n\nAAAAH\n\n", asset)
-                        $ altname = (asset[cfg.REF_BG_NAME] + " Flaw") if asset[cfg.REF_TYPE] == cfg.REF_BG_FLAW else (asset[cfg.REF_BG_NAME])
+                        python:
+                            dcolor = "dark" if asset[cfg.REF_TYPE] == cfg.REF_BG_FLAW else "red"
+                            altname, flaw_text = None,  " Flaw" if asset[cfg.REF_TYPE] == cfg.REF_BG_FLAW else ""
+                            if cfg.REF_SUBTYPE in asset:
+                                altname = "{}{}".format(asset[cfg.REF_SUBTYPE], flaw_text)
                         if asset[cfg.REF_TYPE] == cfg.REF_BG_PAST:
-                            $ print("---1----REF TYPE is {}".format(asset[cfg.REF_TYPE]))
-                            use hovertext("Mortal background: {}".format(asset[cfg.REF_BG_NAME]), asset[cfg.REF_DESC], "big")
+                            # $ print("---1----REF TYPE is {}".format(asset[cfg.REF_TYPE]))
+                            use hovertext("Mortal past: {}".format(asset[cfg.REF_BG_NAME]), asset[cfg.REF_DESC], "big")
                         elif asset[cfg.REF_TYPE] == cfg.REF_PREDATOR_TYPE:
                             use hovertext("Predator Type: {}".format(asset[cfg.REF_BG_NAME]), asset[cfg.REF_DESC], "big")
                         else:
-                            $ print("---2----REF TYPE is {}".format(asset[cfg.REF_TYPE]))
-                            use dotchain(asset[cfg.REF_BG_NAME], asset[cfg.REF_DOTS], altname=altname, dotcolor=dcolor, format="merit")
+                            # $ print("---2----REF TYPE is {}".format(asset[cfg.REF_TYPE]))
+                            use dotchain(asset[cfg.REF_BG_NAME], asset[cfg.REF_DOTS], altname=altname, dotcolor=dcolor, format="merit", tooltip=asset[cfg.REF_DESC])
 
 
 # Shows character inventory and case notes, i.e. quest log
@@ -292,24 +331,21 @@ screen codexCasefilesPage(*args):
                     for count, item in enumerate(state.pc.inventory.items):
                         frame style style.utility_frame:
                             python:
-                                global itemTable
-                                itemDetails = itemTable[item[KEY_NAME]]
-                                colorstr = IT_COLOR_KEYS[itemDetails[KEY_ITEMTYPE]]
+                                color_str = game.Supply.ITEM_COLOR_KEYS[item.item_type]
+                                title = item.name
+                                tooltip = item.description
+                                itype = item.item_type
 
-                                title = getItemProperty(item, KEY_VALUE)
-                                tool_tip = getItemProperty(item, KEY_TOOLTIP)
-                                itype = getItemProperty(item, KEY_ITEMTYPE)
+                                if itype == game.Supply.IT_MONEY:
+                                    title = "{}: ${:.2f}".format(item.name, item.quantity)
+                                elif itype == game.Supply.IT_WEAPON or itype == game.Supply.IT_FIREARM:
+                                    concealed = "You have your trusty forged CCW permit, just in case." if item.concealable else "This is an open carry state, right?"
+                                    tooltip = "Lethality: {db}\n\n{cncl}\n\n{btt}".format(db=item.lethality, cncl=concealed, btt=tooltip)
 
-                                if itemDetails[KEY_ITEMTYPE] == IT_MONEY:
-                                    title = "" + str(item[KEY_NAME]).capitalize() + ": ${:.2f}".format(item[KEY_VALUE])
-                                elif itemDetails[KEY_ITEMTYPE] == IT_WEAPON or itemDetails[KEY_ITEMTYPE] == IT_FIREARM:
-                                    concealed = "I have my trusty forged CCW permit, just in case." if itemDetails[ITEM_CONCEALED] else "This is an open carry state, right?"
-                                    tool_tip = "Damage Bonus: {db}\n\n{cncl}\n\n{btt}".format(db=itemDetails[DAMAGE_BONUS], cncl=concealed, btt=tool_tip)
-
-                            textbutton str(title) + " {color=[colorstr]}(" + str(itemDetails[KEY_ITEMTYPE]) + "){/color}":
+                            textbutton str(title) + " {color=[color_str]}(" + str(itype) + "){/color}":
                                 text_style style.codex_hoverable_text
                                 action NullAction()
-                                hovered ShowTransient("hovertip", None, "{}".format(tool_tip))
+                                hovered ShowTransient("hovertip", None, "{}".format(tooltip))
                                 unhovered Hide("hovertip", None)
             frame id "pane_case_log" xalign 0.5 ysize 315 padding (10, 10):
                 text "This will basically be a quest log."
@@ -361,7 +397,7 @@ screen disciplineTree(*args):
         vbox spacing 2 xfill True:
             text "Discipline Powers" align truecenter text_align 0.5
 
-# Used to display tool_tips
+# Used to display tooltips
 screen hovertip(tip, *args):
     frame background Frame("gui/frame.png", Borders(5, 5, 5, 5)):
         xmaximum 312
@@ -389,6 +425,11 @@ style codex_panel_frame:
     xsize 1160
     padding (10, 5)
     background Frame("gui/frame.png", Borders(2, 2, 2, 2))
+
+style codex_panel_viewport:
+    modal False
+    xsize 1160
+    padding (10, 5)
 
 style codex_panel_text:
     size 16 # 16

@@ -14,6 +14,7 @@ init 1 python in game:
             self._bonus = bonus
             self.spf_damage = 0
             self.agg_damage = 0
+            self.last_damage_source = None
 
         @property
         def boxes(self):
@@ -43,7 +44,7 @@ init 1 python in game:
         def bonus(self, new_bonus: int):
             self._bonus = new_bonus
 
-        def damage(self, dtype, amount):
+        def damage(self, dtype, amount, source=None):
             total_boxes = self.boxes + self.bonus
 
             temp_armor = self.armor if self.armor_active else 0
@@ -76,7 +77,7 @@ init 1 python in game:
 
                 if self.agg_damage >= total_boxes:
                     # A tracker completely filled with aggravated damage = game over: torpor, death, or a total loss of faculties, face and status
-                    self.playerchar.handle_demise(self.trackertype)
+                    self.playerchar.handle_demise(self.trackertype, self.last_damage_source)
                     utils.log("====> damage " + str(point) + ": oh shit you dead")
 
                 injured = True
@@ -85,6 +86,9 @@ init 1 python in game:
                 pass
             elif injured:
                 # renpy.sound.queue(audio.stab2, u'sound')
+                self.last_damage_source = source
+                if self.last_damage_source is None:
+                    self.last_damage_source = cfg.COD_PHYSICAL
                 pass
 
         def mend(self, dtype, amount):
@@ -140,73 +144,12 @@ init 1 python in game:
             else:
                 return [dname for dname in self.access if self.access[dname] >= access_level]
 
+        def set_discipline_level(self, dname, dots):
+            new_dot_level = utils.nudge_int_value(self.levels[dname], dots, floor=cfg.MIN_SCORE, ceiling=cfg.MAX_SCORE)
+            self.levels[dname] = new_dot_level
+
         # def unlock_power(dname, power_name):
         #     if power_name not in
-
-    class Supply:
-        IT_MONEY = "money"
-        IT_WEAPON = "melee_weapon"
-        IT_FIREARM = "firearm"
-        IT_EQUIPMENT = "equipment"
-        IT_QUEST = "quest_item"
-        IT_MISC = "miscellaneous"
-        IT_JUNK = "junk"
-        IT_CLUE = "clue"
-
-        ITEM_COLOR_KEYS = {
-            IT_MONEY: "#399642", IT_JUNK: "#707070", IT_CLUE: "#ffffff", IT_WEAPON: "#8f8f8f",
-            IT_EQUIPMENT: "#cbcbdc", IT_QUEST: "#763cb7", IT_MISC: "#cbcbdc", IT_FIREARM: "#71797E"
-        }
-
-        def __init__(self, type, name, key=None, num=1, desc=None, **kwargs):
-            self.item_type = type
-            self.quantity = num
-            self.color_key = Supply.ITEM_COLOR_KEYS[self.item_type]
-            self.key = key
-            if self.key is None:
-                self.key = utils.generate_random_id_str(label="supply#{}".format(self.item_type))
-            self.name = name
-            if desc:
-                self.description = desc
-            else:
-                pass
-            for kwarg in kwargs:
-                setattr(self, kwarg, kwargs[kwarg])
-            if self.item_type == Supply.IT_FIREARM:
-                if not hasattr(self, "concealable"):
-                    self.concealable = True
-
-
-    class Inventory:
-        ITEM_TYPES = [it for it in Supply.__dict__ if str(it).startswith("IT_")]
-
-        def __init__(self, *items: Supply, **kwargs):
-            self.items = []
-            self.items += items
-
-        def __len__(self):
-            return len(self.items)
-
-        def __contains__(self, key):
-            if key in Inventory.ITEM_TYPES:
-                for item in self.items:
-                    if item.item_type == key:
-                        return True
-            else:
-                for item in self.items:
-                    if item.name == key:
-                        return True
-            return False
-
-        def add(self, new_item: Supply):
-            if new_item.item_type == Supply.IT_MONEY:
-                cash = next((it for it in self.items if it.item_type == Supply.IT_MONEY), None)
-                if cash is None:
-                    self.items.append(new_item)
-                else:
-                    cash.quantity += new_item.quantity
-            else:
-                self.items.append(new_item)
 
 
     class PlayerChar:
@@ -219,7 +162,8 @@ init 1 python in game:
             self._hunger = 1
             self._humanity = 7
             self.hp, self.will = Tracker(self, 3, cfg.TRACK_HP), Tracker(self, 3, cfg.TRACK_WILL)
-            self.crippled, self.shocked = False, False
+            self.crippled, self.shocked, self.frenzied = False, False, False
+            self.cause_of_death = None
             self._status = "(All clear)"
             self.clan_blurbs = {}
             self.anames, self.snames, self.dnames = anames, snames, dnames
@@ -228,13 +172,17 @@ init 1 python in game:
             self.mortal_backstory = None
             self._backgrounds = []
             self.disciplines = SuperpowerArsenal(self.dnames)
-            self.inventory = Inventory()
+            self.inventory = None
             self.reset_charsheet_stats()
 
         @property
         def status(self):
             status_list = []
-            if self.hunger >= cfg.HUNGER_MAX:
+            if self.frenzied and self.hunger >= cfg.HUNGER_MAX:
+                status_list.append("Hunger frenzy")
+            elif self.frenzied:
+                status_list.append("Frenzy")
+            elif self.hunger >= cfg.HUNGER_MAX:
                 status_list.append("Starving")
             if self.crippled:
                 status_list.append("Maimed")
@@ -255,6 +203,7 @@ init 1 python in game:
             self._hunger = max(0, min(new_hunger, cfg.HUNGER_MAX + 1))
             if self.hunger > cfg.HUNGER_MAX:
                 print("Hunger tested at 5; frenzy check?")  # TODO: frenzy check
+                self.frenzied = True
                 self.hunger = cfg.HUNGER_MAX
             else:
                 utils.log("Hunger now set at {}".format(self.hunger))
@@ -307,14 +256,24 @@ init 1 python in game:
             self.hp.boxes = int(self.attrs[cfg.AT_STA]) + 3
             self.will.boxes = int(self.attrs[cfg.AT_COM]) + int(self.attrs[cfg.AT_RES])
 
-        def apply_background(self, background: (dict, str), bg_key=None):
+        def apply_background(self, background: (dict, str), bg_key=None, force_add=False):
             bg, key = background, bg_key
             if isinstance(background, str):
                 bg = cfg.CHAR_BACKGROUNDS[background]
                 key = background
             if cfg.REF_BG_NAME not in bg:
                 bg[cfg.REF_BG_NAME] = key
-            self._backgrounds.append(bg)
+            # Reject any background if it shares a subtype with an existing background unless force_add == True
+            # e.g. picking Nosferatu and Siren should leave PC with Repulsive and not Beautiful
+            if cfg.REF_SUBTYPE not in bg or force_add:
+                self._backgrounds.append(bg)
+            else:
+                bg_subtype = bg[cfg.REF_SUBTYPE]
+                existing_subtypes = [bg[cfg.REF_SUBTYPE] for bg in self.backgrounds if cfg.REF_SUBTYPE in bg]
+                if bg_subtype not in existing_subtypes:
+                    self._backgrounds.append(bg)
+            if bg[cfg.REF_TYPE] == cfg.REF_BG_PAST:
+                self.mortal_backstory = bg[cfg.REF_BG_NAME]
             self.recalculate_stats()
 
         def apply_xp(self):
@@ -344,6 +303,7 @@ init 1 python in game:
                 self.unlock_discipline(cfg.DISC_POTENCE, cfg.VAL_DISC_INCLAN)
                 self.unlock_discipline(cfg.DISC_PRESENCE, cfg.VAL_DISC_INCLAN)
             elif clan == cfg.CLAN_NOSFERATU:
+                self.apply_background(cfg.BG_REPULSIVE)
                 self.unlock_discipline(cfg.DISC_ANIMALISM, cfg.VAL_DISC_INCLAN)
                 self.unlock_discipline(cfg.DISC_OBFUSCATE, cfg.VAL_DISC_INCLAN)
                 self.unlock_discipline(cfg.DISC_POTENCE, cfg.VAL_DISC_INCLAN)
@@ -360,6 +320,16 @@ init 1 python in game:
                     self.unlock_discipline(dname, cfg.VAL_DISC_CAITIFF)
             else:
                 raise ValueError("Invalid clan \"{}\".".format(clan))
+            self.apply_background_discipline_priority()
+
+        def apply_background_discipline_priority(self):
+            if not self.mortal_backstory:
+                raise ValueError("Missing blurb of character's mortal past.")
+            priority = cfg.CHAR_BACKGROUNDS[self.mortal_backstory][cfg.REF_BG_DISC_PRIORITY]
+            short_list = [disc for disc in priority if disc in self.disciplines.get_unlocked()]
+            disc1, disc2 = short_list[0], short_list[1]
+            self.disciplines.set_discipline_level(disc1, "+=2")
+            self.disciplines.set_discipline_level(disc2, "+=1")
 
         def choose_predator_type(self, pt):
             if pt == cfg.PT_ALLEYCAT:
@@ -395,72 +365,72 @@ init 1 python in game:
         def unlock_discipline(self, disc, level):
             self.disciplines.unlock(disc, level)
 
-        def handle_demise(self, tracker_type):
-            pass
+        def handle_demise(self, tracker_type, damage_source):
+            self.cause_of_death = damage_source
+            renpy.jump("end")
 
 
-init 1 python in state:
-    # pc = None
-    cfg, utils = renpy.store.cfg, renpy.store.utils
+    class Supply:
+        IT_MONEY = "Money"
+        IT_WEAPON = "Weapon"
+        IT_FIREARM = "Firearm"
+        IT_EQUIPMENT = "Equipment"
+        IT_QUEST = "Important"
+        IT_MISC = "Miscellaneous"
+        IT_JUNK = "Junk"
+        IT_CLUE = "Clue"
 
-    from store.game import Supply, Inventory
+        ITEM_COLOR_KEYS = {
+            IT_MONEY: "#399642", IT_JUNK: "#707070", IT_CLUE: "#ffffff", IT_WEAPON: "#8f8f8f",
+            IT_EQUIPMENT: "#cbcbdc", IT_QUEST: "#763cb7", IT_MISC: "#cbcbdc", IT_FIREARM: "#71797E"
+        }
 
-    gdict = cfg.__dict__
-    attr_names = [getattr(cfg, aname) for aname in gdict if str(aname).startswith("AT_")]
-    skill_names = [getattr(cfg, sname) for sname in gdict if str(sname).startswith("SK_")]
-    discipline_names = [getattr(cfg, dname) for dname in gdict if str(dname).startswith("DISC_")]
-    # pc = renpy.store.game.PlayerChar(anames=attr_names, snames=skill_names, dnames=discipline_names)
+        def __init__(self, type, name, key=None, num=1, desc=None, **kwargs):
+            self.item_type = type
+            self.quantity = num
+            self.color_key = Supply.ITEM_COLOR_KEYS[self.item_type]
+            self.key = key
+            if self.key is None:
+                self.key = utils.generate_random_id_str(label="supply#{}".format(self.item_type))
+            self.name = name
+            if desc:
+                self.description = desc
+            else:
+                self.description = "({})".format(self.item_type)
+            for kwarg in kwargs:
+                setattr(self, kwarg, kwargs[kwarg])
+            if self.item_type == Supply.IT_FIREARM:
+                if not hasattr(self, "concealable"):
+                    self.concealable = True
 
-    def available_pc_will():
-        return pc.will.boxes - (pc.will.spf_damage + pc.will.agg_damage)
 
-    def pc_can_drink_swill():
-        if pc.clan == cfg.CLAN_VENTRUE:
+    class Inventory:
+        ITEM_TYPES = [it for it in Supply.__dict__ if str(it).startswith("IT_")]
+
+        def __init__(self, *items: Supply, **kwargs):
+            self.items = []
+            self.items += items
+
+        def __len__(self):
+            return len(self.items)
+
+        def __contains__(self, key):
+            if key in Inventory.ITEM_TYPES:
+                for item in self.items:
+                    if item.item_type == key:
+                        return True
+            else:
+                for item in self.items:
+                    if item.key == key:
+                        return True
             return False
-        if pc.blood_potency > 4:
-            return False
-        if pc.blood_potency > 2 and cfg.POWER_ANIMALISM_SUCCULENCE not in pc.disciplines.pc_powers:
-            return False
-        return True
 
-    def set_hunger(delta, killed=False, innocent=False):
-        new_hunger = utils.nudge_int_value(pc.hunger, delta, "Hunger", floor=cfg.HUNGER_MIN_KILL if killed else cfg.HUNGER_MIN, ceiling=7)
-        pc.hunger = new_hunger
-        if killed and innocent:
-            set_humanity("-=1")
-        if pc.hunger > cfg.HUNGER_MAX_CALM:
-            renpy.show_screen(_screen_name="hungerlay", _layer = "hunger_layer", _tag = "hungerlay", _transient = False)
-        else:
-            renpy.hide_screen("hungerlay", "master")
-
-    def set_humanity(delta):
-        new_humanity = utils.nudge_int_value(pc.humanity, delta, "Humanity", floor=cfg.MIN_HUMANITY, ceiling=cfg.MAX_HUMANITY)
-        pc.humanity = new_humanity
-
-    def deal_damage(tracker, dtype, amount):
-        if tracker == cfg.TRACK_HP:
-            pc.hp.damage(dtype, amount)
-        else:
-            pc.will.damage(dtype, amount)
-
-
-    loot_table = Inventory(
-        Supply(Supply.IT_MONEY, "Money", num=int(12.5 * 1000 * 1000 * 1000), desc="Local city's entire GDP"),
-        Supply(Supply.IT_EQUIPMENT, "Smartphone", desc="The latest and greatest in rooted burner phones. GPS disabled."),
-        Supply(Supply.IT_JUNK, "Bubble Gum", desc="You were hoping this would help with blood-breath. It doesn't."),
-        Supply(
-            Supply.IT_WEAPON, "Switchblade", lethality=2,
-            desc="You know what they say about knife fights. Good thing you're already dead."
-        ),
-        Supply(Supply.IT_FIREARM, "S & W Model 500", lethality=3, concealable=False, desc="Do you feel lucky?"),
-        Supply(
-            Supply.IT_FIREARM, "Stolen Ruger LCP", key="gun_ruger_1", lethality=2, desc="Confiscated and then re-confiscated."
-        ),
-        Supply(
-            Supply.IT_FIREARM, "Blood-spattered Colt 45", key="police_colt", lethality=2,
-            desc="I'm sure I'll need this, wherever I'm going..."
-        )
-    )
-
-
-    
+        def add(self, new_item: Supply):
+            if new_item.item_type == Supply.IT_MONEY:
+                cash = next((it for it in self.items if it.item_type == Supply.IT_MONEY), None)
+                if cash is None:
+                    self.items.append(new_item)
+                else:
+                    cash.quantity += new_item.quantity
+            else:
+                self.items.append(new_item)

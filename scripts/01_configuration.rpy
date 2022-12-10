@@ -15,6 +15,7 @@ init 0 python in cfg:
     DOT_NUMBERS = ("zero", "one", "two", "three", "four", "five")
 
     REF_TYPE = "type"
+    REF_SUBTYPE = "subtype"
     REF_DESC = "description"
     REF_TOOLTIP = "tooltip"
     REF_DOTS = "dots"
@@ -66,9 +67,13 @@ init 0 python in cfg:
     HUNGER_MIN_KILL = 0
     MAX_HUMANITY = 8
     MIN_HUMANITY = 4
-    KILL_HUNT_HUMANITY_THRESHOLD_INC = 4
+    KILLHUNT_HUMANITY_MAX = 4
     RESIST_MAX_HUNGER_HUMANITY_THRESHOLD_INC = 8
     WEAK_TO_HUNGER_HUMANITY_THRESHOLD_INC = 5
+
+    MIN_ACTIVITY_TIME = 1
+    STANDARD_HUNT_TIME = 3
+    MAX_HUNT_TIME = 6
 
     HUNGER_BLURBS = [
         ["{i}Goddamn{/i} that feels good.", "I feel... whole.", "The emptiness is gone, just for a bit.", "Oh God, what have I done?"],
@@ -76,7 +81,10 @@ init 0 python in cfg:
         ["Time to hunt...", "Time to hunt...", "Eh, I could eat.", "Eh, I could eat."],
         ["Ayyy where my juicebags at?", "Should feed soon...", "Getting pretty hungry...", "It can wait, if need be."],
         ["FEED. NOW.", "'Bout to grab me a fuckin' drink!", "Come on. Mind over matter.", "The Beast doesn't rule me. {i}I{/i} rule me."],
-        ["Can't think. Blood...", "FUCKFUCKFUCKFUCKFUCK", "I need to feed before I lose control...", "I need to feed before I lose control..."]
+        [
+            "Can't think. Blood...", "FUCKFUCKFUCKFUCKFUCK",
+            "I need to feed before I lose control...", "I need to feed before I lose control..."
+        ]
     ]
     HUMANITY_BLURBS = [
         "Loathsome tick",
@@ -187,79 +195,18 @@ init 0 python in cfg:
     ROLL_CONTEST = "pool"
     REF_ROLL_BONUS_PREFIX = "bonus_"
     REF_ROLL_EVENT_BONUS = "bonus_current_event"
-    REF_ROLL_FORCE_NOSBANE = "nosbane"
+    REF_ROLL_LOOKS = "Looks"
     REF_BG_NAME = "background_name"
 
     REF_BG_PAST = "Past"  # Collection of stat bonuses, not a merit/flaw in the V5 parlance
     REF_BG_MERIT = "Merit"
     REF_BG_FLAW = "Flaw"
+    REF_BG_LOOKS = "Looks"
 
     BG_BEAUTIFUL = "Beautiful"
     BG_ENEMY = "Enemy"
-
-    CHAR_BACKGROUNDS = {
-        "Nursing Student": {
-            REF_TYPE: REF_BG_PAST, REF_DESC: "You could have become a nurse one day. You could have helped people.",
-            REF_ATTRS_ALL: 1, AT_MAN: 1, AT_COM: 1, AT_INT: 1, AT_RES: 1,
-            REF_SKILLS_ALL: 1, SK_TECH: 1, SK_SCIE: 2, SK_LEAD: 1, SK_ACAD: 2, SK_INSP: 2, SK_INTI: -1, SK_ATHL: -1, SK_FIRE: -1
-        },
-        "Star Athlete": {
-            REF_TYPE: REF_BG_PAST, REF_DESC: "You can still remember it all. The sweat, the adrenaline, the sun on your face, the cheers...",
-            REF_ATTRS_ALL: 1, AT_STR: 1, AT_DEX: 1, AT_STA: 2, AT_CHA: 1, AT_COM: 1, AT_RES: 1,
-            REF_SKILLS_ALL: 1, SK_DIPL: 1, SK_LEAD: 1, SK_ACAD: 1, SK_ATHL: 2, SK_OCCL: -1
-        },
-        "Bartender": {
-            REF_TYPE: REF_BG_PAST, REF_DESC: "You exist at the intersection of so many lives. One of the few things that hasn't changed.",
-            REF_ATTRS_ALL: 1, AT_STR: -1, AT_DEX: 1, AT_CHA: 2, AT_MAN: 1, AT_COM: 1, AT_WIT: 1,
-            REF_SKILLS_ALL: 1, SK_DIPL: 2, SK_INSP: 1, SK_STWS: 2, SK_INTR: 2, SK_TRAV: 1,
-            SK_ATHL: -1, SK_FIRE: -1, SK_OCCL: -1, SK_SCIE: -1
-        },
-        "Veteran": {
-            REF_TYPE: REF_BG_PAST, REF_DESC: "The more things change, the more they stay the same.",
-            REF_ATTRS_ALL: 1, AT_DEX: 1, AT_STA: 1, AT_CHA: -1, AT_COM: 1, AT_WIT: 2,
-            SK_ACAD: 1, SK_ATHL: 2, SK_COMB: 3, SK_TRAV: 2, SK_FIRE: 3, SK_INSP: 2, SK_STWS: 2, SK_INTR: 1, SK_INTI: 3, SK_TECH: 2
-        },
-        BG_BEAUTIFUL: {REF_TYPE: REF_BG_MERIT, REF_DOTS: 2, REF_DESC: "You've got beguiling, head-turning looks."},
-        BG_ENEMY: {
-            REF_TYPE: REF_BG_FLAW, REF_DESC: "Some mortal has it out for you. They may even know who you are, though hopefully not {i}what{/i}."
-        }
-    }
-
-    for key in CHAR_BACKGROUNDS:
-        bg = CHAR_BACKGROUNDS[key]
-        if REF_TYPE in bg and bg[REF_TYPE] == REF_BG_PAST:
-            phys_attr_points, phys_skill_points = 0, 0
-            socl_attr_points, socl_skill_points = 0, 0
-            ment_attr_points, ment_skill_points = 0, 0
-            for key2 in bg:
-                val = bg[key2]
-                if key2 == REF_ATTRS_ALL:
-                    phys_attr_points += val * 3
-                    socl_attr_points += val * 3
-                    ment_attr_points += val * 3
-                elif key2 == REF_SKILLS_ALL:
-                    phys_skill_points += val * 5
-                    socl_skill_points += val * 5
-                    ment_skill_points += val * 5
-                elif key2 in REF_PHYSICAL_ATTRS:
-                    phys_attr_points += val
-                elif key2 in REF_SOCIAL_ATTRS:
-                    socl_attr_points += val
-                elif key2 in REF_MENTAL_ATTRS:
-                    ment_attr_points += val
-                elif key2 in REF_PHYSICAL_SKILLS:
-                    phys_skill_points += val
-                elif key2 in REF_SOCIAL_SKILLS:
-                    socl_skill_points += val
-                elif key2 in REF_MENTAL_SKILLS:
-                    ment_skill_points += val
-            attr_points = phys_attr_points + socl_attr_points + ment_attr_points
-            skill_points = phys_skill_points + socl_skill_points + ment_skill_points
-            print("\"{}\":\nAttr points: ({} physical/{} social/{} mental) ({} total)\nSkill points: ({} physical/{} social/{} mental) ({} total)".format(
-                key, phys_attr_points, socl_attr_points, ment_attr_points, attr_points,
-                phys_skill_points, socl_skill_points, ment_skill_points, skill_points
-            ))
-
+    BG_UGLY = "Ugly"
+    BG_REPULSIVE = "Repulsive"
 
     REF_PREDATOR_TYPE = "predator_type"
     PT_ALLEYCAT = "Alley Cat"  # +1 Combat, +1 Intimidation, +1 Potence, -1 Humanity, +3 Contacts
@@ -270,51 +217,31 @@ init 0 python in cfg:
     CHAR_PT_STATBLOCKS = {
         PT_ALLEYCAT: {
             REF_TYPE: REF_PREDATOR_TYPE, REF_DESC: "A true predator, you stalk unwary kine and {i}take{/i} what you need.",
-            SK_COMB: 1, SK_INTI: 1, AT_STR: 1
+            SK_COMB: 1, SK_INTI: 1
         },
         PT_BAGGER: {
             REF_TYPE: REF_PREDATOR_TYPE, REF_DESC: "You prefer the bagged stuff, either negotiating or \"negotiating\" for it.",
-            SK_CLAN: 1, SK_STWS: 1, AT_INT: 1
+            SK_CLAN: 1, SK_STWS: 1
         },
         PT_FARMER: {
             REF_TYPE: REF_PREDATOR_TYPE, REF_DESC: "You don't feed from human beings at all if you can help it, hunting animals instead.",
-            SK_DIPL: 1, SK_TRAV: 1, AT_RES: 1
+            SK_DIPL: 1, SK_TRAV: 1
         },
         PT_SIREN: {
             REF_TYPE: REF_PREDATOR_TYPE,
             REF_DESC: "Feeding via seduction is a time-honored classic, and pretty reliable if you're alluring enough.",
-            SK_DIPL: 1, SK_INTR: 1, AT_CHA: 1
+            SK_DIPL: 1, SK_INTR: 1
         }
     }
 
-    # REF_PT_POOLS = {
-    #     PT_ALLEYCAT: [
-    #         {"Locate a vulnerable target": (AT_WIT, SK_STWS)},
-    #         {
-    #             "Direct assault": (cfg.AT_STR, SK_COMB),
-    #             "Threaten into compliance": (cfg.AT_CHA, cfg.SK_INTI),
-    #             "Sneak attack": (cfg.AT_DEX, cfg.SK_CLAN)
-    #         }
-    #     ],
-    #     PT_BAGGER: [
-    #         {
-    #             "Locate and negotiate with a supplier": (cfg.AT_INT, cfg.SK_STWS),
-    #             "Search medical databases": (cfg.AT_RES, cfg.SK_TECH)
-    #         },
-    #         {
-    #             "Fabricate credentials and infiltrate": (cfg.AT_MAN, cfg.SK_ACAD),
-    #             "Attempt clandestine retrieval": (cfg.AT_DEX, cfg.SK_CLAN),
-    #             "Act like you belong": (cfg.AT_WIT, cfg.SK_INSP)
-    #         }
-    #     ],
-    #     PT_FARMER: [
-    #         {"Find a secluded spot for hunting rats and strays": (cfg.AT_RES, cfg.SK_TRAV), "Locate an animal shelter": (cfg.s)},
-    #         {""}
-    #     ],
-    #     PT_SIREN: [
-    #
-    #     ]
-    # }
+    REF_RESONANCE = "Resonance"
+
+    RESON_ANIMAL = "Animal Resonance"
+    RESON_CHOLERIC = "Choleric Resonance"
+    RESON_MELANCHOLIC = "Melancholic Resonance"
+    RESON_PHLEGMATIC = "Phlegmatic Resonance"
+    RESON_SANGUINE = "Sanguine Resonance"
+    RESON_EMPTY = "\"Empty\" Resonance"
 
     DISC_ANIMALISM = "Animalism"
     DISC_CELERITY = "Celerity"
@@ -324,10 +251,118 @@ init 0 python in cfg:
     DISC_POTENCE = "Potence"
     DISC_PRESENCE = "Presence"
 
+    REF_BG_DISC_PRIORITY = "discipline_priority"
+
+    CHAR_BACKGROUNDS = {
+        "Nursing Student": {
+            REF_TYPE: REF_BG_PAST, REF_SUBTYPE: REF_BG_PAST,
+            REF_DESC: "You could have become a nurse one day. You could have helped people.",
+            REF_ATTRS_ALL: 1, AT_STA: -1, AT_MAN: 1, AT_COM: 2, AT_INT: 1, AT_RES: 1,
+            REF_SKILLS_ALL: 1, SK_TECH: 2, SK_SCIE: 2, SK_LEAD: 1, SK_ACAD: 2, SK_INSP: 2,
+            SK_INTI: -1, SK_ATHL: -1, SK_FIRE: -1, SK_OCCL: -1,
+            REF_BG_DISC_PRIORITY: [
+                DISC_DOMINATE, DISC_CELERITY, DISC_PRESENCE, DISC_FORTITUDE, DISC_POTENCE, DISC_ANIMALISM, DISC_OBFUSCATE
+            ]
+        },
+        "Star Athlete": {
+            REF_TYPE: REF_BG_PAST, REF_SUBTYPE: REF_BG_PAST,
+            REF_DESC: "You can still remember it all. The sweat, the adrenaline, the sun on your face, the cheers...",
+            REF_ATTRS_ALL: 1, AT_STR: 1, AT_DEX: 1, AT_STA: 2, AT_MAN: -1, AT_CHA: 1,
+            REF_SKILLS_ALL: 1, SK_DIPL: 1, SK_LEAD: 1, SK_ACAD: 1, SK_ATHL: 3, SK_OCCL: -1,
+            REF_BG_DISC_PRIORITY: [
+                DISC_POTENCE, DISC_CELERITY, DISC_FORTITUDE, DISC_PRESENCE, DISC_ANIMALISM, DISC_OBFUSCATE, DISC_DOMINATE
+            ]
+        },
+        "Bartender": {
+            REF_TYPE: REF_BG_PAST, REF_SUBTYPE: REF_BG_PAST,
+            REF_DESC: "You exist at the intersection of countless lives. One of the few things that hasn't changed.",
+            REF_ATTRS_ALL: 1, AT_DEX: 1, AT_CHA: 2, AT_MAN: 1, AT_WIT: 1, AT_RES: -1,
+            REF_SKILLS_ALL: 1, SK_DIPL: 2, SK_INSP: 1, SK_STWS: 2, SK_INTR: 2, SK_TRAV: 1,
+            SK_ATHL: -1, SK_FIRE: -1, SK_OCCL: -1,
+            REF_BG_DISC_PRIORITY: [
+                DISC_PRESENCE, DISC_DOMINATE, DISC_CELERITY, DISC_FORTITUDE, DISC_ANIMALISM, DISC_POTENCE, DISC_OBFUSCATE
+            ]
+        },
+        "Veteran": {
+            REF_TYPE: REF_BG_PAST, REF_SUBTYPE: REF_BG_PAST,
+            REF_DESC: "The more things change, the more they stay the same.",
+            REF_ATTRS_ALL: 1, AT_DEX: 1, AT_STA: 1, AT_CHA: -1, AT_COM: 1, AT_WIT: 2,
+            SK_ACAD: 1, SK_ATHL: 2, SK_COMB: 2, SK_TRAV: 2, SK_FIRE: 3, SK_INSP: 2,
+            SK_STWS: 2, SK_INTI: 2, SK_TECH: 2, SK_CLAN: 2,
+            REF_BG_DISC_PRIORITY: [
+                DISC_CELERITY, DISC_ANIMALISM, DISC_OBFUSCATE, DISC_FORTITUDE, DISC_POTENCE, DISC_DOMINATE, DISC_PRESENCE
+            ]
+        },
+        "Grad Student": {
+            REF_TYPE: REF_BG_PAST, REF_SUBTYPE: REF_BG_PAST,
+            REF_DESC: "Imagine knowing then what you know now.",
+            REF_ATTRS_ALL: 1, AT_INT: 2, AT_DEX: -1, AT_WIT: 1, AT_MAN: 1, AT_RES: 1,
+            SK_CLAN: 1, SK_TRAV: 1, SK_DIPL: 1, SK_INTR: 1, SK_LEAD: 1, SK_ACAD: 4,
+            SK_INSP: 3, SK_OCCL: 2, SK_SCIE: 3, SK_TECH: 3,
+            REF_BG_DISC_PRIORITY: [
+                DISC_ANIMALISM, DISC_OBFUSCATE, DISC_FORTITUDE, DISC_PRESENCE, DISC_POTENCE, DISC_CELERITY, DISC_DOMINATE
+            ]
+        },
+        "Salesperson": {
+            REF_TYPE: REF_BG_PAST, REF_SUBTYPE: REF_BG_PAST,
+            REF_DESC: "",
+            REF_ATTRS_ALL: 1, AT_STR: -1, AT_CHA: 1, AT_MAN: 2, AT_COM: 1, AT_WIT: 1,
+            REF_SKILLS_ALL: 1, SK_CLAN: -1, SK_COMB: -1, SK_TRAV: 2, SK_DIPL: 2, SK_INTR: 3, SK_STWS: 1,
+            SK_SCIE: -1, SK_TECH: 1, SK_INTI: -1,
+            REF_BG_DISC_PRIORITY: [
+                DISC_PRESENCE, DISC_FORTITUDE, DISC_DOMINATE, DISC_ANIMALISM, DISC_CELERITY, DISC_POTENCE, DISC_OBFUSCATE
+            ]
+        },
+        BG_BEAUTIFUL: {
+            REF_TYPE: REF_BG_MERIT, REF_DOTS: 2, REF_SUBTYPE: REF_BG_LOOKS,
+            REF_DESC: "You've got beguiling, head-turning looks."
+        },
+        BG_UGLY: {
+            REF_TYPE: REF_BG_FLAW, REF_DOTS: 1, REF_SUBTYPE: REF_BG_LOOKS,
+            REF_DESC: "Hopefully your personality makes up for it."
+        },
+        BG_REPULSIVE: {
+            REF_TYPE: REF_BG_FLAW, REF_DOTS: 2, REF_SUBTYPE: REF_BG_LOOKS,
+            REF_DESC: "People tend to react negatively to seeing you up close."
+        },
+        BG_ENEMY: {
+            REF_TYPE: REF_BG_FLAW,
+            REF_DESC: "Some mortal has it out for you. They may even know who you are, though hopefully not {i}what{/i}."
+        }
+    }
+
     VAL_DISC_LOCKED = 0  # XP multipliers, with 0 meaning locked.
     VAL_DISC_OUTCLAN = float(5) / 7
     VAL_DISC_CAITIFF = float(5) / 6
     VAL_DISC_INCLAN = 1
+
+    REF_DISC_NICKNAME = "discipline_nickname"
+
+    REF_DISC_BLURBS = {
+        DISC_ANIMALISM: {
+            REF_DISC_NICKNAME: "Disney Princess", REF_RESONANCE: RESON_ANIMAL,
+            REF_TOOLTIP: "Everything has a Beast. Through me, you can commune with - and command - the lesser Beasts of the world."
+        },
+        DISC_CELERITY: {
+            REF_DISC_NICKNAME: "The Shine", REF_RESONANCE: RESON_CHOLERIC,
+            REF_TOOLTIP: "Float like a butterfly, sting like a bee."
+        },
+        DISC_DOMINATE: {
+
+        },
+        DISC_FORTITUDE: {
+
+        },
+        DISC_OBFUSCATE: {
+
+        },
+        DISC_POTENCE: {
+
+        },
+        DISC_PRESENCE: {
+
+        }
+    }
 
     POWER_ANIMALISM_FAMULUS = "Bond Famulus"
     POWER_ANIMALISM_SPEAK = "Feral Whispers"
@@ -415,18 +450,18 @@ init 0 python in cfg:
     TOOLTIP_TABLE = {  # TODO finish these
         AT_STR: "Lifting, pulling, pushing, punching, kicking, etc.",
         AT_DEX: "Coordination, acuity, speed. Everything from sprinting to aiming a gun.",
-        AT_STA: "How much punishment I can take if I have to. Or want to.",
-        AT_CHA: "Getting people to like me, fear me, want me. Making them {i}feel{/i}.",
-        AT_MAN: "Getting people to do what I say, however they feel about me.",
-        AT_COM: "Staying cool in the moment so I don't lose my shit again.",
+        AT_STA: "Bodily resilience and anatomical fortitude. How much punishment you can take, of any kind.",
+        AT_CHA: "Getting people to like you, fear you, want you. Making them {i}feel{/i}.",
+        AT_MAN: "Getting people to do what you say, however they feel about you.",
+        AT_COM: "Staying cool in the moment.",
         AT_INT: "Learning, reasoning, problem-solving, memory. The stuff they're always trying to test people for.",
-        AT_WIT: "Reaction, intuition, thinking on your feet!",
-        AT_RES: "Focus and determination not to let things go like before.",
+        AT_WIT: "Reaction, intuition, thinking on your feet.",
+        AT_RES: "Focus and determination, the ability to ignore distractions.",
 
         SK_ATHL: "Experience, form, and training for various types of coordinated physical exertion.",
         SK_CLAN: "Sneaking around, breaking into things, etc. Doing dirt.",
         SK_COMB: "Throwing hands, or wielding the kinds of weapons that you bash, cut, or stab with.",
-        SK_FIRE: "Handling and using guns. Blue Bloods don't get to do superhero shit like the other Clans, so coming strapped is a good idea.",
+        SK_FIRE: "Handling and using guns. Coming strapped is a good idea.",
         SK_TRAV: "sdfdsfdsfdsfdsHandling a car beyond just getting from point A to point B.",
         SK_INTI: "Getting people to back off or fall in line without resorting to mind control.",
         SK_INTR: "Dissembling, sophistry, subtlety, and straight up lies. Concealing motives and intentions.",
@@ -441,6 +476,11 @@ init 0 python in cfg:
     }
 
     MERIT_DISPLAY_MAX = 4
+
+    COD_SUN = "Sunlight"
+    COD_FIRE = "Fire"
+    COD_PHYSICAL = "Physical Damage"
+    COD_DECAPITATION = "Decapitation"
 
     DP_DISCLAIMER = "This game was created as a part of Vampire: The Masquerade game jam. "
     DP_DISCLAIMER += "Events portrayed in this game are not canon within World of Darkness."
