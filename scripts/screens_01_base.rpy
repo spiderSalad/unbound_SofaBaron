@@ -111,7 +111,7 @@ screen say(who, what):
         text what id "what"
 
     # CHANGED: sidebar, components, and transform below
-    frame id "calendar" align (0.0, 0.0) xysize (270, 40) background Frame("gui/frame.png"):
+    frame id "calendar" align (0.0, 0.0) xysize (250, 40) background Frame("gui/frame.png"):
         padding (7, 5)
         xfill False
         yfill False

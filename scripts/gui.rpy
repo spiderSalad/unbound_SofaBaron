@@ -299,10 +299,12 @@ define gui.notify_frame_borders = Borders(24, 8, 60, 8)
 ## Should frame backgrounds be tiled?
 define gui.frame_tile = False
 
-## Dot frames for ability scores (CHANGED)
+## (CHANGED)
+## Dot frames for ability scores
 define gui.dot_frame_width      = 320 # 270
 define gui.dot_frame_height     = 50
 
+# Custom gui constants
 define gui.GRID_ROWS_ALLSCORES  = 3
 define gui.GRID_COLS_ATTRS      = 3
 define gui.GRID_COLS_SKILLS     = 5
@@ -312,6 +314,9 @@ define gui.REP_GRID_ROWS        = 3
 define gui.REP_GRID_COLS        = 2
 define gui.BG_GRID_ROWS         = 3
 define gui.BG_GRID_COLS         = 2
+
+define gui.codex_base_width     = 1600
+define gui.codex_inner_width    = gui.codex_base_width - 10
 
 
 

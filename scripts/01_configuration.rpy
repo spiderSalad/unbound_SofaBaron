@@ -141,7 +141,7 @@ init 0 python in cfg:
     MIN_SCORE_ATTR = 1
     MIN_SCORE = 0
     SCORE_WORDS = ["zero", "one", "two", "three", "four", "five"]
-    DEFAULT_DOT_COLOR = "red"
+    DEF_DOT_COLOR = "red"
 
     TRACK_HP = "hit_points"
     TRACK_WILL = "willpower"
@@ -235,23 +235,37 @@ init 0 python in cfg:
     }
 
     REF_RESONANCE = "Resonance"
+    VAL_RESONANCE_GUI_MAX = 1000
 
-    RESON_ANIMAL = "Animal Resonance"
-    RESON_CHOLERIC = "Choleric Resonance"
-    RESON_MELANCHOLIC = "Melancholic Resonance"
-    RESON_PHLEGMATIC = "Phlegmatic Resonance"
-    RESON_SANGUINE = "Sanguine Resonance"
-    RESON_EMPTY = "\"Empty\" Resonance"
+    RESON_ANIMAL = "Animal Resonance"  # Animalism, Protean
+    RESON_CHOLERIC = "Choleric Resonance"  # Celerity, Potence
+    RESON_MELANCHOLIC = "Melancholic Resonance"  # Fortitude, Obfuscate
+    RESON_PHLEGMATIC = "Phlegmatic Resonance"  # Auspex, Dominate
+    RESON_SANGUINE = "Sanguine Resonance"  # Blood Sorcery, Presence
+    RESON_EMPTY = "\"Empty\" Resonance"  # Oblivion
+    RESON_VARIED = "Varied Resonances"  # Thinblood Alchemy
+
+    RINT_BASE = 100
+    RINT_BALANCED = RINT_BASE * 1
+    RINT_FLEETING = RINT_BALANCED * 1.5
+    RINT_INTENSE = RINT_FLEETING * 2
+    RINT_ACUTE = RINT_INTENSE * 2.5
 
     DISC_ANIMALISM = "Animalism"
+    DISC_AUSPEX = "Auspex"
     DISC_CELERITY = "Celerity"
     DISC_DOMINATE = "Dominate"
     DISC_FORTITUDE = "Fortitude"
     DISC_OBFUSCATE = "Obfuscate"
+    DISC_OBLIVION = "Oblivion"
     DISC_POTENCE = "Potence"
     DISC_PRESENCE = "Presence"
+    DISC_PROTEAN = "Protean"
+    DISC_BLOOD_SORCERY = "Blood Sorcery"
+    DISC_THINBLOOD_ALCHEMY = "Thinblood Alchemy"
 
     REF_BG_DISC_PRIORITY = "discipline_priority"
+    REF_DISC_NOT_YET = [DISC_AUSPEX, DISC_OBLIVION, DISC_PROTEAN, DISC_BLOOD_SORCERY, DISC_THINBLOOD_ALCHEMY]
 
     CHAR_BACKGROUNDS = {
         "Nursing Student": {
@@ -280,7 +294,7 @@ init 0 python in cfg:
             REF_SKILLS_ALL: 1, SK_DIPL: 2, SK_INSP: 1, SK_STWS: 2, SK_INTR: 2, SK_TRAV: 1,
             SK_ATHL: -1, SK_FIRE: -1, SK_OCCL: -1,
             REF_BG_DISC_PRIORITY: [
-                DISC_PRESENCE, DISC_DOMINATE, DISC_CELERITY, DISC_FORTITUDE, DISC_ANIMALISM, DISC_POTENCE, DISC_OBFUSCATE
+                DISC_PRESENCE, DISC_CELERITY, DISC_FORTITUDE, DISC_DOMINATE, DISC_ANIMALISM, DISC_POTENCE, DISC_OBFUSCATE
             ]
         },
         "Veteran": {
@@ -303,14 +317,14 @@ init 0 python in cfg:
                 DISC_ANIMALISM, DISC_OBFUSCATE, DISC_FORTITUDE, DISC_PRESENCE, DISC_POTENCE, DISC_CELERITY, DISC_DOMINATE
             ]
         },
-        "Salesperson": {
+        "Influencer": {
             REF_TYPE: REF_BG_PAST, REF_SUBTYPE: REF_BG_PAST,
-            REF_DESC: "",
+            REF_DESC: "Oddly enough, a lot of the bullshit you used to hawk is actually kinda useful now that you're dead.",
             REF_ATTRS_ALL: 1, AT_STR: -1, AT_CHA: 1, AT_MAN: 2, AT_COM: 1, AT_WIT: 1,
             REF_SKILLS_ALL: 1, SK_CLAN: -1, SK_COMB: -1, SK_TRAV: 2, SK_DIPL: 2, SK_INTR: 3, SK_STWS: 1,
             SK_SCIE: -1, SK_TECH: 1, SK_INTI: -1,
             REF_BG_DISC_PRIORITY: [
-                DISC_PRESENCE, DISC_FORTITUDE, DISC_DOMINATE, DISC_ANIMALISM, DISC_CELERITY, DISC_POTENCE, DISC_OBFUSCATE
+                DISC_PRESENCE, DISC_DOMINATE, DISC_ANIMALISM, DISC_FORTITUDE, DISC_CELERITY, DISC_POTENCE, DISC_OBFUSCATE
             ]
         },
         BG_BEAUTIFUL: {
@@ -335,36 +349,70 @@ init 0 python in cfg:
     VAL_DISC_OUTCLAN = float(5) / 7
     VAL_DISC_CAITIFF = float(5) / 6
     VAL_DISC_INCLAN = 1
+    REF_DISC_LOCKED = "Locked"
+    REF_DISC_OUTCLAN = "Out-of-Clan"
+    REF_DISC_CAITIFF = "Caitiff"
+    REF_DISC_INCLAN = "In-Clan"
+    REF_DISC_ACCESS = {
+        REF_DISC_LOCKED: VAL_DISC_LOCKED, REF_DISC_OUTCLAN: VAL_DISC_OUTCLAN,
+        REF_DISC_CAITIFF: VAL_DISC_CAITIFF, REF_DISC_INCLAN: VAL_DISC_INCLAN
+    }
 
     REF_DISC_NICKNAME = "discipline_nickname"
 
     REF_DISC_BLURBS = {
         DISC_ANIMALISM: {
-            REF_DISC_NICKNAME: "Disney Princess", REF_RESONANCE: RESON_ANIMAL,
+            REF_DISC_NICKNAME: "Doolittling", REF_RESONANCE: RESON_ANIMAL,
             REF_TOOLTIP: "Everything has a Beast. Through me, you can commune with - and command - the lesser Beasts of the world."
         },
+        DISC_AUSPEX: {
+            REF_DISC_NICKNAME: "", REF_RESONANCE: RESON_PHLEGMATIC,
+            REF_TOOLTIP: "We can extend our perception far beyond that of mortals and even other Kindred. Knowledge is power."
+        },
         DISC_CELERITY: {
-            REF_DISC_NICKNAME: "The Shine", REF_RESONANCE: RESON_CHOLERIC,
-            REF_TOOLTIP: "Float like a butterfly, sting like a bee."
+            REF_DISC_NICKNAME: "Tweaking", REF_RESONANCE: RESON_CHOLERIC,
+            REF_TOOLTIP: "If they can't catch us, they can't kill us. Or stop us."
         },
         DISC_DOMINATE: {
-
+            REF_DISC_NICKNAME: "", REF_RESONANCE: RESON_PHLEGMATIC,
+            REF_TOOLTIP: "Bend weaker minds to our will. The natural order of things, really."
         },
         DISC_FORTITUDE: {
-
+            REF_DISC_NICKNAME: "", REF_RESONANCE: RESON_MELANCHOLIC,
+            REF_TOOLTIP: ""
         },
         DISC_OBFUSCATE: {
-
+            REF_DISC_NICKNAME: "", REF_RESONANCE: RESON_MELANCHOLIC,
+            REF_TOOLTIP: ""
+        },
+        DISC_OBLIVION: {
+            REF_DISC_NICKNAME: "", REF_RESONANCE: RESON_EMPTY,
+            REF_TOOLTIP: ""
         },
         DISC_POTENCE: {
-
+            REF_DISC_NICKNAME: "Hulking", REF_RESONANCE: RESON_CHOLERIC,
+            REF_TOOLTIP: ""
         },
         DISC_PRESENCE: {
-
+            REF_DISC_NICKNAME: "Razzle Dazzle", REF_RESONANCE: RESON_SANGUINE,
+            REF_TOOLTIP: ""
+        },
+        DISC_PROTEAN: {
+            REF_DISC_NICKNAME: "Shapeshifting", REF_RESONANCE: RESON_ANIMAL,
+            REF_TOOLTIP: ""
+        },
+        DISC_BLOOD_SORCERY: {
+            REF_DISC_NICKNAME: "", REF_RESONANCE: RESON_SANGUINE,
+            REF_TOOLTIP: "The Blood is power. The Blood is alive with secrets, and a will all its own."
+        },
+        DISC_THINBLOOD_ALCHEMY: {
+            REF_DISC_NICKNAME: "", REF_RESONANCE: RESON_VARIED,
+            REF_TOOLTIP: "We have to cook!"
         }
     }
 
     POWER_ANIMALISM_FAMULUS = "Bond Famulus"
+    POWER_ANIMALISM_SENSE = "Sense the Beast"
     POWER_ANIMALISM_SPEAK = "Feral Whispers"
     POWER_ANIMALISM_SUCCULENCE = "Animal Succulence"
     POWER_ANIMALISM_HIVE = "Unliving Hive"
@@ -387,6 +435,7 @@ init 0 python in cfg:
     POWER_FORTITUDE_BANE = "Defy Bane"
 
     POWER_OBFUSCATE_FADE = "Cloak of Shadows"
+    POWER_OBFUSCATE_SILENCE = "Silence of Death"
     POWER_OBFUSCATE_STEALTH = "Unseen Passage"
     POWER_OBFUSCATE_ILLUSION = "Chimerstry"
     POWER_OBFUSCATE_MASK = "Mask of a Thousand Faces"
@@ -400,45 +449,58 @@ init 0 python in cfg:
 
     POWER_PRESENCE_AWE = "Awe"
     POWER_PRESENCE_DAUNT = "Daunt"
+    POWER_PRESENCE_ADDICTED2U = "Lingering Kiss"
     POWER_PRESENCE_ENTRANCE = "Entracement"
     POWER_PRESENCE_SCARYFACE = "Dread Gaze"
 
     REF_DISC_POWER_TREES = {
         DISC_ANIMALISM: [
-            [POWER_ANIMALISM_FAMULUS],
+            [POWER_ANIMALISM_FAMULUS, POWER_ANIMALISM_SENSE],
             [POWER_ANIMALISM_SPEAK],
-            [POWER_ANIMALISM_HIVE, POWER_ANIMALISM_QUELL, POWER_ANIMALISM_SUCCULENCE]
+            [POWER_ANIMALISM_HIVE, POWER_ANIMALISM_QUELL, POWER_ANIMALISM_SUCCULENCE],
+            [], []
         ],
+        DISC_AUSPEX: [],
         DISC_CELERITY: [
             [POWER_CELERITY_GRACE, POWER_CELERITY_TWITCH],
             [POWER_CELERITY_SPEED],
-            [POWER_CELERITY_BLINK]
+            [POWER_CELERITY_BLINK],
+            [], []
         ],
         DISC_DOMINATE: [
             [POWER_DOMINATE_COMPEL, POWER_DOMINATE_FORGET],
             [POWER_DOMINATE_MESMERIZE, POWER_DOMINATE_DEVOTION],
-            [POWER_DOMINATE_REWRITE]
+            [POWER_DOMINATE_REWRITE],
+            [], []
         ],
         DISC_FORTITUDE: [
             [POWER_FORTITUDE_HP, POWER_FORTITUDE_WILL],
             [POWER_FORTITUDE_TOUGH],
-            [POWER_FORTITUDE_BANE]
+            [POWER_FORTITUDE_BANE],
+            [], []
         ],
         DISC_OBFUSCATE: [
-            [POWER_OBFUSCATE_FADE],
+            [POWER_OBFUSCATE_FADE, POWER_OBFUSCATE_SILENCE],
             [POWER_OBFUSCATE_STEALTH, POWER_OBFUSCATE_ILLUSION],
-            [POWER_OBFUSCATE_MASK, POWER_OBFUSCATE_LAUGHINGMAN]
+            [POWER_OBFUSCATE_MASK, POWER_OBFUSCATE_LAUGHINGMAN],
+            [], []
         ],
+        DISC_OBLIVION: [],
         DISC_POTENCE: [
             [POWER_POTENCE_FATALITY, POWER_POTENCE_SUPERJUMP],
             [POWER_POTENCE_PROWESS],
-            [POWER_POTENCE_MEGASUCK, POWER_POTENCE_RAGE]
+            [POWER_POTENCE_MEGASUCK, POWER_POTENCE_RAGE],
+            [], []
         ],
         DISC_PRESENCE: [
             [POWER_PRESENCE_AWE, POWER_PRESENCE_DAUNT],
-            [],
-            [POWER_PRESENCE_ENTRANCE, POWER_PRESENCE_SCARYFACE]
-        ]
+            [POWER_PRESENCE_ADDICTED2U],
+            [POWER_PRESENCE_ENTRANCE, POWER_PRESENCE_SCARYFACE],
+            [], []
+        ],
+        DISC_PROTEAN: [],
+        DISC_BLOOD_SORCERY: [],
+        DISC_THINBLOOD_ALCHEMY: []
     }
 
     SEM_HUB_MAIN = "haven-hub-default"
@@ -447,32 +509,44 @@ init 0 python in cfg:
     REP_MAX = 200 # 100
     REP_VALUE_ADJUST = 100
 
+    TT_LOCKED = "tt_power_level_locked"
+    TT_NEED_PREVIOUS = "tt_pick_lower_first"
+    TT_POWER_AVAILABLE = "new_power_select"
+
     TOOLTIP_TABLE = {  # TODO finish these
         AT_STR: "Lifting, pulling, pushing, punching, kicking, etc.",
-        AT_DEX: "Coordination, acuity, speed. Everything from sprinting to aiming a gun.",
-        AT_STA: "Bodily resilience and anatomical fortitude. How much punishment you can take, of any kind.",
+        AT_DEX: "Coordination, acuity, speed. Everything from sprinting to APM to aiming a gun.",
+        AT_STA: "Bodily resilience and anatomical fortitude. How much punishment you can take.",
         AT_CHA: "Getting people to like you, fear you, want you. Making them {i}feel{/i}.",
-        AT_MAN: "Getting people to do what you say, however they feel about you.",
+        AT_MAN: "Getting people to do what you say, regardless of how they feel about you.",
         AT_COM: "Staying cool in the moment.",
         AT_INT: "Learning, reasoning, problem-solving, memory. The stuff they're always trying to test people for.",
-        AT_WIT: "Reaction, intuition, thinking on your feet.",
-        AT_RES: "Focus and determination, the ability to ignore distractions.",
+        AT_WIT: "Reaction, intuition, perception, thinking on your feet.",
+        AT_RES: "Focus and determination over time, the ability to ignore distractions.",
 
-        SK_ATHL: "Experience, form, and training for various types of coordinated physical exertion.",
+        SK_ATHL: "Experience, form, and training for coordinated physical exertion of various kinds.",
         SK_CLAN: "Sneaking around, breaking into things, etc. Doing dirt.",
         SK_COMB: "Throwing hands, or wielding the kinds of weapons that you bash, cut, or stab with.",
-        SK_FIRE: "Handling and using guns. Coming strapped is a good idea.",
-        SK_TRAV: "sdfdsfdsfdsfdsHandling a car beyond just getting from point A to point B.",
-        SK_INTI: "Getting people to back off or fall in line without resorting to mind control.",
-        SK_INTR: "Dissembling, sophistry, subtlety, and straight up lies. Concealing motives and intentions.",
-        SK_LEAD: "DFdsfdsThe skills and wherewithal to play the necessary role, whether that's dancing well or using proper etiquette.",
-        SK_DIPL: "Getting people to genuinely see things my way.",
+        SK_FIRE: "The proper handling and usage of firearms.",
+        SK_TRAV: "Making your way around the city on foot or on wheels. Braving its treacherous expanses, and even adapting to them.",
+        SK_INTI: "Threats, overt or implicit. Getting people to back off or fall in line without resorting to powers of the Blood.",
+        SK_INTR: "Dissembling, sophistry, subtlety, and straight up lies. Concealing motives and intentions. Bullshit artistry.",
+        SK_LEAD: "Effective delegation of responsibility. The ability to inspire and motivate others to act on your behalf.",
+        SK_DIPL: "Persuasion, getting people to see things your way. Communicating with other beings in a way they understand.",
         SK_STWS: "What's really going on in this city? How do things work on the margins?",
-        SK_ACAD: "All of the assorted knowledge I've accumulated, from grade school to dropping out of college.",
+        SK_ACAD: "History, philosophy, art, literature, logic. Knowledge of the humanities. Research skills.",
         SK_INSP: "Paying attention at the right time. Methodical collection and analysis of information and evidence in the field.",
-        SK_OCCL: "Supernatural stuff and how it works. I guess it makes sense that if vampires exist, so would other things.",
-        SK_SCIE: "",
-        SK_TECH: "In my line of work this is mostly worrying about encryption and hardware security for laptops and smartphones."
+        SK_OCCL: "A lot of vampires don't know shit about vampires, let alone whatever else is out there. What do {i}you{/i} know?",
+        SK_SCIE: "Biology, chemistry, physics - the hard sciences, theoretical and applied.",
+        SK_TECH: "Secure use of modern apps and devices, safely operating online. Banned by the Ivory Tower, at least officially.",
+
+        TT_LOCKED: "(Locked)",
+        TT_NEED_PREVIOUS: "(Locked - pick a lower level power first.)",
+        TT_POWER_AVAILABLE: "The Blood responds to struggle; new powers are available.",
+        REF_DISC_LOCKED: "Your Blood doesn't move in the right ways. Perhaps if you had a teacher...",
+        REF_DISC_OUTCLAN: "You've learned to move your Blood in new ways, with some difficulty.",
+        REF_DISC_CAITIFF: "The Blood of the Clanless is unpredictable, mutable...",
+        REF_DISC_INCLAN: "These powers of the Blood often come naturally to those of your Clan."
     }
 
     MERIT_DISPLAY_MAX = 4
@@ -503,3 +577,7 @@ define audio.footsteps1         = "audio/sound/318900__robinhood76__05934-heels-
 define audio.dice_roll_many     = "audio/sound/220744__dermotte__dice-06.mp3"
 define audio.dice_roll_few      = "audio/sound/353975__nettimato__rolling-dice-1.mp3"
 define audio.fleeing_footsteps1 = "audio/sound/316924__rudmer-rotteveel__footsteps-running-away-fading.mp3"
+define audio.heartbeast_faster  = "audio/sound/181805__klankbeeld__heart-beat-increasing-116642-excerpt02.mp3"
+define audio.beastgrowl2        = "audio/sound/98337__cgeffex__roar.mp3"
+define audio.samurai_blade_warp = "audio/sound/37411__funkymuskrat__chil.mp3"
+define audio.mutation_jingle    = "audio/sound/342336__division4884__simple-mutate-monster.mp3"

@@ -3,8 +3,8 @@
 ################################################################################
 
 
-# Generates textbutton with tooltip
-screen hovertext(txt, tooltip=None, _style="medium", _xalign=0.0):
+# Generates textbutton with tooltip, action optional
+screen hovertext(txt, tooltip=None, _style="medium", _xalign=0.0, _action=None):
     textbutton "[txt]" xalign _xalign:
         if _style == "medium":
             text_style "codex_hoverable_text"
@@ -12,66 +12,62 @@ screen hovertext(txt, tooltip=None, _style="medium", _xalign=0.0):
             text_style "codex_hoverable_text_big"
         else:
             text_style "codex_hoverable_text_small"
-        action NullAction()
+        action If(_action is None, true=NullAction(), false=_action) #daction #_action or NullAction()
         hovered ShowTransient("hovertip", None, str(tooltip))
         unhovered Hide("hovertip", None)
 
 
 # Widget showing dots indicating ability scores
-screen dotchain(name, score, dotcolor=renpy.store.cfg.DEFAULT_DOT_COLOR, format="bar", dfsize=None, altname=None, tooltip=None):
+screen dotchain(name, score, dcolor=store.cfg.DEF_DOT_COLOR, format="bar", dfsize=None, altname=None, tooltip=None, _action=None):
     python:
-        cfg = renpy.store.cfg
-        global scoreWords
-
+        cfg = store.cfg
         if not dfsize:
-            style.frame["dots"].xysize = (gui.dot_frame_width, gui.dot_frame_height)
-        else:
-            style.frame["dots_vert"].xysize = dfsize
-        scoreWord = cfg.SCORE_WORDS[int(score)] if renpy.store.utils.has_int(score) and int(score) >= 0 and int(score) < 6 else "zero"
+            dfsize = (gui.dot_frame_width, gui.dot_frame_height)
+        score_word = cfg.SCORE_WORDS[int(score)] if renpy.store.utils.has_int(score) and int(score) >= 0 and int(score) < 6 else "zero"
 
-    frame padding (5, 0) background None:
-        if not dfsize:
-            style style.frame["dots"]
-        else:
-            style style.frame["dots_vert"]
-
+    frame padding (5, 0) xysize dfsize background None:
         if format == "bar":
             hbox xfill True yalign 0.5:
-                use hovertext(str(name), tooltip, "big")
-                image "gui/shapes/dots_[dotcolor]_[scoreWord].png" zoom 0.7 xalign 1.0 yalign 0.5
+                use hovertext(str(name), tooltip, "big", _action=_action)
+                image "gui/shapes/dots_[dcolor]_[score_word].png" zoom 0.7 xalign 1.0 yalign 0.5
         elif format == "stack":
             vbox xfill True yalign 0.1 spacing 2:
-                use hovertext(str(name), tooltip, "small", 0.5)
-                image "gui/shapes/dots_[dotcolor]_[scoreWord].png" zoom 0.6 xalign 0.5
+                use hovertext(str(name), tooltip, "small", 0.5, _action=_action)
+                image "gui/shapes/dots_[dcolor]_[score_word].png" zoom 0.6 xalign 0.5
         elif format == "merit":
             vbox xfill True yfill True yalign 0.5 spacing 2:
                 $ sendstr = "{name}\n({sz}{altname}{esz})".format(name=name, altname=altname, sz="{size=11}", esz="{/size}")
-                use hovertext(sendstr, tooltip, _xalign = 0.5)
-                image "gui/shapes/dots_[dotcolor]_[scoreWord].png" zoom 0.4 align (0.5, 1.0)
+                use hovertext(sendstr, tooltip, _xalign = 0.5, _action=_action)
+                image "gui/shapes/dots_[dcolor]_[score_word].png" zoom 0.4 align (0.5, 1.0)
+        elif format == "header":
+            hbox xfill True yalign 0.5:
+                use hovertext(str(name), tooltip, "big", _action=_action)
+                image "gui/shapes/dots_[dcolor]_[score_word].png" zoom 1.0 align (1.0, 0.5)
         else:
-            $ raise ValueError("[Error]: That's not a known dotchain display format.")
+            $ raise ValueError("\"{}\" is not a known dotchain display format.".format(format))
 
 
-# A tracker box with one of three states: clear, superficial damage, and aggravated damage
+# A tracker box with one of three states: clear, superficial damage, or aggravated damage
 screen trackerbox(name, damage, count):
     frame background None xysize (24, 24) padding (0, 0) xalign 0.0 yalign 0.5:
         image "gui/shapes/[name]_[damage].png" zoom 0.1 xalign 0.0 yalign 0.5
 
 
 # Builds box trackers, i.e. health and willpower
-screen trackerline(name, total, clearboxes, spfdamage, bonus = 0, bonusName = ""):
+screen trackerline(name, total, clearboxes, spfdamage, bonus=0, bonus_name=""):
     hbox spacing 0 xfill False:
         for count in range(total + bonus):
-            $ boxname = bonusName if bonus > 0 and count >= total else name
+            $ box_name = "{}{}".format(name, bonus_name) if bonus > 0 and count >= total else name
 
             if count < clearboxes:
-                use trackerbox(boxname, "clear", count)
+                use trackerbox(box_name, "clear", count)
             elif count < (clearboxes + spfdamage):
-                use trackerbox(boxname, "superficial", count)
+                use trackerbox(box_name, "superficial", count)
             else:
-                use trackerbox(boxname, "aggravated", count)
+                use trackerbox(box_name, "aggravated", count)
 
 
+# Widget based on repbar, used for resonances
 screen xpbar(value, max, name, color="#232323"):
     python:
         ratio = float(value) / float(max)
@@ -130,23 +126,24 @@ screen codexTopRow():
 
     $ cfg, pc = renpy.store.cfg, renpy.store.state.pc
     frame id "top_status_row" background None xalign 0.5 padding (0, 0):
-        hbox xsize 1160 xalign 0.5:
+        hbox xsize gui.codex_inner_width xalign 0.5:
             frame id "pane_dossier" align (0.0, 0.0) xysize (510, 126):
                 hbox xfill True yfill True:
                     python:
                         ptdesc = "\nPredator Type:"
                         ptname = "\n???" if not hasattr(pc, cfg.REF_PREDATOR_TYPE) else "\n" + str(pc.predator_type)
                         clan_string = "" if pc.clan == cfg.CLAN_NONE_CAITIFF else "Clan:"
-                    text "Alias:\n[clan_string]\nGeneration:\nPredator Type:" text_align 0.0 size 18 xalign 0.0 line_spacing 7 # text size was 12
-                    text "[pc.nickname]\n[pc.clan]\n11th {color=#cc0000}([pc.blood_potency]){/color}[ptname]" text_align 1.0 size 18 xalign 1.0 line_spacing 7
+                        right_text = "[pc.nickname]\n[pc.clan]\n11th {color=#cc0000}([pc.blood_potency]){/color}[ptname]"
+                    text "Alias:\n[clan_string]\nGeneration:\nPredator Type:" text_align 0.0 size 18 xalign 0.0 line_spacing 7
+                    text right_text text_align 1.0 size 18 xalign 1.0 line_spacing 7
 
             frame id "pane_soulstate" align (0.4, 0.0) xysize (202, 126):
                 $ humanityPhrase = cfg.HUMANITY_BLURBS[pc.humanity - cfg.MIN_HUMANITY]
                 $ hung_hum_index = max(0, int(pc.humanity) - cfg.MIN_HUMANITY - 1)
                 $ hungerPhrase = cfg.HUNGER_BLURBS[pc.hunger][hung_hum_index]
                 vbox spacing 2:
-                    use dotchain("Humanity", pc.humanity - 3, dotcolor="bright", format="stack", dfsize=(190, 60), tooltip=humanityPhrase)
-                    use dotchain("Hunger", pc.hunger, format="stack", dfsize = (190, 60), tooltip=hungerPhrase)
+                    use dotchain("Humanity", pc.humanity - 3, dcolor="bright", format="stack", dfsize=(190, 60), tooltip=humanityPhrase)
+                    use dotchain("Hunger", pc.hunger, format="stack", dfsize=(190, 60), tooltip=hungerPhrase)
 
             frame id "pane_trackers" align (1.0, 0.0) xysize (420, 126) style style.codex_panel_frame:
                 style_prefix "boxtracker"
@@ -159,7 +156,7 @@ screen codexTopRow():
                                 $ bonus, total = pc.hp.bonus, pc.hp.boxes
                                 $ spfd, aggd = pc.hp.spf_damage, pc.hp.agg_damage
                                 $ clearHealth = (total + bonus) - (spfd + aggd)
-                                use trackerline("Health", total, clearHealth, pc.hp.spf_damage, bonus, "Fort")
+                                use trackerline("Health", total, clearHealth, pc.hp.spf_damage, bonus=bonus, bonus_name="Fort")
 
                     frame id "willpowerTracker" xsize 380 align(1.0, 0.6):
                         hbox:
@@ -178,15 +175,17 @@ screen codexTopRow():
 
 # Every codex panel uses this
 screen codexBaseFrame(tabname):
-    window id "codex_window_main" align (0.5, 0.0) xysize (1200, 740) padding (15, 10):
+    $ clan_token = str(state.pc.clan).lower() if state.pc.clan else None
+    window id "codex_window_main" align (0.82, 0.0) xysize (gui.codex_base_width, 740) padding (5, 10):
         style_prefix "codex_panel"
         background Frame("gui/nvl.png", 5, 5, 5, 5)
         modal False
 
-        image "gui/clan_bg_ventrue.png" align (0.5, 0.5) zoom 1.0
+        if clan_token:
+            image "gui/symbols/clan_bg_[clan_token]_red.png" align (0.5, 0.5) alpha 0.25 zoom 1.0
         vbox xfill True yfill True spacing 15:
             use codexTopRow()
-            frame id "main_pane_container" xalign 0.5 xysize (1160, 580) padding (0, 0) background None:
+            frame id "main_pane_container" xalign 0.5 xysize (gui.codex_inner_width, 580) padding (0, 0) background None:
                 transclude
             use codex_tabs(tabname)
 
@@ -207,13 +206,13 @@ screen codexScoresPage(*args):
                         $ keydex = cfg.REF_ATTR_ORDER[count]
                         frame style style.utility_frame:
                             $ the_score = pc.attrs[keydex]
-                            use dotchain(keydex, the_score, tooltip="{at1}".format(at1="tooltip tbd"))# tooltipTable[keydex]))
+                            use dotchain(keydex, the_score, tooltip="{}".format(cfg.TOOLTIP_TABLE[attr]))
             frame id "pane_skills" xalign 0.5 ysize 325:
                 use buildGrid(gui.GRID_ROWS_ALLSCORES, gui.GRID_COLS_SKILLS, gui.GRID_ROWS_ALLSCORES * gui.GRID_COLS_SKILLS, _transpose = True):
                     for count, skill in enumerate(pc.skills):
                         $ keydex = cfg.REF_SKILL_ORDER[count]
                         frame style style.utility_frame:
-                            use dotchain(keydex, pc.skills[keydex], tooltip="{st1}".format(st1="tooltip tbd"))#tooltipTable[keydex]))
+                            use dotchain(keydex, pc.skills[keydex], tooltip="{}".format(cfg.TOOLTIP_TABLE[skill]))
 
 
 # Character sheet tab showing discipline powers and maybe merits/Hardestadt loresheet if I get that far
@@ -236,47 +235,51 @@ screen codexPowersPage(*args):  # current pane heights: 120 + 14 + 445 = 579/580
                 #                     dcolor = "red" if m_f[cfg.REF_TYPE] == cfg.REF_BG_FLAW else "red"
                 #                     altname = m_f[cfg.REF_TYPE]
                 #                     tooltip = m_f[cfg.REF_TOOLTIP] if cfg.REF_TOOLTIP in m_f else None
-                #                 use dotchain(m_f[cfg.REF_BG_NAME], m_f[cfg.REF_DOTS], altname=altname, dotcolor=dcolor, format="merit", tooltip=tooltip)
+                #                 use dotchain(m_f[cfg.REF_BG_NAME], m_f[cfg.REF_DOTS], altname=altname, dcolor=dcolor, format="merit", tooltip=tooltip)
                 # else:
                 #     hbox xfill True yalign 0.5:
                 #         text "Nothing special unlocked or discovered." text_align 0.5 xalign 0.5 yalign 0.5
                 use buildGrid(3, 2, 6):
-                    use xpbar(state.resonances[cfg.RESON_ANIMAL], 1000, "Animal", color="#da8a18")
-                    use xpbar(state.resonances[cfg.RESON_CHOLERIC], 1000, "Choleric", color="#faf604")
-                    use xpbar(state.resonances[cfg.RESON_MELANCHOLIC], 1000, "Melancholic", color="#36347c")
-                    use xpbar(state.resonances[cfg.RESON_PHLEGMATIC], 1000, "Phlegmatic", color="#09f3a2")
-                    use xpbar(state.resonances[cfg.RESON_SANGUINE], 1000, "Sanguine", color="#f73939")
-                    use xpbar(state.resonances[cfg.RESON_EMPTY], 1000, "\"Empty\"", color="#101010")
+                    use xpbar(state.resonances[cfg.RESON_ANIMAL], cfg.VAL_RESONANCE_GUI_MAX, "Animal", color="#da8a18")
+                    use xpbar(state.resonances[cfg.RESON_CHOLERIC], cfg.VAL_RESONANCE_GUI_MAX, "Choleric", color="#faf604")
+                    use xpbar(state.resonances[cfg.RESON_MELANCHOLIC], cfg.VAL_RESONANCE_GUI_MAX, "Melancholic", color="#36347c")
+                    use xpbar(state.resonances[cfg.RESON_PHLEGMATIC], cfg.VAL_RESONANCE_GUI_MAX, "Phlegmatic", color="#09f3a2")
+                    use xpbar(state.resonances[cfg.RESON_SANGUINE], cfg.VAL_RESONANCE_GUI_MAX, "Sanguine", color="#f73939")
+                    use xpbar(state.resonances[cfg.RESON_EMPTY], cfg.VAL_RESONANCE_GUI_MAX, "\"Empty\"", color="#101010")
+                # use xpbar(sum(state.resonances.values()), cfg.VAL_RESONANCE_GUI_MAX * 10, "All")
 
 
             frame id "pane_disciplines" xalign 0.5 ysize 445 padding (0, 0):
                 $ unlocked_ds = pc.disciplines.get_unlocked()
                 # hbox xfill True:
                 # NOTE: Viewport doesn't take a background property; it can't be substituted for a frame
-                if len(unlocked_ds) > 3:
+                if len(unlocked_ds) > 4:
                     viewport scrollbars "horizontal" mousewheel "horizontal" draggable True:# child_size (300, None):
                         use codexPowersSubpage(unlocked_ds, len(unlocked_ds))
                 else:
                     frame padding(0, 0) style style.utility_frame:
-                        use codexPowersSubpage(unlocked_ds, 3)
+                        use codexPowersSubpage(unlocked_ds, len(unlocked_ds))
 
 
 screen codexPowersSubpage(unlocked_ds, num_ds):
-    $ total_scroll_width = (num_ds * 360) + ((num_ds - 1) * 10) + 20
-    hbox spacing 10 xfill False xsize total_scroll_width:
-        for count, ul_disc in enumerate(unlocked_ds):
-            frame style style.utility_frame xsize 300 yfill True:
+    $ total_scroll_width = (num_ds * 390) + ((num_ds - 1) * 0) + 20
+    hbox spacing 1 xfill False xsize total_scroll_width:
+        for ul_disc in unlocked_ds:
+            frame style style.utility_frame xsize 396 yfill True padding(6, 0, 0, 0):#
                 vbox spacing 7:
-                    use dotchain(ul_disc, pc.disciplines.levels[ul_disc], tooltip="tooltip tbd")
+                    hbox ysize 60 spacing 0:
+                        $ uldl, dt_toggle = str(ul_disc).lower(), ToggleScreen("disciplineTree", None, dname=ul_disc)
+                        image "gui/symbols/disc_bg_[uldl].png" align (0.0, 0.5) alpha 0.9 zoom 0.1
+                        use dotchain(ul_disc, pc.disciplines.levels[ul_disc], tooltip="tooltip tbd", _action=dt_toggle, dfsize=(334, 60))
                     $ ul_disc_prefix = "POWER_{}".format(str(ul_disc).upper())
                     $ disc_powers = cfg.REF_DISC_POWER_TREES[ul_disc]
                     # $ unlocked_powers = [pw for pw in disc_powers if pw in pc.powers]
                     $ power_list = pc.disciplines.pc_powers[ul_disc]
-                    for pkey in power_list:
+                    for i, pkey in enumerate(power_list):
                         $ power = power_list[pkey] if power_list[pkey] else None
                         if power:
                             frame style style.utility_frame left_padding 5 xalign 0.0:
-                                textbutton str(count + 1) + ". [power]":
+                                textbutton "{}. {}".format(i+1, power):
                                     text_style style.codex_hoverable_text
                                     action NullAction()
                                     hovered ShowTransient("hovertip", None, "{tt}".format(tt="tooltip tbd"))
@@ -302,20 +305,21 @@ screen codexStatusPage(*args):
             frame id "pane_backgrounds" xalign 0.5 ysize 360 padding (10, 10):
                 #use buildGrid(gui.BG_GRID_ROWS, gui.BG_GRID_COLS, len(pc.backgrounds), 10, 10):
                 use buildGrid(3, 3, len(pc.backgrounds), 10, 10):
-                    for count, asset in enumerate(pc.backgrounds):
+                    for count, bg in enumerate(pc.backgrounds):
                         python:
-                            dcolor = "dark" if asset[cfg.REF_TYPE] == cfg.REF_BG_FLAW else "red"
-                            altname, flaw_text = None,  " Flaw" if asset[cfg.REF_TYPE] == cfg.REF_BG_FLAW else ""
-                            if cfg.REF_SUBTYPE in asset:
-                                altname = "{}{}".format(asset[cfg.REF_SUBTYPE], flaw_text)
-                        if asset[cfg.REF_TYPE] == cfg.REF_BG_PAST:
-                            # $ print("---1----REF TYPE is {}".format(asset[cfg.REF_TYPE]))
-                            use hovertext("Mortal past: {}".format(asset[cfg.REF_BG_NAME]), asset[cfg.REF_DESC], "big")
-                        elif asset[cfg.REF_TYPE] == cfg.REF_PREDATOR_TYPE:
-                            use hovertext("Predator Type: {}".format(asset[cfg.REF_BG_NAME]), asset[cfg.REF_DESC], "big")
+                            dcolor = "dark" if bg[cfg.REF_TYPE] == cfg.REF_BG_FLAW else "red"
+                            altname, flaw_text = None,  " Flaw" if bg[cfg.REF_TYPE] == cfg.REF_BG_FLAW else ""
+                            if cfg.REF_SUBTYPE in bg:
+                                altname = "{}{}".format(bg[cfg.REF_SUBTYPE], flaw_text)
+                        if bg[cfg.REF_TYPE] == cfg.REF_BG_PAST:
+                            use hovertext("Mortal past: {}".format(bg[cfg.REF_BG_NAME]), bg[cfg.REF_DESC], "big")
+                        elif bg[cfg.REF_TYPE] == cfg.REF_PREDATOR_TYPE:
+                            use hovertext("Predator Type: {}".format(bg[cfg.REF_BG_NAME]), bg[cfg.REF_DESC], "big")
                         else:
-                            # $ print("---2----REF TYPE is {}".format(asset[cfg.REF_TYPE]))
-                            use dotchain(asset[cfg.REF_BG_NAME], asset[cfg.REF_DOTS], altname=altname, dotcolor=dcolor, format="merit", tooltip=asset[cfg.REF_DESC])
+                            use dotchain(
+                                bg[cfg.REF_BG_NAME], bg[cfg.REF_DOTS], altname=altname, dcolor=dcolor, format="merit",
+                                tooltip=bg[cfg.REF_DESC]
+                            )
 
 
 # Shows character inventory and case notes, i.e. quest log
@@ -339,7 +343,10 @@ screen codexCasefilesPage(*args):
                                 if itype == game.Supply.IT_MONEY:
                                     title = "{}: ${:.2f}".format(item.name, item.quantity)
                                 elif itype == game.Supply.IT_WEAPON or itype == game.Supply.IT_FIREARM:
-                                    concealed = "You have your trusty forged CCW permit, just in case." if item.concealable else "This is an open carry state, right?"
+                                    if item.concealable:
+                                        concealed = "You have your trusty forged CCW permit, just in case."
+                                    else:
+                                        concealed = "This is an open carry state, right?"
                                     tooltip = "Lethality: {db}\n\n{cncl}\n\n{btt}".format(db=item.lethality, cncl=concealed, btt=tooltip)
 
                             textbutton str(title) + " {color=[color_str]}(" + str(itype) + "){/color}":
@@ -384,28 +391,77 @@ screen codex_tabs(*args):
                 keysym "n"
                 action ToggleScreen("codexInfoPage", None)
 
-# Player chooses discipline powers here.
-screen disciplineTree(*args):
-    tag codexPage
 
-    window id "powertree_main" align (0.5, 0.1) xysize (900, 500) padding (15, 10):
+# Player chooses discipline powers here.
+screen disciplineTree(dname, *args):
+    tag codexPage
+    modal False
+
+    python:
+        clan_token, dname_lower = str(state.pc.clan).lower() if state.pc.clan else None, str(dname).lower()
+        d_powers_list, disc_level = state.get_power_choices(dname), state.pc.disciplines.levels[dname]
+        access_token = state.pc.disciplines.access[dname]
+        title_tt = cfg.TOOLTIP_TABLE[access_token]
+
+    window id "powertree_main" align (0.82, 0.1) xysize (gui.codex_base_width, 700) padding (15, 10):
         style style.codex_panel_frame
         background Frame("gui/nvl.png", 5, 5, 5, 5)
         modal False
 
-        image "gui/ventrue_bg.png" align (0.5, 0.5) zoom 1.0
+        image "gui/symbols/disc_bg_[dname_lower].png" align (0.5, 0.5) alpha 0.25 zoom 1.0
+        fixed xysize (20, 20) align (0.95, 0.0):
+            use hovertext("x", "Close", "big", _action=ToggleScreen("disciplineTree", None))
         vbox spacing 2 xfill True:
-            text "Discipline Powers" align truecenter text_align 0.5
+            use dotchain("{} Powers  ({})".format(dname, access_token), disc_level, dfsize=(1000, 50), tooltip=title_tt)
+            # truecenter for alignment was the source of error
+            # truecenter is a transform object and passing it to align was invalid syntax, since align expects a tuple
+            for i in range(1, 6):
+                hbox spacing 5:
+                    python:
+                        sw, dcolor, tooltip = cfg.SCORE_WORDS[i], "dark", cfg.TOOLTIP_TABLE[cfg.TT_LOCKED]
+                        p_chosen, previous_p_chosen = None, None
+                        if i > 1:
+                            previous_p_chosen = state.pc.disciplines.pc_powers[dname][cfg.SCORE_WORDS[i-1]]
+                        if disc_level >= i:
+                            dcolor = "red"
+                            p_chosen = state.pc.disciplines.pc_powers[dname][sw]
+                            if p_chosen:
+                                tooltip = "Chosen power: {}".format(p_chosen)
+                            elif previous_p_chosen or i == 1:
+                                tooltip = cfg.TOOLTIP_TABLE[cfg.TT_POWER_AVAILABLE]
+                            else:
+                                tooltip = cfg.TOOLTIP_TABLE[cfg.TT_NEED_PREVIOUS]
+                    use dotchain("Level {}".format(i), i, dfsize=(250, 40), dcolor=dcolor, tooltip=tooltip)
+                    if p_chosen:
+                        use hovertext(p_chosen, "tooltip tbd!")
+                    elif disc_level >= i or i == 1:
+                        python:
+                            pick, tooltip2 = NullAction(), tooltip
+                            if disc_level >= i and (i == 1 or previous_p_chosen):
+                                tooltip2 = "We could have this power..."
+                        vbox spacing 5:
+                            for power in d_powers_list[sw]:
+                                python:
+                                    if disc_level >= i and (i == 1 or previous_p_chosen):
+                                        pick = [
+                                            Function(pc.disciplines.unlock_power, dname, power),
+                                            Play("sound", audio.mutation_jingle)
+                                        ]
+                                use hovertext("--> {}".format(power), tooltip=tooltip2, _action=pick)
+
+
+
 
 # Used to display tooltips
 screen hovertip(tip, *args):
     frame background Frame("gui/frame.png", Borders(5, 5, 5, 5)):
-        xmaximum 312
+        xmaximum 400
         ymaximum 200
         # ysize 80
         pos renpy.get_mouse_pos()
         padding (10, 10)
         text "[tip]" size 18 xfill True yfill True
+
 
 # Should show at 3 hunger or more and intensify
 screen hungerlay():
@@ -413,8 +469,8 @@ screen hungerlay():
     modal False
 
     if renpy.store.state.pc.hunger > renpy.store.cfg.HUNGER_MAX_CALM:
-        $ scoreWord = renpy.store.cfg.SCORE_WORDS[int(renpy.store.state.pc.hunger)]
-        image "gui/overlay/hunger_[scoreWord].png" align (0.5, 0.5) xysize (1920, 1080)
+        $ score_word = renpy.store.cfg.SCORE_WORDS[int(renpy.store.state.pc.hunger)]
+        image "gui/overlay/hunger_[score_word].png" align (0.5, 0.5) xysize (1920, 1080)
     else:
         image None
 
@@ -422,13 +478,13 @@ screen hungerlay():
 # Codex styles
 style codex_panel_frame:
     modal False
-    xsize 1160
+    xsize gui.codex_inner_width
     padding (10, 5)
     background Frame("gui/frame.png", Borders(2, 2, 2, 2))
 
 style codex_panel_viewport:
     modal False
-    xsize 1160
+    xsize gui.codex_inner_width
     padding (10, 5)
 
 style codex_panel_text:

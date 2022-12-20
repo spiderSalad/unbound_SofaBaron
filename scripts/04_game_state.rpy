@@ -28,6 +28,7 @@ default state.pc_cash               = 250.00
 default state.roll_bonus            = 0
 default state.roll_malus            = 0
 
+default state.resonance_types       = [getattr(cfg, rt) for rt in cfg.__dict__ if str(rt).startswith("RESON_")]
 default state.resonances            = {
     cfg.RESON_ANIMAL: 50,
     cfg.RESON_CHOLERIC: 100,
@@ -36,6 +37,11 @@ default state.resonances            = {
     cfg.RESON_SANGUINE: 70,
     cfg.RESON_EMPTY: 90
 }
+
+default state.reson_intensity_table = [cfg.RINT_BALANCED, cfg.RINT_FLEETING, cfg.RINT_INTENSE, cfg.RINT_ACUTE]
+default state.rint_weights          = [1000, 500, 100, 10]
+default state.cum_intensity_weights = [(rw8 + state.rint_weights[i-1] if i > 0 else rw8) for i, rw8 in enumerate(state.rint_weights)]
+
 
 init 1 python in state:
     # pc = None
@@ -62,8 +68,11 @@ init 1 python in state:
         return True
 
     def set_hunger(delta, killed=False, innocent=False):
-        new_hunger = utils.nudge_int_value(pc.hunger, delta, "Hunger", floor=cfg.HUNGER_MIN_KILL if killed else cfg.HUNGER_MIN, ceiling=7)
+        previous_hunger, hunger_floor = pc.hunger, cfg.HUNGER_MIN_KILL if killed else cfg.HUNGER_MIN
+        new_hunger = utils.nudge_int_value(pc.hunger, delta, "Hunger", floor=hunger_floor, ceiling=7)
         pc.hunger = new_hunger
+        if pc.hunger > previous_hunger:
+            renpy.play(renpy.store.audio.beastgrowl1, "sound")
         if killed and innocent:
             set_humanity("-=1")
         if pc.hunger > cfg.HUNGER_MAX_CALM:
@@ -80,6 +89,28 @@ init 1 python in state:
             pc.hp.damage(dtype, amount, source=source)
         else:
             pc.will.damage(dtype, amount, source=source)
+
+    def feed_resonance(intensity=None, reso=None, boost: int = 0):
+        if not intensity:
+            i, tenzity = utils.get_weighted_random_sample(list(enumerate(reson_intensity_table)), cum_weights=cum_intensity_weights)[0]
+            mod_i = max(0, min(i + boost, len(reson_intensity_table) - 1))
+            intensity = reson_intensity_table[mod_i]
+        amount = utils.random_int_range(int(intensity * 0.8), int(intensity * 1.2))
+        if not reso and intensity == cfg.RINT_BALANCED:
+            reso = cfg.RESON_VARIED
+        elif not reso:
+            reso = utils.get_random_list_elem(resonance_types)[0]
+            if reso == cfg.RESON_ANIMAL:  # Don't give animal resonance unless specified.
+                reso = cfg.RESON_VARIED
+        elif type(reso) in (list, tuple):
+            reso = utils.get_random_list_elem(reso)[0]
+
+        if reso == cfg.RESON_VARIED:
+            for rpool in resonances:
+                resonances[rpool] += int(amount / len(resonances))
+        else:
+            resonances[reso] += amount
+
 
     loot_table = Inventory(
         Supply(Supply.IT_MONEY, "Money", num=int(12.5 * 1000 * 1000 * 1000), desc="Local city's entire GDP"),
@@ -137,6 +168,10 @@ init 1 python in state:
             return self.advance(hrs)
 
 
+    def get_power_choices(disc_key):
+        return pc.disciplines.power_choices[disc_key]
+
+
 label pass_time(hours_passed, in_shelter=False):
 
     if hours_passed is None:
@@ -166,9 +201,9 @@ label sun_threat:
     # TODO: add some effects here
 
     call roll_control("dexterity+athletics/wits+streetwise/composure+traversal", "diff0") from sunburn_damage
-    $ death_save = _return.margin
+    $ death_save, min_burn = _return.margin, 2
     $ sunburn = utils.random_int_range(0, 10)
-    $ state.deal_damage(cfg.TRACK_HP, cfg.DMG_AGG, max(2, sunburn - death_save), source=cfg.COD_SUN)
+    $ state.deal_damage(cfg.TRACK_HP, cfg.DMG_AGG, max(min_burn, sunburn - death_save), source=cfg.COD_SUN)
 
     call new_night from sun_threat_event
 
@@ -177,12 +212,71 @@ label sun_threat:
 
 label new_night:
 
-    "New night, new opportunities (Events should be processed here?)"
+    if pc.hp.agg_damage > 0:
+        call mend.aggravated from new_night_standard_agg_mend
+
+    "It's a new night. That means new opportunities and new dangers. {i}What fresh hell{/i} indeed. (Events should be processed here?)"
 
     $ state.hunted_tonight = False
     $ hungrier = state.rouse_check()
+    $ can_hunt = (pc.hunger > cfg.HUNGER_MIN) or (pc.humanity < cfg.KILLHUNT_HUMANITY_MAX and pc.hunger > cfg.HUNGER_MIN_KILL)
 
-    if hungrier:
+    if hungrier and can_hunt:
         beast "Wake. Up. We need to feed."
+
+    return
+
+
+label mend:
+
+    label .superficial:
+
+        "Kindred can recover from almost anything, given enough blood and time."
+
+        "You channel stolen life into your wounds, willing away your injuries."
+
+        python:
+            hungrier = store.state.rouse_check(1)
+            store.state.pc.hp.mend(cfg.DMG_SPF, 1)
+
+        return
+
+    label .aggravated:
+
+        "Kindred can recover from almost anything, given enough blood and time."
+
+        "But the Kindred also have {i}banes{/i} - threats that cut to the core of their unnatural life, defy the vampiric power of mending..."
+
+        "...and leave lasting physical and spiritual trauma. And yet, here you are."
+
+        "You've experienced this kind of existential agony firsthand, and survived."
+
+        menu:
+            "\"This too shall pass.\" If you can pay the staggering cost in time and Blood."
+
+            "I force the Blood to mend my scarred, ravaged form, even at the risk of terrible Hunger.":
+                python:
+                    store.state.clock.advance(1)
+                    hungrier = store.state.rouse_check(num_checks=3)
+                    store.state.pc.hp.mend(cfg.DMG_AGG, 1)
+
+                "It feels like half an eternity, spent in a limbo of pain and delirium."
+
+                "But eventually it's over, and in reality it's been about an hour."
+
+                if hungrier:
+                    "The Hunger stabs its tendrils into your brain, making your head pound and your gums throb. But you're a bit closer to being whole."
+
+                    beast "TIME TO FEED, \"FRIEND\". Time. To. Fucking. Feed."
+                else:
+                    "Incredibly, you don't even feel any hungrier than before. Perhaps later you ought to ponder the meaning of such good fortune."
+
+                    beast "Don't say I never did anything for you, dear friend."
+
+            "I can't risk losing control now. I'll have to bear the pain for the time being.":
+
+                beast "...Careful, now."
+
+        return
 
     return

@@ -63,20 +63,20 @@ init 1 python in game:
 
                 clear_boxes = total_boxes - (self.spf_damage + self.agg_damage)
                 if clear_boxes > 0:  # clear spaces get filled first
-                    self.playerchar.impair(True, self.trackertype)
+                    self.playerchar.impair(False, self.trackertype)
                     if dtype == cfg.DMG_SPF or dtype == cfg.DMG_FULL_SPF:
                         self.spf_damage += 1
                     else:
                         self.agg_damage += 1
                     utils.log("====> damage " + str(point) + ": filling a clear space")
-                elif self.spf_damage > 0:  # if there are no clear boxes, tracker is filled with a mix of aggravated and superficial damage
+                elif self.spf_damage > 0:  # if there are no clear boxes, tracker is filled with mix of damage types
                     self.playerchar.impair(True, self.trackertype)
                     self.spf_damage -= 1
                     self.agg_damage += 1  # if there's any superficial damage left, turn it into an aggravated
                     utils.log("====> damage " + str(point) + ": removing a superficial and replacing with aggravated")
-
                 if self.agg_damage >= total_boxes:
-                    # A tracker completely filled with aggravated damage = game over: torpor, death, or a total loss of faculties, face and status
+                    # A tracker completely filled with aggravated damage = game over:
+                    # torpor, death, or a total loss of faculties, face and status
                     self.playerchar.handle_demise(self.trackertype, self.last_damage_source)
                     utils.log("====> damage " + str(point) + ": oh shit you dead")
 
@@ -107,17 +107,21 @@ init 1 python in game:
             self._access = {}
             self._levels = {}
             self._pc_powers = {}
+            self._power_choices = {}
             self.reset()
 
-        def reset(self):
+        def reset(self, hard_reset=False):
             for dname in self.dnames:
-                self._access[dname] = cfg.VAL_DISC_LOCKED
-                self._levels[dname] = cfg.MIN_SCORE
+                if hard_reset:
+                    self._access[dname] = cfg.REF_DISC_LOCKED
+                    self._levels[dname] = cfg.MIN_SCORE
                 self._pc_powers[dname] = {}
                 for i in range(1, 6):
                     score_word = cfg.SCORE_WORDS[i]
                     self._pc_powers[dname][score_word] = None
+            self.recalculate_power_choices()
 
+        # None of these properties should have setters
         @property
         def access(self):
             return self._access
@@ -130,27 +134,69 @@ init 1 python in game:
         def pc_powers(self):
             return self._pc_powers
 
-        def set_discipline_access(self, dname, access_level):
-            self._access[dname] = access_level
+        @property
+        def power_choices(self):
+            return self._power_choices
 
-        def unlock(self, dname, level):
-            # Has no effect if already unlocked at a higher level
-            if self.access[dname] < level:
-                self.set_discipline_access(dname, level)
+        def set_discipline_access(self, dname, access_token):
+            self._access[dname] = access_token
+            self.recalculate_power_choices()
 
-        def get_unlocked(self, access_level=None):
-            if access_level is None:
-                return [dname for dname in self.access if self.access[dname] > cfg.VAL_DISC_LOCKED]
+        def unlock(self, dname, access_token):
+            # Has no effect if already unlocked at an equal or "higher" level
+            if cfg.REF_DISC_ACCESS[self.access[dname]] < cfg.REF_DISC_ACCESS[access_token]:
+                self.set_discipline_access(dname, access_token)
+
+        def get_unlocked(self, access_token=None):
+            if access_token is None:
+                locked = cfg.REF_DISC_ACCESS[cfg.REF_DISC_LOCKED]
+                return [dname for dname in self.access if cfg.REF_DISC_ACCESS[self.access[dname]] > locked]
             else:
-                return [dname for dname in self.access if self.access[dname] >= access_level]
+                minimum_access_level = cfg.REF_DISC_ACCESS[access_token]
+                return [dname for dname in self.access if cfg.REF_DISC_ACCESS[self.access[dname]] >= minimum_access_level]
 
         def set_discipline_level(self, dname, dots):
             new_dot_level = utils.nudge_int_value(self.levels[dname], dots, floor=cfg.MIN_SCORE, ceiling=cfg.MAX_SCORE)
             self.levels[dname] = new_dot_level
+            self.recalculate_power_choices()
 
-        # def unlock_power(dname, power_name):
-        #     if power_name not in
+        def recalculate_power_choices(self):
+            for ul_disc in self.get_unlocked():
+                power_tree = cfg.REF_DISC_POWER_TREES[ul_disc]
+                power_options = {}
+                for i in range(1, 6):
+                    sw, possible_at_level = cfg.SCORE_WORDS[i], []
+                    if self.pc_powers[ul_disc][sw] is not None:
+                        continue
+                    for j in range(i, 0, -1):
+                        possible_at_level += power_tree[j-1]
+                    available_at_level = [pw for pw in possible_at_level if pw not in self.pc_powers[ul_disc].values()]
+                    power_options[sw] = available_at_level
+                self._power_choices[ul_disc] = power_options
+            # print(utils.json_prettify(self.power_choices, sort_keys=False))
 
+        def unlock_power(self, dname, power_name):
+            if self.access[dname] == cfg.REF_DISC_LOCKED:
+                raise ValueError("{} is locked; can't choose powers from it.".format(dname))
+            all_d_powers = []
+            for i in range(0, 5):
+                all_d_powers += cfg.REF_DISC_POWER_TREES[dname][i]
+            if power_name not in all_d_powers:
+                raise ValueError("{} is not a power of {} discipline; something's gone wrong.".format(power_name, dname))
+            del all_d_powers
+            empty_slots = [(cfg.SCORE_WORDS.index(pl), pl) for pl in self.pc_powers[dname] if self.pc_powers[dname][pl] is None]
+            nxt_ava_lvl = min([pl[0] for pl in empty_slots])
+            if nxt_ava_lvl > self.levels[dname]:
+                raise ValueError("Cannot choose a level {} power; {} is at level {}.".format(nxt_ava_lvl, dname, self.levels[dname]))
+            if power_name in self.pc_powers[dname].values():
+                raise ValueError("{} has already been taken.".format(power_name))
+            nal_token = cfg.SCORE_WORDS[nxt_ava_lvl]
+            available_powers = self.power_choices[dname][nal_token]
+            if power_name not in available_powers:
+                raise ValueError("Should not be able to choose {} at {} level {}.".format(power_name, dname, nxt_ava_lvl))
+            self._pc_powers[dname][nal_token] = power_name
+            self.recalculate_power_choices()
+            utils.log(utils.json_prettify(self.pc_powers[dname]))
 
     class PlayerChar:
         def __init__(self, anames, snames, dnames):
@@ -172,6 +218,7 @@ init 1 python in game:
             self.mortal_backstory = None
             self._backgrounds = []
             self.disciplines = SuperpowerArsenal(self.dnames)
+            self.disciplines.reset(hard_reset=True)
             self.inventory = None
             self.reset_charsheet_stats()
 
@@ -286,12 +333,12 @@ init 1 python in game:
                 self.shocked = impaired
 
         def get_fort_resilience_bonus(self):
-            if cfg.POWER_FORTITUDE_HP not in self.disciplines.pc_powers:
+            if cfg.POWER_FORTITUDE_HP not in self.disciplines.pc_powers[cfg.DISC_FORTITUDE].values():
                 return 0
             return self.disciplines.levels[cfg.DISC_FORTITUDE]
 
         def get_fort_toughness_armor(self):
-            if cfg.POWER_FORTITUDE_TOUGH not in self.disciplines.pc_powers:
+            if cfg.POWER_FORTITUDE_TOUGH not in self.disciplines.pc_powers[cfg.DISC_FORTITUDE].values():
                 return 0
             return self.disciplines.levels[cfg.DISC_FORTITUDE]
 
@@ -299,25 +346,26 @@ init 1 python in game:
             self.clan = clan
             self.clan_blurbs = cfg.CLAN_BLURBS[self.clan]
             if clan == cfg.CLAN_BRUJAH:
-                self.unlock_discipline(cfg.DISC_CELERITY, cfg.VAL_DISC_INCLAN)
-                self.unlock_discipline(cfg.DISC_POTENCE, cfg.VAL_DISC_INCLAN)
-                self.unlock_discipline(cfg.DISC_PRESENCE, cfg.VAL_DISC_INCLAN)
+                self.unlock_discipline(cfg.DISC_CELERITY, cfg.REF_DISC_INCLAN)
+                self.unlock_discipline(cfg.DISC_POTENCE, cfg.REF_DISC_INCLAN)
+                self.unlock_discipline(cfg.DISC_PRESENCE, cfg.REF_DISC_INCLAN)
             elif clan == cfg.CLAN_NOSFERATU:
                 self.apply_background(cfg.BG_REPULSIVE)
-                self.unlock_discipline(cfg.DISC_ANIMALISM, cfg.VAL_DISC_INCLAN)
-                self.unlock_discipline(cfg.DISC_OBFUSCATE, cfg.VAL_DISC_INCLAN)
-                self.unlock_discipline(cfg.DISC_POTENCE, cfg.VAL_DISC_INCLAN)
+                self.unlock_discipline(cfg.DISC_ANIMALISM, cfg.REF_DISC_INCLAN)
+                self.unlock_discipline(cfg.DISC_OBFUSCATE, cfg.REF_DISC_INCLAN)
+                self.unlock_discipline(cfg.DISC_POTENCE, cfg.REF_DISC_INCLAN)
             elif clan == cfg.CLAN_RAVNOS:
-                self.unlock_discipline(cfg.DISC_ANIMALISM, cfg.VAL_DISC_INCLAN)
-                self.unlock_discipline(cfg.DISC_OBFUSCATE, cfg.VAL_DISC_INCLAN)
-                self.unlock_discipline(cfg.DISC_PRESENCE, cfg.VAL_DISC_INCLAN)
+                self.unlock_discipline(cfg.DISC_ANIMALISM, cfg.REF_DISC_INCLAN)
+                self.unlock_discipline(cfg.DISC_OBFUSCATE, cfg.REF_DISC_INCLAN)
+                self.unlock_discipline(cfg.DISC_PRESENCE, cfg.REF_DISC_INCLAN)
             elif clan == cfg.CLAN_VENTRUE:
-                self.unlock_discipline(cfg.DISC_DOMINATE, cfg.VAL_DISC_INCLAN)
-                self.unlock_discipline(cfg.DISC_FORTITUDE, cfg.VAL_DISC_INCLAN)
-                self.unlock_discipline(cfg.DISC_PRESENCE, cfg.VAL_DISC_INCLAN)
+                self.unlock_discipline(cfg.DISC_DOMINATE, cfg.REF_DISC_INCLAN)
+                self.unlock_discipline(cfg.DISC_FORTITUDE, cfg.REF_DISC_INCLAN)
+                self.unlock_discipline(cfg.DISC_PRESENCE, cfg.REF_DISC_INCLAN)
             elif clan == cfg.CLAN_NONE_CAITIFF:
                 for dname in self.dnames:
-                    self.unlock_discipline(dname, cfg.VAL_DISC_CAITIFF)
+                    if dname not in cfg.REF_DISC_NOT_YET and dname != cfg.DISC_THINBLOOD_ALCHEMY:
+                        self.unlock_discipline(dname, cfg.REF_DISC_CAITIFF)
             else:
                 raise ValueError("Invalid clan \"{}\".".format(clan))
             self.apply_background_discipline_priority()
@@ -336,25 +384,25 @@ init 1 python in game:
                 self.humanity -= 1
                 self.skills[cfg.SK_COMB] += 1
                 self.skills[cfg.SK_INTI] += 1
-                self.unlock_discipline(cfg.DISC_CELERITY, cfg.VAL_DISC_OUTCLAN)
-                self.unlock_discipline(cfg.DISC_POTENCE, cfg.VAL_DISC_OUTCLAN)
+                self.unlock_discipline(cfg.DISC_CELERITY, cfg.REF_DISC_OUTCLAN)
+                self.unlock_discipline(cfg.DISC_POTENCE, cfg.REF_DISC_OUTCLAN)
             elif pt == cfg.PT_BAGGER:
                 self.skills[cfg.SK_CLAN] += 1
                 self.skills[cfg.SK_STWS] += 1
-                self.unlock_discipline(cfg.DISC_OBFUSCATE, cfg.VAL_DISC_OUTCLAN)
+                self.unlock_discipline(cfg.DISC_OBFUSCATE, cfg.REF_DISC_OUTCLAN)
                 # TODO: Iron Gullet, Enemy (2)
             elif pt == cfg.PT_FARMER:
                 self.humanity += 1
                 self.skills[cfg.SK_TRAV] += 1
                 self.skills[cfg.SK_DIPL] += 1
-                self.unlock_discipline(cfg.DISC_ANIMALISM, cfg.VAL_DISC_OUTCLAN)
+                self.unlock_discipline(cfg.DISC_ANIMALISM, cfg.REF_DISC_OUTCLAN)
                 # TODO: Vegan
             elif pt == cfg.PT_SIREN:
                 self.apply_background(cfg.BG_BEAUTIFUL)
                 self.skills[cfg.SK_DIPL] += 1
                 self.skills[cfg.SK_INTR] += 1
-                self.unlock_discipline(cfg.DISC_FORTITUDE, cfg.VAL_DISC_OUTCLAN)
-                self.unlock_discipline(cfg.DISC_PRESENCE, cfg.VAL_DISC_OUTCLAN)
+                self.unlock_discipline(cfg.DISC_FORTITUDE, cfg.REF_DISC_OUTCLAN)
+                self.unlock_discipline(cfg.DISC_PRESENCE, cfg.REF_DISC_OUTCLAN)
                 # TODO: Enemy (1)
             else:
                 raise ValueError("\"{}\" is not a valid predator type.".format(pt))
@@ -362,8 +410,8 @@ init 1 python in game:
             self.predator_type = pt
             self.recalculate_stats()
 
-        def unlock_discipline(self, disc, level):
-            self.disciplines.unlock(disc, level)
+        def unlock_discipline(self, disc, access):
+            self.disciplines.unlock(disc, access)
 
         def handle_demise(self, tracker_type, damage_source):
             self.cause_of_death = damage_source

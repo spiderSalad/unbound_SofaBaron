@@ -79,8 +79,11 @@ init 1 python in utils:
             e.__repr__()
             return False
 
-    def get_random_list_elem(collection):
-        return random_choices(collection, k=1)
+    def get_random_list_elem(collection, num_elems=1):
+        return random_choices(collection, k=num_elems)
+
+    def get_weighted_random_sample(collection, weights=None, cum_weights=None, num_elems=1):
+        return random_choices(collection, weights=weights, cum_weights=cum_weights, k=num_elems)
 
     def generate_random_id_str(leng=6, label: str = None):
         return "{}_{}".format(label if label else "rid", ''.join(random_choices(ascii_letters, k=leng)))
@@ -125,6 +128,9 @@ init 1 python in utils:
                 sorted_credits[ctype].append(credit)
 
         return sorted_credits
+
+    def json_prettify(prim_data, sort_keys=True):
+        return json.dumps(prim_data, sort_keys=sort_keys, indent=4)
 
     def log(*args):
         print(*args)

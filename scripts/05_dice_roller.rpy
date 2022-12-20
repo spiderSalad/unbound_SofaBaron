@@ -107,6 +107,7 @@ init 1 python in game:
             self.calculate()
 
         def calculate(self):
+            self.crit = False
             successes = [dv for dv in self.black_results if dv >= V5DiceRoll.D10_WIN_INC]  # TODO: here!!
             self.black_failures = len(self.black_results) - len(successes)
             self.black_tens = len([ten for ten in successes if ten >= V5DiceRoll.D10_MAX])
@@ -147,10 +148,7 @@ init 1 python in game:
             self.can_reroll_to_improve = self.can_reroll_to_avert_mc = False
             self.current_roll = V5DiceRoll(int(pool), int(difficulty), hunger=hunger, include_hunger=include_hunger)
             if self.current_roll.black_failures > 0:
-                print("\n[test] Can reroll, because black failures = {}".format(self.current_roll.black_failures))
                 self.can_reroll_to_improve = True
-            else:
-                print("\n[test] Cannot reroll, because black failures = {}".format(self.current_roll.black_failures))
             if self.current_roll.outcome == V5DiceRoll.RESULT_MESSY_CRIT and self.current_roll.red_tens < 2 and self.current_roll.black_tens < 4:
                 self.can_reroll_to_avert_mc = True
             return self.current_roll
@@ -165,10 +163,7 @@ init 1 python in game:
             if margin >= 0:
                 self.player_wins = True
             if self.current_roll.black_failures > 0:
-                print("\n[contest] Can reroll, because black failures = {}".format(self.current_roll.black_failures))
                 self.can_reroll_to_improve = True
-            else:
-                print("\n[contest] Cannot reroll, because black failures = {}".format(self.current_roll.black_failures))
             if self.current_roll.outcome == V5DiceRoll.RESULT_MESSY_CRIT and self.current_roll.red_tens < 2 and self.current_roll.black_tens < 4:
                 self.can_reroll_to_avert_mc = True
             return self.current_roll
@@ -262,9 +257,6 @@ init python in state:
 
         roll_config.can_reroll_to_improve = diceroller.can_reroll_to_improve
         roll_config.can_reroll_to_avert_mc = diceroller.can_reroll_to_avert_mc
-        print("RIGHT AFTER TEST: black_failures = {}".format(current_roll.black_failures))
-        print("diceroller.can_reroll_to_improve = {}".format(diceroller.can_reroll_to_improve))
-        print("roll_config.can_reroll_to_improve = {}".format(roll_config.can_reroll_to_improve))
 
     def roll_display(rconfig=None, roll=None):
         if rconfig and roll:
@@ -292,10 +284,6 @@ init python in state:
         else:
             can_reroll_to_improve = False
             can_reroll_to_avert_mc = False
-        print("\n\nEND OF ROLL Display: (black_failures = {})".format(temp_roll.black_failures))
-        print("can_reroll_to_improve = {}".format(can_reroll_to_improve))
-        print("diceroller.can_reroll_to_improve = {}".format(diceroller.can_reroll_to_improve))
-        print("temp_rconfig.can_reroll_to_improve = {}".format(temp_rconfig.can_reroll_to_improve))
         return '\n\n'.join([roll_result, actual_dice_repr])  # pool_readout excluded and placed in character name
 
     def reroll(messy=False):
@@ -306,7 +294,6 @@ init python in state:
         deal_damage(cfg.TRACK_WILL, cfg.DMG_FULL_SPF, 1)
         roll_display()
         # self.confirm_roll()
-        print("FACK")
 
     def get_pool_readout():
         if hasattr(renpy.store.state, "pool_readout"):

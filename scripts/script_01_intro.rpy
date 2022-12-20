@@ -58,7 +58,7 @@ label intro:
 
     # start at hunger 3
     $ state.set_hunger(3)
-    play sound audio.beastgrowl1
+    # play sound audio.beastgrowl1
 
     "You awaken the moment the sun goes down, and find yourself lying in a pile of garbage."
 
@@ -103,8 +103,6 @@ label intro:
 
             james "Someone musta took your phone, huh? It's abou-"
 
-            # $ state.set_hunger(1)
-
             call roll_control("manipulation+intrigue+looks+1", "diff2") from sip_james
             jump expression renpy.store.game.pass_fail(_return, "intro.man_sipped", "intro.man_escapes_sip")
 
@@ -116,6 +114,8 @@ label intro:
         "His instincts kick in just a bit too late. He doesn't even have time to scream. Once your fangs are in he goes limp, like all the rest. A few minutes later and you've taken {i}everything{/i}."
 
         $ renpy.store.state.set_hunger(0, killed=True, innocent=True)
+        $ renpy.store.state.feed_resonance(boost=1, reso=(cfg.RESON_MELANCHOLIC, cfg.RESON_PHLEGMATIC))
+        $ renpy.store.state.feed_resonance(intensity=cfg.RINT_FLEETING, reso=cfg.RESON_CHOLERIC)
         $ state.intro_man_drank = state.intro_man_killed = True
 
         "Everything he is, was, and could have been pours down your throat and floods into your veins. There's a pleasant coppery tang, and an incredible rush. For once you feel... whole."
@@ -163,6 +163,7 @@ label intro:
         "He goes limp the moment your fangs pierce his neck, moaning softly. You take a few good mouthfuls - just enough to take the edge off. Then you gently lower him to the ground, lick the puncture wounds on his neck away, and set off into the night."
 
         $ renpy.store.state.set_hunger("-=1")
+        $ renpy.store.state.feed_resonance(reso=(cfg.RESON_MELANCHOLIC, cfg.RESON_PHLEGMATIC))
         $ state.intro_man_drank = True
 
         stop sound
@@ -238,8 +239,8 @@ label backstory:
         "Pursuing your Master's in Chemical Engineering":
             $ state.pc.mortal_backstory = "Grad Student"
 
-        "An insurance salesperson.":
-            $ state.pc.mortal_backstory = "Salesperson"
+        "A D-list influencer.":
+            $ state.pc.mortal_backstory = "Influencer"
 
     $ state.pc.apply_background(cfg.CHAR_BACKGROUNDS[state.pc.mortal_backstory], bg_key=state.pc.mortal_backstory)
 
@@ -319,7 +320,14 @@ label clan_choice:
         if not state.clan_nickname:
             state.clan_nickname = pc.clan_blurbs[cfg.REF_CLAN_NICKNAME]
 
-    "That can make things difficult, but you've adapted where it most counts. The hunt."
+    "That can make things difficult, but over those first few horrifying months you learned to adapt, drawing on skills and experiences from your mortal life."
+
+    beast "We are all inexorably shaped by our pasts. Even the Blood resonates with it."
+
+    # call pick_first_powers from intro_discipline_choice_v1
+    "(You can choose from available discipline powers by clicking on a discipline's name on the Powers panel.)"
+
+    "You've also learned to adapt where it most counts. The hunt."
 
     menu:
         beast "We'll do it your way. For now."

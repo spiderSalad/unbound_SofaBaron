@@ -843,5 +843,60 @@
         "socials":[
             {"site":"freesound.org", "handle":"Rudmer_Rotteveel", "url":"https://freesound.org/people/Rudmer_Rotteveel/"}
         ]
+    },
+    {
+        "name":"Pavel Kutejnikov",
+        "type":"artist",
+        "works":[
+            {"name":"Crowns", "licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"OpenGameArt.org", "handle":"Kutejnikov", "url":"https://opengameart.org/users/kutejnikov"}
+        ]
+    },
+    {
+        "name":"CGEffex",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Roar", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"CGEffex", "url":"https://freesound.org/people/CGEffex/"}
+        ]
+    },
+    {
+        "name":"klankbeeld",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"heart beat increasing 116642.wav", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"klankbeeld", "url":"https://freesound.org/people/klankbeeld/"}
+        ]
+    },
+    {
+        "name":"funkymuskrat",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"chil.wav", "licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"funkymuskrat", "url":"https://freesound.org/people/funkymuskrat/"}
+        ]
+    },
+    {
+        "name":"Division4884",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Simple Mutate (Monster)", "licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"Division4884", "url":"https://freesound.org/people/Division4884/"}
+        ]
     }
 ]

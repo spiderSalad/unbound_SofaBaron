@@ -303,11 +303,13 @@ label generic_hunt_results(scoping_pool, scoping_test, feeding_pool, feeding_tes
 
     label .messy:  # A dead body - you also get here if your hunger is high and you fail a willpower roll
         $ state.set_hunger(0, killed=True, innocent=True)
+        $ state.feed_resonance(boost=1)
         "You find yourself standing over a dead body. The problem of your Hunger is dealt with, but now you have a different problem."
         jump .end
 
     label .crit:  # You feed successfully and get a bonus
         $ state.set_hunger("-=2")
+        $ state.feed_resonance(boost=1)
         "That could hardly have gone better."
         jump .end
 
@@ -318,12 +320,16 @@ label generic_hunt_results(scoping_pool, scoping_test, feeding_pool, feeding_tes
         $ state.set_hunger("-={}".format(slaked_hunger))
         if slaked_hunger > 3:
             "You drink your fill. Your prey will live, assuming someone notices them in time."
+            $ state.feed_resonance()
         elif slaked_hunger > 2:
             "You drink your fill, and leave your prey in a daze. They'll be fine, assuming someone notices them in time."
+            $ state.feed_resonance()
         elif slaked_hunger == 2:
             "You drink deeply, but not {i}too{/i} deeply."
+            $ state.feed_resonance()
         else:
             "You take a few good gulps; just enough to take the edge off before you have to split."
+            $ state.feed_resonance(boost=-1)
         jump .end
 
     label .fail:  # You fail to feed
@@ -336,13 +342,14 @@ label generic_hunt_results(scoping_pool, scoping_test, feeding_pool, feeding_tes
         "Your vision goes red. There are screams, the sound of shattering glass, and what might have been a gunshot."
 
         "You come to your senses in an alley."
+        # TODO: further consequences
         jump .end
 
     label .end:
         call pass_time(time_spent) from generic_hunt_results_end
         return
 
-    $ raise ValueError("Shouldn't reach here!")
+    $ raise ValueError("The game shouldn't ever reach here!")
 
 
 label pc_gender_preference:
