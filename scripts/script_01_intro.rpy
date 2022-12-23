@@ -1,11 +1,8 @@
 ﻿# The script of the game goes in this file.
 
-define dev_mode = True
-
 # Declare characters used by this game. The color argument colorizes the
 # name of the character.
 
-define e = Character("Eileen")
 define you = Character("You")
 define beast = Character("The Beast", color="#e90505")
 define james = Character("Man", color="#662222")
@@ -113,9 +110,9 @@ label intro:
 
         "His instincts kick in just a bit too late. He doesn't even have time to scream. Once your fangs are in he goes limp, like all the rest. A few minutes later and you've taken {i}everything{/i}."
 
-        $ renpy.store.state.set_hunger(0, killed=True, innocent=True)
-        $ renpy.store.state.feed_resonance(boost=1, reso=(cfg.RESON_MELANCHOLIC, cfg.RESON_PHLEGMATIC))
-        $ renpy.store.state.feed_resonance(intensity=cfg.RINT_FLEETING, reso=cfg.RESON_CHOLERIC)
+        $ state.set_hunger(0, killed=True, innocent=True)
+        $ state.feed_resonance(boost=1, reso=(cfg.RESON_MELANCHOLIC, cfg.RESON_PHLEGMATIC))
+        $ state.feed_resonance(intensity=cfg.RINT_FLEETING, reso=cfg.RESON_CHOLERIC)
         $ state.intro_man_drank = state.intro_man_killed = True
 
         "Everything he is, was, and could have been pours down your throat and floods into your veins. There's a pleasant coppery tang, and an incredible rush. For once you feel... whole."
@@ -162,8 +159,8 @@ label intro:
 
         "He goes limp the moment your fangs pierce his neck, moaning softly. You take a few good mouthfuls - just enough to take the edge off. Then you gently lower him to the ground, lick the puncture wounds on his neck away, and set off into the night."
 
-        $ renpy.store.state.set_hunger("-=1")
-        $ renpy.store.state.feed_resonance(reso=(cfg.RESON_MELANCHOLIC, cfg.RESON_PHLEGMATIC))
+        $ state.set_hunger("-=1")
+        $ state.feed_resonance(reso=(cfg.RESON_MELANCHOLIC, cfg.RESON_PHLEGMATIC))
         $ state.intro_man_drank = True
 
         stop sound
@@ -245,6 +242,9 @@ label backstory:
     $ state.pc.apply_background(cfg.CHAR_BACKGROUNDS[state.pc.mortal_backstory], bg_key=state.pc.mortal_backstory)
 
     beast "Enough navel-gazing, \"[state.pc.mortal_backstory]\". We're almost home."
+
+    # if cfg.DEV_MODE:
+    #     $ state.pc.hp.damage(cfg.DMG_AGG, 3)
 
     "And you are, though you take a circuitous route that doubles back on itself a few times. Less likely you're followed that way."
 
@@ -334,13 +334,13 @@ label clan_choice:
 
         "I skip all the pretense and bullshit and just {i}take{/i} what I need. It ain't pretty, but it's usually quick and simple.":
             "Your hunting blends in nicely with the city's mundane mortal crime. As long as you're careful and don't leave any obviously exsanguinated corpses lying around, things tend to work out okay."
-            $ state.pc.choose_predator_type(cfg.PT_ALLEYCAT)
+            call predator_type_subsets.alley_cat from intro_pt_choice_alley_cat
 
         "I didn't hunt my own food when I was alive. Why start now? I just drink the bagged stuff. Less dangerous." if state.pc_can_drink_swill():
             "Realistically it's just a different kind of danger. Blood is a commodity even among mortals, and it tends to be closely watched."
 
             "Statistical abnormalities or a careless lick caught on the wrong camera feed can draw the attention of law enforcement and hunters alike. But that's a less direct kind of danger, the kind you're much better at managing."
-            $ state.pc.choose_predator_type(cfg.PT_BAGGER)
+            call predator_type_subsets.bagger from intro_pt_choice_bagger
 
         "I feed on animals, usually. City's chock full of animals if you know where to look." if state.pc_can_drink_swill():
             if state.intro_man_killed:
@@ -348,12 +348,12 @@ label clan_choice:
             else:
                 "Hunting animals is a bit easier on the conscience, and a lot safer. Nobody notices or cares if vermin or strays go missing."
 
-            "They can say what they like. Just means more rat for you."
-            $ state.pc.choose_predator_type(cfg.PT_FARMER)
+            "Other licks can say what they like. Just means more rat for you."
+            call predator_type_subsets.farmer from intro_pt_choice_farmer
 
         "My favorite way to feed is during sex. One pleasure heightens the other, for everyone involved.":
             "Fucking your food is.... a choice. A choice you'd make {i}every{/i} time, if you could."
-            $ state.pc.choose_predator_type(cfg.PT_SIREN)
+            call predator_type_subsets.siren from intro_pt_choice_siren
 
     # No time passes here
     jump haven.post_main
@@ -381,7 +381,7 @@ label ventrue_feeding_choice:
 label end:
 
     # This ends the game.
-    if pc.cause_of_death == cfg.COD_SUN:
+    if state.pc.cause_of_death == cfg.COD_SUN:
         "Unable to escape the merciless wrath of the sun, you crumple to the ground in a smoldering heap."
 
         "By that time, of course, your mind was already gone."

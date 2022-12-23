@@ -13,7 +13,7 @@ label haven:
             $ state.outside_haven = False
             jump clan_choice
 
-        if pc.frenzied and pc.hunger >= cfg.HUNGER_MAX:
+        if pc.frenzied_bc_hunger:
             jump hunger_frenzy
 
         # Standard haven hub menu

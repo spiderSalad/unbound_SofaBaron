@@ -229,7 +229,7 @@ init 0 python in cfg:
         },
         PT_SIREN: {
             REF_TYPE: REF_PREDATOR_TYPE,
-            REF_DESC: "Feeding via seduction is a time-honored classic, and pretty reliable if you're alluring enough.",
+            REF_DESC: "Feeding via seduction is a time-honored classic, and pretty reliable if you've got charm or allure.",
             SK_DIPL: 1, SK_INTR: 1
         }
     }
@@ -237,13 +237,22 @@ init 0 python in cfg:
     REF_RESONANCE = "Resonance"
     VAL_RESONANCE_GUI_MAX = 1000
 
-    RESON_ANIMAL = "Animal Resonance"  # Animalism, Protean
-    RESON_CHOLERIC = "Choleric Resonance"  # Celerity, Potence
-    RESON_MELANCHOLIC = "Melancholic Resonance"  # Fortitude, Obfuscate
-    RESON_PHLEGMATIC = "Phlegmatic Resonance"  # Auspex, Dominate
-    RESON_SANGUINE = "Sanguine Resonance"  # Blood Sorcery, Presence
-    RESON_EMPTY = "\"Empty\" Resonance"  # Oblivion
-    RESON_VARIED = "Varied Resonances"  # Thinblood Alchemy
+    RESON_ANIMAL = "Animal"  # Animalism, Protean
+    RESON_CHOLERIC = "Choleric"  # Celerity, Potence
+    RESON_MELANCHOLIC = "Melancholic"  # Fortitude, Obfuscate
+    RESON_PHLEGMATIC = "Phlegmatic"  # Auspex, Dominate
+    RESON_SANGUINE = "Sanguine"  # Blood Sorcery, Presence
+    RESON_EMPTY = "\"Empty\""  # Oblivion
+    RESON_VARIED = "Varied"  # Thinblood Alchemy
+
+    VAL_RESON_COLORS = {
+        RESON_ANIMAL: "#da8a18",
+        RESON_CHOLERIC: "#faf604",
+        RESON_MELANCHOLIC: "#36347c",
+        RESON_PHLEGMATIC: "#09f3a2",
+        RESON_SANGUINE: "#f73939",
+        RESON_EMPTY: "#101010"
+    }
 
     RINT_BASE = 100
     RINT_BALANCED = RINT_BASE * 1
@@ -265,7 +274,7 @@ init 0 python in cfg:
     DISC_THINBLOOD_ALCHEMY = "Thinblood Alchemy"
 
     REF_BG_DISC_PRIORITY = "discipline_priority"
-    REF_DISC_NOT_YET = [DISC_AUSPEX, DISC_OBLIVION, DISC_PROTEAN, DISC_BLOOD_SORCERY, DISC_THINBLOOD_ALCHEMY]
+    REF_DISC_NOT_YET = [DISC_AUSPEX, DISC_OBLIVION, DISC_BLOOD_SORCERY, DISC_THINBLOOD_ALCHEMY]
 
     CHAR_BACKGROUNDS = {
         "Nursing Student": {
@@ -349,6 +358,7 @@ init 0 python in cfg:
     VAL_DISC_OUTCLAN = float(5) / 7
     VAL_DISC_CAITIFF = float(5) / 6
     VAL_DISC_INCLAN = 1
+    VAL_DISC_XP_REQS = [500, 1000, 1500, 2000, 2500]
     REF_DISC_LOCKED = "Locked"
     REF_DISC_OUTCLAN = "Out-of-Clan"
     REF_DISC_CAITIFF = "Caitiff"
@@ -440,6 +450,8 @@ init 0 python in cfg:
     POWER_OBFUSCATE_ILLUSION = "Chimerstry"
     POWER_OBFUSCATE_MASK = "Mask of a Thousand Faces"
     POWER_OBFUSCATE_LAUGHINGMAN = "Ghost in the Machine"
+    POWER_OBFUSCATE_HALLUCINATION = "Fata Morgana"
+    POWER_OBFUSCATE_VANISH = "Vanish"
 
     POWER_POTENCE_FATALITY = "Lethal Body"
     POWER_POTENCE_SUPERJUMP = "Soaring Leap"
@@ -452,6 +464,16 @@ init 0 python in cfg:
     POWER_PRESENCE_ADDICTED2U = "Lingering Kiss"
     POWER_PRESENCE_ENTRANCE = "Entracement"
     POWER_PRESENCE_SCARYFACE = "Dread Gaze"
+
+    POWER_PROTEAN_REDEYE = "Eyes of the Beast"
+    POWER_PROTEAN_FLOAT = "Weight of the Feather"
+    POWER_PROTEAN_TOOTH_N_CLAW = "Feral Weapons"
+    POWER_PROTEAN_MOLD_SELF = "Vicissitude"
+    POWER_PROTEAN_DIRTNAP = "Earthmeld"
+    POWER_PROTEAN_BOO_BLEH = "Shapechange"
+    POWER_PROTEAN_MOLD_OTHERS = "Fleshcrafting"
+    POWER_PROTEAN_DRUID = "Metamorphosis"
+    POWER_PROTEAN_FINALFORM = "Horrid Form"
 
     REF_DISC_POWER_TREES = {
         DISC_ANIMALISM: [
@@ -482,8 +504,9 @@ init 0 python in cfg:
         DISC_OBFUSCATE: [
             [POWER_OBFUSCATE_FADE, POWER_OBFUSCATE_SILENCE],
             [POWER_OBFUSCATE_STEALTH, POWER_OBFUSCATE_ILLUSION],
-            [POWER_OBFUSCATE_MASK, POWER_OBFUSCATE_LAUGHINGMAN],
-            [], []
+            [POWER_OBFUSCATE_MASK, POWER_OBFUSCATE_LAUGHINGMAN, POWER_OBFUSCATE_HALLUCINATION],
+            [POWER_OBFUSCATE_VANISH],
+            []
         ],
         DISC_OBLIVION: [],
         DISC_POTENCE: [
@@ -498,9 +521,32 @@ init 0 python in cfg:
             [POWER_PRESENCE_ENTRANCE, POWER_PRESENCE_SCARYFACE],
             [], []
         ],
-        DISC_PROTEAN: [],
+        DISC_PROTEAN: [
+            [POWER_PROTEAN_REDEYE, POWER_PROTEAN_FLOAT],
+            [POWER_PROTEAN_TOOTH_N_CLAW, POWER_PROTEAN_MOLD_SELF],
+            [POWER_PROTEAN_DIRTNAP, POWER_PROTEAN_MOLD_OTHERS, POWER_PROTEAN_BOO_BLEH],
+            [POWER_PROTEAN_DRUID, POWER_PROTEAN_FINALFORM],
+            []
+        ],
         DISC_BLOOD_SORCERY: [],
         DISC_THINBLOOD_ALCHEMY: []
+    }
+
+    REF_DISC_AMALGAM_REQS = {
+        POWER_ANIMALISM_HIVE: (DISC_OBFUSCATE, 2),
+        POWER_DOMINATE_DEVOTION: (DISC_PRESENCE, 1),
+        POWER_OBFUSCATE_ILLUSION: (DISC_PRESENCE, 1),
+        POWER_OBFUSCATE_HALLUCINATION: (DISC_PRESENCE, 2),
+        POWER_POTENCE_RAGE: (DISC_PRESENCE, 3),
+        POWER_PROTEAN_MOLD_SELF: (DISC_DOMINATE, 2),
+        POWER_PROTEAN_MOLD_OTHERS: (DISC_DOMINATE, 2)
+    }
+
+    REF_DISC_POWER_PREREQS = {
+        POWER_OBFUSCATE_VANISH: [POWER_OBFUSCATE_FADE],
+        POWER_PROTEAN_MOLD_OTHERS: [POWER_PROTEAN_MOLD_SELF],
+        POWER_PROTEAN_FINALFORM: [POWER_PROTEAN_MOLD_SELF],
+        POWER_PROTEAN_DRUID: [POWER_PROTEAN_BOO_BLEH]
     }
 
     SEM_HUB_MAIN = "haven-hub-default"
@@ -512,6 +558,8 @@ init 0 python in cfg:
     TT_LOCKED = "tt_power_level_locked"
     TT_NEED_PREVIOUS = "tt_pick_lower_first"
     TT_POWER_AVAILABLE = "new_power_select"
+    TT_AMALGAM_LOCK = "amalgam_req_not_met"
+    TT_PREREQ_LOCK = "power_prereq_not_met"
 
     TOOLTIP_TABLE = {  # TODO finish these
         AT_STR: "Lifting, pulling, pushing, punching, kicking, etc.",
@@ -543,6 +591,8 @@ init 0 python in cfg:
         TT_LOCKED: "(Locked)",
         TT_NEED_PREVIOUS: "(Locked - pick a lower level power first.)",
         TT_POWER_AVAILABLE: "The Blood responds to struggle; new powers are available.",
+        TT_AMALGAM_LOCK: "Learning this power requires knowledge in another Art of the Blood.",
+        TT_PREREQ_LOCK: "This power is rooted in another that we lack.",
         REF_DISC_LOCKED: "Your Blood doesn't move in the right ways. Perhaps if you had a teacher...",
         REF_DISC_OUTCLAN: "You've learned to move your Blood in new ways, with some difficulty.",
         REF_DISC_CAITIFF: "The Blood of the Clanless is unpredictable, mutable...",

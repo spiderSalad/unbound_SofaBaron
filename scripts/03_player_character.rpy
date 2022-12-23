@@ -107,6 +107,7 @@ init 1 python in game:
             self._access = {}
             self._levels = {}
             self._pc_powers = {}
+            self._chosen_powers = {}
             self._power_choices = {}
             self.reset()
 
@@ -115,10 +116,13 @@ init 1 python in game:
                 if hard_reset:
                     self._access[dname] = cfg.REF_DISC_LOCKED
                     self._levels[dname] = cfg.MIN_SCORE
+                    self._chosen_powers[dname] = {}
                 self._pc_powers[dname] = {}
                 for i in range(1, 6):
                     score_word = cfg.SCORE_WORDS[i]
                     self._pc_powers[dname][score_word] = None
+                    if dname in self.chosen_powers and self.chosen_powers[dname] and score_word in self.chosen_powers[dname]:
+                        self._pc_powers[dname][score_word] = self.chosen_powers[dname][score_word]
             self.recalculate_power_choices()
 
         # None of these properties should have setters
@@ -137,6 +141,10 @@ init 1 python in game:
         @property
         def power_choices(self):
             return self._power_choices
+
+        @property
+        def chosen_powers(self):
+            return self._chosen_powers
 
         def set_discipline_access(self, dname, access_token):
             self._access[dname] = access_token
@@ -157,7 +165,7 @@ init 1 python in game:
 
         def set_discipline_level(self, dname, dots):
             new_dot_level = utils.nudge_int_value(self.levels[dname], dots, floor=cfg.MIN_SCORE, ceiling=cfg.MAX_SCORE)
-            self.levels[dname] = new_dot_level
+            self._levels[dname] = new_dot_level
             self.recalculate_power_choices()
 
         def recalculate_power_choices(self):
@@ -175,28 +183,72 @@ init 1 python in game:
                 self._power_choices[ul_disc] = power_options
             # print(utils.json_prettify(self.power_choices, sort_keys=False))
 
-        def unlock_power(self, dname, power_name):
+        def power_prereqs_met(self, dname, power):
+            if power in cfg.REF_DISC_POWER_PREREQS:
+                prereq_power = cfg.REF_DISC_POWER_PREREQS[power]
+                if prereq_power not in self.pc_powers[dname].values():
+                    return False, "Should not be able to choose {} without prerequisite power {}".format(power, prereq_power)
+            return True, None
+
+        def amalgam_reqs_met(self, dname, power):
+            if power in cfg.REF_DISC_AMALGAM_REQS:
+                amalg, amalg_level = cfg.REF_DISC_AMALGAM_REQS[power]
+                # We don't check to make sure all power slots of amalgam discipline are filled to required level,
+                # only that the required number of dots is there.
+                if self.levels[amalg] < amalg_level:
+                    return False, "Cannot choose amalgam power {} with a {} level below {}.".format(power, amalg, amalg_level)
+            return True, None
+
+        def can_unlock_power(self, dname, power_name):
             if self.access[dname] == cfg.REF_DISC_LOCKED:
-                raise ValueError("{} is locked; can't choose powers from it.".format(dname))
+                return False, "{} is locked; can't choose powers from it.".format(dname)
             all_d_powers = []
             for i in range(0, 5):
                 all_d_powers += cfg.REF_DISC_POWER_TREES[dname][i]
             if power_name not in all_d_powers:
-                raise ValueError("{} is not a power of {} discipline; something's gone wrong.".format(power_name, dname))
+                return False, "{} is not a power of {} discipline; something's gone wrong.".format(power_name, dname)
             del all_d_powers
             empty_slots = [(cfg.SCORE_WORDS.index(pl), pl) for pl in self.pc_powers[dname] if self.pc_powers[dname][pl] is None]
             nxt_ava_lvl = min([pl[0] for pl in empty_slots])
             if nxt_ava_lvl > self.levels[dname]:
-                raise ValueError("Cannot choose a level {} power; {} is at level {}.".format(nxt_ava_lvl, dname, self.levels[dname]))
+                return False, "Cannot choose a level {} power; {} is at level {}.".format(nxt_ava_lvl, dname, self.levels[dname])
             if power_name in self.pc_powers[dname].values():
-                raise ValueError("{} has already been taken.".format(power_name))
+                return False, "{} has already been taken.".format(power_name)
             nal_token = cfg.SCORE_WORDS[nxt_ava_lvl]
             available_powers = self.power_choices[dname][nal_token]
             if power_name not in available_powers:
-                raise ValueError("Should not be able to choose {} at {} level {}.".format(power_name, dname, nxt_ava_lvl))
+                return False, "Should not be able to choose {} at {} level {}.".format(power_name, dname, nxt_ava_lvl)
+            amalg, error_msg = self.amalgam_reqs_met(dname, power_name)
+            if not amalg:
+                return False, error_msg
+            pow_prereq, error_msg = self.power_prereqs_met(dname, power_name)
+            if not pow_prereq:
+                return False, error_msg
+            return True, nal_token
+
+        def check_power_locks(self, dname, power_name):
+            can_unlock, result_str = self.can_unlock_power(dname, power_name)
+            if not can_unlock:
+                raise ValueError(result_str)
+            return can_unlock, result_str
+
+        def unlock_power(self, dname, power_name, record_choice=True):
+            try:
+                can_unlock, nal_token = self.check_power_locks(dname, power_name)
+            except ValueError as ve:
+                # TODO: add something here?
+                utils.log("Problem occurred while trying to unlock new power:\n{}".format(ve))
+                return
+            except Exception as e:
+                utils.log("Unknown {} raised while trying to unlock new power:\n{}".format(e))
+                return
+            # Once successfully chosen:
             self._pc_powers[dname][nal_token] = power_name
+            if record_choice:
+                self._chosen_powers[dname][nal_token] = power_name
             self.recalculate_power_choices()
             utils.log(utils.json_prettify(self.pc_powers[dname]))
+
 
     class PlayerChar:
         def __init__(self, anames, snames, dnames):
@@ -208,7 +260,8 @@ init 1 python in game:
             self._hunger = 1
             self._humanity = 7
             self.hp, self.will = Tracker(self, 3, cfg.TRACK_HP), Tracker(self, 3, cfg.TRACK_WILL)
-            self.crippled, self.shocked, self.frenzied = False, False, False
+            self.crippled, self.shocked = False, False
+            self.frenzied_bc_hunger, self.frenzied_bc_fear = False, False
             self.cause_of_death = None
             self._status = "(All clear)"
             self.clan_blurbs = {}
@@ -225,10 +278,10 @@ init 1 python in game:
         @property
         def status(self):
             status_list = []
-            if self.frenzied and self.hunger >= cfg.HUNGER_MAX:
-                status_list.append("Hunger frenzy")
-            elif self.frenzied:
-                status_list.append("Frenzy")
+            if self.frenzied_bc_hunger and self.hunger >= cfg.HUNGER_MAX:
+                status_list.append("Hunger frenzy!")
+            elif self.frenzied_bc_fear:
+                status_list.append("Terror frenzy!")
             elif self.hunger >= cfg.HUNGER_MAX:
                 status_list.append("Starving")
             if self.crippled:
@@ -250,10 +303,12 @@ init 1 python in game:
             self._hunger = max(0, min(new_hunger, cfg.HUNGER_MAX + 1))
             if self.hunger > cfg.HUNGER_MAX:
                 print("Hunger tested at 5; frenzy check?")  # TODO: frenzy check
-                self.frenzied = True
+                self.frenzied_bc_hunger = True
                 self.hunger = cfg.HUNGER_MAX
             else:
                 utils.log("Hunger now set at {}".format(self.hunger))
+                if self.frenzied_bc_hunger and  self.hunger < cfg.HUNGER_MAX_CALM:
+                    self.frenzied_bc_hunger = False
 
         @property
         def humanity(self):
@@ -379,30 +434,26 @@ init 1 python in game:
             self.disciplines.set_discipline_level(disc1, "+=2")
             self.disciplines.set_discipline_level(disc2, "+=1")
 
-        def choose_predator_type(self, pt):
+        def choose_predator_type(self, pt, pt_dot_disc):
+            self.unlock_discipline(pt_dot_disc, cfg.REF_DISC_OUTCLAN)
+            self.disciplines.set_discipline_level(pt_dot_disc, "+=1")
             if pt == cfg.PT_ALLEYCAT:
                 self.humanity -= 1
                 self.skills[cfg.SK_COMB] += 1
                 self.skills[cfg.SK_INTI] += 1
-                self.unlock_discipline(cfg.DISC_CELERITY, cfg.REF_DISC_OUTCLAN)
-                self.unlock_discipline(cfg.DISC_POTENCE, cfg.REF_DISC_OUTCLAN)
             elif pt == cfg.PT_BAGGER:
                 self.skills[cfg.SK_CLAN] += 1
                 self.skills[cfg.SK_STWS] += 1
-                self.unlock_discipline(cfg.DISC_OBFUSCATE, cfg.REF_DISC_OUTCLAN)
                 # TODO: Iron Gullet, Enemy (2)
             elif pt == cfg.PT_FARMER:
                 self.humanity += 1
                 self.skills[cfg.SK_TRAV] += 1
                 self.skills[cfg.SK_DIPL] += 1
-                self.unlock_discipline(cfg.DISC_ANIMALISM, cfg.REF_DISC_OUTCLAN)
                 # TODO: Vegan
             elif pt == cfg.PT_SIREN:
                 self.apply_background(cfg.BG_BEAUTIFUL)
                 self.skills[cfg.SK_DIPL] += 1
                 self.skills[cfg.SK_INTR] += 1
-                self.unlock_discipline(cfg.DISC_FORTITUDE, cfg.REF_DISC_OUTCLAN)
-                self.unlock_discipline(cfg.DISC_PRESENCE, cfg.REF_DISC_OUTCLAN)
                 # TODO: Enemy (1)
             else:
                 raise ValueError("\"{}\" is not a valid predator type.".format(pt))

@@ -44,7 +44,11 @@ label hunt_alley_cat(status):
             jump hunt_alley_cat.options
 
         "I'm in the mood for something... richer. I'll hunt in the parking lots at that new expensive shopping center.":
-            "Hip young professionals, rich yuppies - all kinds of soft, juicy prey. But also lots of security."
+            "Hip young professionals, rich yuppies - all kinds of soft, pliant prey."
+
+            "The kind that tend to eat at upscale restaurants and have cushy gym memberships they may or may not use."
+
+            "But with all that juicy, upwardly mobile prey comes a lot of security."
 
             $ hw = "Careful not to get caught on camera. Don't let them scream or call for help."
             call hunt_confirm("wits+inspection,charisma+intimidation/manipulation+diplomacy", hw) from alley_cat_plaza
@@ -204,14 +208,6 @@ label hunt_siren(status):
         beast "Whatever floats your boat, as they say. So long as {i}I{/i} get what {i}I{/i} want."
 
         "There's this new club downtown that I've been wanting to check out. I'm sure I can find someone to spend the night with there.":
-
-            #"Most of the clubs downtown are new, in part because of how many were closed down the last time the Inquisition swept through this city."
-
-            #"Any Kindred-owned business they managed to learn about was seized, shut down, or otherwise eliminated,
-
-            # In the aftermath, some enterprising mortal investors made a killing buying them up on the cheap."
-
-            #"You doubt any of these mortal profiteers have any idea who or what they're poaching from, but you'll have to be careful nonetheless."
 
             "Clubs are choice hunting grounds in almost any city. They're places where the beautiful and energetic gather."
 
@@ -381,19 +377,120 @@ label hunger_frenzy:
     beast "Blood. BLOOD. FEED FEED FEED FEEDFEEDFEEDFEEDFEEDFEEDFEED"
 
     "..."
-    # TODO: even more nasty consequences, and some crazy sounds
+    # TODO: even more nasty consequences (esp. Masquerade), and some crazy sounds
 
     # masquerade penalty
 
     python:
-        hf_kill = True if utils.random_int_range(0, 4) > 3 else False
-        hf_innocent = True if hf_kill and utils.random_int_range(0, 3) > 2 else False
-        hf_hours_lost = utils.random_int_range(0, 3)
-        hf_outside_haven = True if utils.random_int_range(0, 1) > 0 else False
+        hf_kill = True if utils.random_int_range(0, 4) > 2 else False  # 40% chance to kill
+        hf_innocent = True if hf_kill and utils.random_int_range(0, 3) > 0 else False  # 75% chance they were innocent
+        hf_hours_lost = utils.random_int_range(0, 3)  # 0 to 3 hours lost
+        hf_outside_haven = True if utils.random_int_range(0, 1) > 0 else False  # 50% chance to end up back at your haven
         state.set_hunger(0, killed=hf_kill, innocent=hf_innocent)
 
     call pass_time(hf_hours_lost, in_shelter=not hf_outside_haven) from hunger_frenzy_blackout
 
     "You come to your senses some time later, your jaw and chest slick with gore. What have you done?"
 
-    jump haven.main
+    jump haven.main  # TODO: add more varied consequences/places you can end up
+
+
+label predator_type_subsets:
+
+    label .alley_cat:
+        beast "So many pulse-pounding hunts. So many exquisitely exhilarating memories to choose from."
+
+        menu:
+            beast "What's your {i}favorite{/i}? Don't be coy; I know you have one..."
+
+            "Once, I hit this drunk guy with a flying tackle and had him limp in my arms before we stopped rolling.  (+Celerity)":
+                # +1 Combat, +1 Intimidation, +1 Celerity
+                $ state.pc.choose_predator_type(cfg.PT_ALLEYCAT, cfg.DISC_CELERITY)
+                beast "And the sound of his head cracking on the pavement! Classic!"
+
+                beast "...I mean, such a {i}shame{/i} about the accident that befell the poor man. We wish him a speedy recovery."
+
+            # "That time I had that muscly, tatted-up gym rat quaking in his sweatsuit.  (+1 Intimidate, +1 Potence)":
+            #     # +1 Intimidate, +1 Potence
+            #     $ state.pc.choose_predator_type(cfg.PT_ALLEYCAT, cfg.SK_INTI, cfg.DISC_POTENCE)
+            #     beast "Isn't it wonderful when the kine, even the \"strong\" ones, instinctively recognize a predator higher than them on the food chain?"
+
+            "Where's the fun if they don't fight back? That one dockworker must have been taking Muay Thai lessons or something, but her blood was a rush of power like I haven't had in a while.  (+Potence) ":
+                # +1 Combat, +1 Intimidation, +1 Potence
+                $ state.pc.choose_predator_type(cfg.PT_ALLEYCAT, cfg.DISC_POTENCE)
+                beast "That one fought like a trapped wolf. She would have mopped the floor with you without my help, hehehe..."
+
+            # "My favorite hunts are the ones where I get what I need as quickly as possible, with as little fuss as possible. (+1 Intimidate, +1 Celerity)":
+            #     # +1 Intimidate, +1 Celerity
+            #     $ state.pc.choose_predator_type(cfg.PT_ALLEYCAT, cfg.SK_INTI, cfg.DISC_CELERITY)
+            #     beast "Fine, be that way."
+        return
+
+    label .bagger:
+        # +1 Clandestine, +1 Streetwise, +1 Obfuscate
+        $ state.pc.choose_predator_type(cfg.PT_BAGGER, cfg.DISC_OBFUSCATE)
+        return
+        # TODO: implement Blood Sorcery option if Banu Haqim or Tremere are added.
+
+    label .farmer:
+        "The blood of animals is never as flavorful or nourishing as human blood, no matter what animal you feed on or how much you drink."
+
+        "But when hunting animals you can sometimes act the predator in ways that wouldn't fly when moving among the kine."
+
+        "There's a certain spiritual satisfaction in the act, which can appease your Beast. ...Somewhat. Sometimes."
+
+        python:
+            state.feed_resonance(reso=cfg.RESON_ANIMAL, boost=1)
+            is_nerd = False
+            if state.pc.mortal_backstory == "Nursing Student" or state.pc.mortal_backstory == "Grad Student":
+                is_nerd = True
+            if state.pc.disciplines.levels[cfg.DISC_ANIMALISM] > 1:
+                anim_token = "but I honed my ability to commune with animals even futher than before."
+            else:
+                anim_token = "but I learned to... {i}commune{/i} with the animals around me, on some level."
+            if state.pc.disciplines.levels[cfg.DISC_PROTEAN] > 1 and is_nerd:
+                prot_token = "my ability to change my shape grew more advanced. Like I was adding their genomes to my arsenal or something."
+            elif state.pc.disciplines.levels[cfg.DISC_PROTEAN] > 1:
+                prot_token = "my ability to change my shape grew even more. Like their blood was teaching me about all the different forms the body can take."
+            else:
+                prot_token = "I found myself... {i}changing{/i}. Like I was learning to emulate them through their blood, somehow."
+
+        menu:
+            beast "A paltry pantomime. I suppose I should be grateful you're not buying pig blood under the table like some thinblooded dreg."
+
+            "I can't tell if it was a result of feeding on so many animals, or if my Blood adapted in order to hunt them better, [anim_token]  (+Animalism)":
+                # +1 Traversal, +1 Diplomacy, +1 Animalism
+                $ state.pc.choose_predator_type(cfg.PT_FARMER, cfg.DISC_ANIMALISM)
+
+            "As I fed on more and more animals of different kinds, [prot_token]  (+Protean)":
+                # +1 Traversal, +1 Diplomacy, +1 Protean
+                $ state.pc.choose_predator_type(cfg.PT_FARMER, cfg.DISC_PROTEAN)
+
+        return
+
+    label .siren:
+        "Most of the clubs downtown are new, in part because of how many closed down the last time the Inquisition swept through this city."
+
+        "Any Kindred-owned business they managed to learn about was seized, shut down, razed to the ground in a \"botched drug raid\", or otherwise eliminated."
+
+        "In the aftermath, some enterprising mortal investors made a killing buying up what was left on the cheap."
+
+        "You doubt any of the mortal profiteers have any idea who or what they've been poaching from, but you'll have to be careful nonetheless."
+
+        "You're probably lucky that your antics didn't get you fried along with some of those other licks."
+
+        menu:
+            "You think of yourself as a smooth operator, but you won't be able to \"operate\" the way you used to, back when you..."
+
+            "I spent some time making friends (and \"friends\") in a few local kink communities. Great way to feed, or at least it used to be. The experiences also taught me some... {i}interesting{/i} things about myself and my body.  (+Fortitude)":
+                # +1 Diplomacy, +1 Intrigue, +1 Fortitude
+                $ state.pc.choose_predator_type(cfg.PT_SIREN, cfg.DISC_FORTITUDE)
+
+            "It's all about making the right first impression, and with my aura I {i}always{/i} make the impression I want.  (+Presence)":
+                # +1 Diplomacy, +1 Intrigue, +1 Presence
+                $ state.pc.choose_predator_type(cfg.PT_SIREN, cfg.DISC_PRESENCE)
+
+        return
+
+
+# placeholder

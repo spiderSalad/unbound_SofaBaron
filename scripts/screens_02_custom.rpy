@@ -68,13 +68,19 @@ screen trackerline(name, total, clearboxes, spfdamage, bonus=0, bonus_name=""):
 
 
 # Widget based on repbar, used for resonances
-screen xpbar(value, max, name, color="#232323"):
+screen xpbar(value, max, name, color="#232323", _action=None):
     python:
         ratio = float(value) / float(max)
+        if _action is None:
+            _action = NullAction()
 
     frame style style.utility_frame:
         hbox spacing 10:
-            text "[name]" align (0.0, 0.5) size 18
+            textbutton "[name]" align (0.0, 0.5):  # size 18
+                text_style style.codex_hoverable_text
+                action _action
+                hovered ShowTransient("hovertip", None, "{tt}".format(tt="tooltip tbd"))
+                unhovered Hide("hovertip", None)
             bar value StaticValue(value, max) xysize (160, 15):
                 align (0.5, 0.5)
                 xmaximum 160
@@ -219,8 +225,10 @@ screen codexScoresPage(*args):
 screen codexPowersPage(*args):  # current pane heights: 120 + 14 + 445 = 579/580
     tag codexPage
     modal False
-    $ cfg, pc = renpy.store.cfg, renpy.store.state.pc
-    $ merits_and_flaws = [bg for bg in pc.backgrounds if bg[cfg.REF_TYPE] in (cfg.REF_BG_FLAW, cfg.REF_BG_MERIT)]
+    python:
+        cfg, pc = renpy.store.cfg, renpy.store.state.pc
+        merits_and_flaws = [bg for bg in pc.backgrounds if bg[cfg.REF_TYPE] in (cfg.REF_BG_FLAW, cfg.REF_BG_MERIT)]
+        resmax, r_action = cfg.VAL_RESONANCE_GUI_MAX, None
     use codexBaseFrame("powers"):
         style_prefix "codex_panel"
         vbox spacing 14:
@@ -240,14 +248,11 @@ screen codexPowersPage(*args):  # current pane heights: 120 + 14 + 445 = 579/580
                 #     hbox xfill True yalign 0.5:
                 #         text "Nothing special unlocked or discovered." text_align 0.5 xalign 0.5 yalign 0.5
                 use buildGrid(3, 2, 6):
-                    use xpbar(state.resonances[cfg.RESON_ANIMAL], cfg.VAL_RESONANCE_GUI_MAX, "Animal", color="#da8a18")
-                    use xpbar(state.resonances[cfg.RESON_CHOLERIC], cfg.VAL_RESONANCE_GUI_MAX, "Choleric", color="#faf604")
-                    use xpbar(state.resonances[cfg.RESON_MELANCHOLIC], cfg.VAL_RESONANCE_GUI_MAX, "Melancholic", color="#36347c")
-                    use xpbar(state.resonances[cfg.RESON_PHLEGMATIC], cfg.VAL_RESONANCE_GUI_MAX, "Phlegmatic", color="#09f3a2")
-                    use xpbar(state.resonances[cfg.RESON_SANGUINE], cfg.VAL_RESONANCE_GUI_MAX, "Sanguine", color="#f73939")
-                    use xpbar(state.resonances[cfg.RESON_EMPTY], cfg.VAL_RESONANCE_GUI_MAX, "\"Empty\"", color="#101010")
-                # use xpbar(sum(state.resonances.values()), cfg.VAL_RESONANCE_GUI_MAX * 10, "All")
-
+                    for reso in state.resonances:
+                        python:
+                            if cfg.DEV_MODE:
+                                r_action = Function(state.feed_resonance, reso=reso, intensity=cfg.RINT_ACUTE)
+                        use xpbar(state.resonances[reso], resmax, reso, color=cfg.VAL_RESON_COLORS[reso], _action=r_action)
 
             frame id "pane_disciplines" xalign 0.5 ysize 445 padding (0, 0):
                 $ unlocked_ds = pc.disciplines.get_unlocked()
@@ -268,12 +273,11 @@ screen codexPowersSubpage(unlocked_ds, num_ds):
             frame style style.utility_frame xsize 396 yfill True padding(6, 0, 0, 0):#
                 vbox spacing 7:
                     hbox ysize 60 spacing 0:
-                        $ uldl, dt_toggle = str(ul_disc).lower(), ToggleScreen("disciplineTree", None, dname=ul_disc)
+                        $ uldl, dt_toggle = str(ul_disc).lower(), ToggleScreen("powerSelectTree", None, dname=ul_disc)
                         image "gui/symbols/disc_bg_[uldl].png" align (0.0, 0.5) alpha 0.9 zoom 0.1
                         use dotchain(ul_disc, pc.disciplines.levels[ul_disc], tooltip="tooltip tbd", _action=dt_toggle, dfsize=(334, 60))
                     $ ul_disc_prefix = "POWER_{}".format(str(ul_disc).upper())
                     $ disc_powers = cfg.REF_DISC_POWER_TREES[ul_disc]
-                    # $ unlocked_powers = [pw for pw in disc_powers if pw in pc.powers]
                     $ power_list = pc.disciplines.pc_powers[ul_disc]
                     for i, pkey in enumerate(power_list):
                         $ power = power_list[pkey] if power_list[pkey] else None
@@ -393,7 +397,7 @@ screen codex_tabs(*args):
 
 
 # Player chooses discipline powers here.
-screen disciplineTree(dname, *args):
+screen powerSelectTree(dname, *args):
     tag codexPage
     modal False
 
@@ -403,14 +407,14 @@ screen disciplineTree(dname, *args):
         access_token = state.pc.disciplines.access[dname]
         title_tt = cfg.TOOLTIP_TABLE[access_token]
 
-    window id "powertree_main" align (0.82, 0.1) xysize (gui.codex_base_width, 700) padding (15, 10):
+    window id "powertree_main" align (0.82, 0.1) xysize (gui.codex_base_width, 700) padding (15, 10):  # TODO: here, no really!
         style style.codex_panel_frame
         background Frame("gui/nvl.png", 5, 5, 5, 5)
         modal False
 
         image "gui/symbols/disc_bg_[dname_lower].png" align (0.5, 0.5) alpha 0.25 zoom 1.0
         fixed xysize (20, 20) align (0.95, 0.0):
-            use hovertext("x", "Close", "big", _action=ToggleScreen("disciplineTree", None))
+            use hovertext("x", "Close", "big", _action=ToggleScreen("powerSelectTree", None))
         vbox spacing 2 xfill True:
             use dotchain("{} Powers  ({})".format(dname, access_token), disc_level, dfsize=(1000, 50), tooltip=title_tt)
             # truecenter for alignment was the source of error
@@ -419,7 +423,7 @@ screen disciplineTree(dname, *args):
                 hbox spacing 5:
                     python:
                         sw, dcolor, tooltip = cfg.SCORE_WORDS[i], "dark", cfg.TOOLTIP_TABLE[cfg.TT_LOCKED]
-                        p_chosen, previous_p_chosen = None, None
+                        p_chosen, previous_p_chosen, d_action = None, None, None
                         if i > 1:
                             previous_p_chosen = state.pc.disciplines.pc_powers[dname][cfg.SCORE_WORDS[i-1]]
                         if disc_level >= i:
@@ -431,25 +435,47 @@ screen disciplineTree(dname, *args):
                                 tooltip = cfg.TOOLTIP_TABLE[cfg.TT_POWER_AVAILABLE]
                             else:
                                 tooltip = cfg.TOOLTIP_TABLE[cfg.TT_NEED_PREVIOUS]
-                    use dotchain("Level {}".format(i), i, dfsize=(250, 40), dcolor=dcolor, tooltip=tooltip)
+                        elif disc_level == i - 1:
+                            can_purchase, xp_next, tooltip_add, confirm_prompt = state.meet_next_level_reqs(dname, access_token)
+                            if tooltip_add:
+                                 # tooltip += " - {}".format(tooltip_add)
+                                 tooltip = tooltip_add
+                            if can_purchase:
+                                disc_resonance = cfg.REF_DISC_BLURBS[dname][cfg.REF_RESONANCE]
+                                d_action = Confirm(
+                                    confirm_prompt, yes=[
+                                        Function(state.buy_next_disc_level, dname, disc_resonance, xp_next),
+                                        Play("sound", audio.mutation_jingle)
+                                    ], no=None, confirm_selected=False
+                                )
+                    use dotchain("Level {}".format(i), i, dfsize=(250, 40), dcolor=dcolor, tooltip=tooltip, _action=d_action)
                     if p_chosen:
                         use hovertext(p_chosen, "tooltip tbd!")
                     elif disc_level >= i or i == 1:
                         python:
-                            pick, tooltip2 = NullAction(), tooltip
+                            # pick = None
                             if disc_level >= i and (i == 1 or previous_p_chosen):
-                                tooltip2 = "We could have this power..."
+                                tooltip = "We could have this power..."
                         vbox spacing 5:
                             for power in d_powers_list[sw]:
                                 python:
-                                    if disc_level >= i and (i == 1 or previous_p_chosen):
-                                        pick = [
-                                            Function(pc.disciplines.unlock_power, dname, power),
-                                            Play("sound", audio.mutation_jingle)
-                                        ]
+                                    pick, tooltip2 = None, tooltip
+                                    amalg = pc.disciplines.amalgam_reqs_met(dname, power)[0]
+                                    prereq = pc.disciplines.power_prereqs_met(dname, power)[0]
+                                    if not amalg:
+                                        req_disc_data = cfg.REF_DISC_AMALGAM_REQS[power]
+                                        req_disc_msg = "{} level {}".format(req_disc_data[0], req_disc_data[1])
+                                        tooltip2 = "{}\n\n({})".format(cfg.TOOLTIP_TABLE[cfg.TT_AMALGAM_LOCK], req_disc_msg)
+                                    elif not prereq:
+                                        req_power = cfg.REF_DISC_POWER_PREREQS[power]
+                                        tooltip2 = "{}\n\n({})".format(cfg.TOOLTIP_TABLE[cfg.TT_PREREQ_LOCK], req_power)
+                                    if disc_level >= i and (i == 1 or previous_p_chosen) and amalg and prereq:
+                                        pick = Confirm("Unlock {}?".format(power), [
+                                                Function(pc.disciplines.unlock_power, dname, power),
+                                                Play("sound", audio.mutation_jingle)
+                                            ], no=None, confirm_selected=False
+                                        )
                                 use hovertext("--> {}".format(power), tooltip=tooltip2, _action=pick)
-
-
 
 
 # Used to display tooltips

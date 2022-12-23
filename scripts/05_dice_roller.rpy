@@ -18,17 +18,12 @@ init 1 python in game:
             self.pool_options = self.contests[0]
             self.roll_config_options = [self.evaluate(po) for po in self.pool_options]
             # Here we do a max or something
-            print("\nAAAAAA-------oooooooo-----\n")
-            print(self.roll_config_options)
             self.chosen_rc_opt = max(self.roll_config_options, key=lambda rco: rco.num_dice)
-            for i, rco in enumerate(self.roll_config_options):
-                print("OPTION #{}: {} with {} dice".format(i, rco.pool_text, rco.num_dice))
-            print("WE HAVE CHOSEN: {} with {} dice".format(self.chosen_rc_opt.pool_text, self.chosen_rc_opt.num_dice))
+            # for i, rco in enumerate(self.roll_config_options):
+            #     print("OPTION #{}: {} with {} dice".format(i, rco.pool_text, rco.num_dice))
             for key in self.chosen_rc_opt.__dict__:
                 val = getattr(self.chosen_rc_opt, key)
                 setattr(self, key, val)
-            print("FINALLY MYSELF")
-            print(self)
 
         def evaluate(self, pool_option):
             print("HEY\nHEY\npool_option = {}".format(pool_option))
@@ -297,7 +292,6 @@ init python in state:
 
     def get_pool_readout():
         if hasattr(renpy.store.state, "pool_readout"):
-            print("readout ----", renpy.store.state.pool_readout)
             return "Roll: {}".format(renpy.store.state.pool_readout)
         return "Roll: (Empty)"
 

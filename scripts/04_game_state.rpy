@@ -10,6 +10,7 @@ default state.hunted_tonight        = False
 
 default state.intro_man_drank       = False
 default state.intro_man_killed      = False
+default state.intro_pt_disc_dot     = None
 
 default state.clan_chosen           = False
 default state.clan_nickname         = None
@@ -47,12 +48,13 @@ init 1 python in state:
     # pc = None
     cfg, utils = renpy.store.cfg, renpy.store.utils
 
-    from store.game import Supply, Inventory
-
     gdict = cfg.__dict__
     attr_names = [getattr(cfg, aname) for aname in gdict if str(aname).startswith("AT_")]
     skill_names = [getattr(cfg, sname) for sname in gdict if str(sname).startswith("SK_")]
     discipline_names = [getattr(cfg, dname) for dname in gdict if str(dname).startswith("DISC_")]
+
+    from store.game import Supply, Inventory
+
     # pc = renpy.store.game.PlayerChar(anames=attr_names, snames=skill_names, dnames=discipline_names)
 
     def available_pc_will():
@@ -110,6 +112,39 @@ init 1 python in state:
                 resonances[rpool] += int(amount / len(resonances))
         else:
             resonances[reso] += amount
+
+    def spend_resonance(reso, amount):
+        if reso == cfg.RESON_VARIED:
+            amount = int(amount / 6)
+            for rpool in resonances:
+                if resonances[rpool] < amount:
+                    raise ValueError("User shouldn't have been allowed to spend more resonance than they had.")
+                resonances[rpool] -= abs(amount)
+        else:
+            resonances[reso] -= abs(amount)
+
+    def buy_next_disc_level(dname, reso, amount):
+        pc.disciplines.set_discipline_level(dname, "+=1")
+        spend_resonance(reso, amount)
+
+    def meet_next_level_reqs(dname, access_token):
+        if intro_pt_disc_dot and dname in intro_pt_disc_dot:
+            return (True, 0,
+                "We could have this power {i}now{/i}, without spending resonance.",
+                "Allocate free discipline dot to {}?".format(dname)
+            )
+        disc_resonance = cfg.REF_DISC_BLURBS[dname][cfg.REF_RESONANCE]
+        access_mod = cfg.REF_DISC_ACCESS[access_token]
+        next_lvl_xp = cfg.VAL_DISC_XP_REQS[min(pc.disciplines.levels[dname], cfg.MAX_SCORE - 1)]
+        if disc_resonance == cfg.RESON_VARIED:
+            # TODO: implement
+            raise NotImplemented("This should only apply to Thinblood Alchemy, which is not implemented.")
+        xp_next = next_lvl_xp * (1 / access_mod)
+        if resonances[disc_resonance] >= xp_next:
+            tt_addendum = "Like a mosquito ready to lay eggs, our Blood is pregnant with the resonance "
+            tt_addendum += "of stolen moments, from which new powers could be born."
+            return (True, xp_next, tt_addendum,"Spend {} {} resonance to gain a dot in {}?".format(xp_next, disc_resonance, dname))
+        return (False, 0, "(Locked - feed on more {} resonance.)".format(disc_resonance), None)
 
 
     loot_table = Inventory(
@@ -271,7 +306,7 @@ label mend:
                 else:
                     "Incredibly, you don't even feel any hungrier than before. Perhaps later you ought to ponder the meaning of such good fortune."
 
-                    beast "Don't say I never did anything for you, dear friend."
+                    beast "Don't say I never did anything for you."
 
             "I can't risk losing control now. I'll have to bear the pain for the time being.":
 
