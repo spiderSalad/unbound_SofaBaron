@@ -23,6 +23,7 @@ label hunt_confirm(pool_desc_raw, hunt_warning):
         beast "[hunt_warning]"
 
         "Let's do it.\n\n[final_text]":
+            $ state.tried_hunt_tonight = True
             return True
 
         "On second thought...":
@@ -298,18 +299,29 @@ label generic_hunt_results(scoping_pool, scoping_test, feeding_pool, feeding_tes
         jump expression renpy.store.game.manual_roll_route(_return, ".win", ".fail", mc=".messy", crit=".crit", bfail=".beastfail", top_label=tll)
 
     label .messy:  # A dead body - you also get here if your hunger is high and you fail a willpower roll
+        $ state.hunted_tonight = True
         $ state.set_hunger(0, killed=True, innocent=True)
         $ state.feed_resonance(boost=1)
         "You find yourself standing over a dead body. The problem of your Hunger is dealt with, but now you have a different problem."
+
+        if pc.hunger < 1:
+            beast "{i}Ahh...{/i} Well done, my friend. Well done. Doesn't that feel so much {i}better{/i}? We should do this more often."
+        elif pc.hunger < cfg.HUNGER_MAX_CALM:
+            beast "Satisfying... almost."
+        else:
+            "And even after taking a life some Hunger remains. That's not good."
+
         jump .end
 
     label .crit:  # You feed successfully and get a bonus
+        $ state.hunted_tonight = True
         $ state.set_hunger("-=2")
         $ state.feed_resonance(boost=1)
         "That could hardly have gone better."
         jump .end
 
     label .win:  # successful feeding, hunger slaked depends on margin (1 or 2, 3 or 4 if humanity is low)
+        $ state.hunted_tonight = True
         $ temp_margin = state.current_roll.margin
         $ max_slaked = 2 if pc.humanity > cfg.KILLHUNT_HUMANITY_MAX else min(4, 3 + (cfg.KILLHUNT_HUMANITY_MAX - pc.humanity))
         $ slaked_hunger = min(max_slaked, 1 + int(temp_margin))
@@ -392,7 +404,7 @@ label hunger_frenzy:
 
     "You come to your senses some time later, your jaw and chest slick with gore. What have you done?"
 
-    jump haven.main  # TODO: add more varied consequences/places you can end up
+    jump haven.hub_entry  # TODO: add more varied consequences/places you can end up
 
 
 label predator_type_subsets:

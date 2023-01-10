@@ -6,7 +6,12 @@ default state.outside_haven         = True
 default state.night                 = 0
 default state.hours_left            = 12
 default state.first_hunt            = False
+default state.daybreak              = False
+default state.overtime              = 0
+
+default state.tried_hunt_tonight    = False
 default state.hunted_tonight        = False
+default state.mended_agg_tonight    = False
 
 default state.intro_man_drank       = False
 default state.intro_man_killed      = False
@@ -173,6 +178,9 @@ init 1 python in state:
             self._night = day or 1
             self._hours = hours or 9
             self.overtime = 0
+            self.posted_night = None
+            self.posted_hours = None
+            self.update()
 
         @property
         def night(self):
@@ -181,6 +189,10 @@ init 1 python in state:
         @property
         def hours(self):
             return self._hours
+
+        def update(self):
+            self.posted_night = self.night
+            self.posted_hours = self.hours
 
         def advance(self, hours):
             self.overtime = 0
@@ -206,24 +218,31 @@ init 1 python in state:
     def get_power_choices(disc_key):
         return pc.disciplines.power_choices[disc_key]
 
+    def get_call_stack_str():
+        stack = renpy.get_return_stack()
+        stack_str = "CALL STACK:\n\n"
+        if len(stack) <= 0:
+            return stack_str + "(empty)"
+        for i, stack_layer in enumerate(stack):
+            stack_str += "{}. {}\n".format(i+1, stack_layer)
+        return stack_str
+
 
 label pass_time(hours_passed, in_shelter=False):
 
-    if hours_passed is None:
-        $ overtime, daybreak = store.state.clock.next_night()
-    else:
-        $ overtime, daybreak = store.state.clock.advance(hours_passed)
+    $ state = store.state
 
-    if daybreak and in_shelter:
-        call new_night from passing_time_safe
-    elif daybreak:
-        call sun_threat from passing_time_exposed
+    if hours_passed is None:
+        $ state.overtime, state.daybreak = state.clock.next_night()
     else:
-        return
+        $ state.overtime, state.daybreak = state.clock.advance(hours_passed)
+
     return
 
 
 label sun_threat:
+
+    # TODO: add bg for this
 
     "It's getting light out."
 
@@ -235,29 +254,70 @@ label sun_threat:
 
     # TODO: add some effects here
 
-    call roll_control("dexterity+athletics/wits+streetwise/composure+traversal", "diff0") from sunburn_damage
-    $ death_save, min_burn = _return.margin, 2
-    $ sunburn = utils.random_int_range(0, 10)
-    $ state.deal_damage(cfg.TRACK_HP, cfg.DMG_AGG, max(min_burn, sunburn - death_save), source=cfg.COD_SUN)
+    label .shelter_search(short_notice=True, roll_bonus=0):
+        python:
+            search_pool = "dexterity+athletics/wits+streetwise/composure+traversal"
+            if roll_bonus and roll_bonus > 0:
+                search_pool += "+{}".format(int(roll_bonus))
 
-    call new_night from sun_threat_event
+        call roll_control(search_pool, "diff0") from sunburn_damage
 
-    return
+        python:
+            death_save, min_burn = _return.margin, 2 if short_notice else 0
+            sunburn = utils.random_int_range(0, 10)
+            sun_damage = max(min_burn, sunburn - death_save)
+            state.deal_damage(cfg.TRACK_HP, cfg.DMG_AGG, sun_damage, source=cfg.COD_SUN)
+
+        # If the sun kills the PC this shouldn't be reached.
+        if sun_damage < 1:
+            "Somehow you make it to shelter unscathed."
+        else:
+            # TODO: add sound effect here
+
+            beast "AAAAAAAAAAAAAAAAAAAAAAAA"
+
+            "The sun blazes with hateful light. Blinded and burning, you flee in a Beast driven panic."
+
+            "Thinking back later, you wonder. Were you guided by the uncanny instinct of your Beast? Or did what was left of your rational mind prevail?"
+
+            "And where the hell are you, anyway?"
+
+            "The answers to those questions might matter later, but they certain don't matter now."
+
+            "The only thing that matters now is that you made it to shelter. You collapse in a charred heap as the daysleep takes you."
+
+    # call new_night from sun_threat_event
+
+    return sun_damage
 
 
 label new_night:
 
+    python:
+        state.daybreak = False
+        state.hunted_tonight = False
+        state.tried_hunt_tonight = False
+        state.mended_agg_tonight = False
+
     if pc.hp.agg_damage > 0:
         call mend.aggravated from new_night_standard_agg_mend
 
-    "It's a new night. That means new opportunities and new dangers. {i}What fresh hell{/i} indeed. (Events should be processed here?)"
+    if state.outside_haven:
+        "When you awaken, it takes you a moment to remember where you are."
 
-    $ state.hunted_tonight = False
-    $ hungrier = state.rouse_check()
+    "It's a new night. New opportunities, new dangers. {i}What fresh hell{/i} indeed."
+
+    # TODO: process events?
+
+    call roll_control.rouse_check() from new_night_rouse_check
+
+    $ hungrier = _return
     $ can_hunt = (pc.hunger > cfg.HUNGER_MIN) or (pc.humanity < cfg.KILLHUNT_HUMANITY_MAX and pc.hunger > cfg.HUNGER_MIN_KILL)
 
-    if hungrier and can_hunt:
+    if hungrier and can_hunt and not state.mended_agg_tonight:
         beast "Wake. Up. We need to feed."
+    elif hungrier and can_hunt:
+        beast "Pull your carcass off the floor and get hunting! Chop. Chop."
 
     return
 
@@ -270,9 +330,12 @@ label mend:
 
         "You channel stolen life into your wounds, willing away your injuries."
 
+        call roll_control.rouse_check(1) from mend_spf_rouse_check
+
         python:
-            hungrier = store.state.rouse_check(1)
-            store.state.pc.hp.mend(cfg.DMG_SPF, 1)
+            hungrier = _return
+            spf_hp_mend = 1 # TODO: adjust for Blood Potency
+            store.state.pc.hp.mend(cfg.DMG_SPF, spf_hp_mend)
 
         return
 
@@ -290,9 +353,12 @@ label mend:
             "\"This too shall pass.\" If you can pay the staggering cost in time and Blood."
 
             "I force the Blood to mend my scarred, ravaged form, even at the risk of terrible Hunger.":
+                call roll_control.rouse_check(num_checks=3) from mend_agg_rouse_check
+
                 python:
+                    hungrier = _return
+                    state.mended_agg_tonight = True
                     store.state.clock.advance(1)
-                    hungrier = store.state.rouse_check(num_checks=3)
                     store.state.pc.hp.mend(cfg.DMG_AGG, 1)
 
                 "It feels like half an eternity, spent in a limbo of pain and delirium."
@@ -300,7 +366,7 @@ label mend:
                 "But eventually it's over, and in reality it's been about an hour."
 
                 if hungrier:
-                    "The Hunger stabs its tendrils into your brain, making your head pound and your gums throb. But you're a bit closer to being whole."
+                    "The Hunger stabs its talons into your brain, making your head pound and your gums throb. But you're a bit closer to being whole."
 
                     beast "TIME TO FEED, \"FRIEND\". Time. To. Fucking. Feed."
                 else:

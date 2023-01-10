@@ -117,8 +117,21 @@ screen say(who, what):
         yfill False
 
         $ state = renpy.store.state
+        # $ p_night, p_hours = state.clock.posted_night, state.clock.posted_hours
+        $ p_night, p_hours = state.clock.night, state.clock.hours
 
-        text "Night [state.clock.night]:  [state.clock.hours] hours left" id "nightcounter" text_align 0.5 align(0.5, 0.5) size 18
+        text "Night [p_night]:  [p_hours] hours left" id "nightcounter" text_align 0.5 align (0.5, 0.5) size 18
+
+    if renpy.store.cfg.DEV_MODE:
+        frame id "dev_panel" align (0.0, 0.3) xysize (300, 300) background Frame("gui/frame.png"):
+            padding (7, 5)
+            xfill False
+            yfill False
+
+            $ state = renpy.store.state
+            $ stack_string = state.get_call_stack_str()
+
+            text "[stack_string]" text_align 0.5 align (0.1, 0.1) size 16
 
     window id "sidebar" align (1.0, 0.0) ysize 224 background Frame("gui/frame.png"):
         padding (10, 15, 10, 0)

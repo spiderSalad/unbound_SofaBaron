@@ -140,6 +140,8 @@ label intro:
 
         "Marshalling your will to hold the Beast in check, you force your face into what you hope looks like a sheepish grin."
 
+        beast "Weak."
+
         you "Nah, I'm fine. Just... partied a bit too hard."
 
         james "Hah! I was young too, once 'pon a time. But it's rough out here, so you might wanna ease up a bit."
@@ -181,7 +183,7 @@ label intro:
 
     label .end:
 
-        #jump haven.main
+        #jump haven.hub_entry
         jump backstory
 
 
@@ -212,7 +214,7 @@ label backstory:
 
     "Back to the days when you walked in the sun, before the life was drained from you in a twitching paroxysm of pleasure and horror and shame."
 
-    "Before the deep, black, numb {i}nothingness{/i} that felt like an eternity (later you learned it was less than half an hour)."
+    "Before the deep, black, numb {i}nothingness{/i} that felt like an eternity. (Later you learned it was less than an hour.)"
 
     "Before the red-hot hooks of the Hunger burrowed down to your core and dragged you from the void, kicking and screaming."
 
@@ -249,7 +251,7 @@ label backstory:
     "And you are, though you take a circuitous route that doubles back on itself a few times. Less likely you're followed that way."
 
     call pass_time(1) from intro_post_mortal_bg
-    jump haven.main
+    jump haven.hub_entry
 
 
 label clan_choice:
@@ -356,7 +358,7 @@ label clan_choice:
             call predator_type_subsets.siren from intro_pt_choice_siren
 
     # No time passes here
-    jump haven.post_main
+    jump haven.hub_main
 
 
 label ventrue_feeding_choice:

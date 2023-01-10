@@ -296,14 +296,16 @@ init python in state:
         return "Roll: (Empty)"
 
     def rouse_check(num_checks=1, reroll=False):
-        num_dice, hungrier = 2 if reroll else 1, False
+        num_dice_per_check = 2 if reroll else 1
+        hungrier, rc_fails = False, 0
         for i in range(num_checks):
-            rc_roll = utils.make_dice_roll(renpy.store.game.V5DiceRoll.D10_MAX, num_dice)
+            rc_roll = utils.make_dice_roll(renpy.store.game.V5DiceRoll.D10_MAX, num_dice_per_check)
             rc_score = max(rc_roll)
             if rc_score < renpy.store.game.V5DiceRoll.D10_WIN_INC:
                 set_hunger("+=1")
+                rc_fails += 1
                 hungrier = True
-        return hungrier
+        return hungrier, rc_fails
 
 
 label roll_control(pool_str, test_str):
@@ -354,8 +356,39 @@ label roll_control(pool_str, test_str):
                 $ state.reroll(messy=True)
                 jump roll_control.choices
 
+
+    label .rouse_check(num_checks=1, reroll=False):
+        play sound dice_roll_few
+
+        $ hungrier, hunger_gained = state.rouse_check(num_checks, reroll)
+
+        show roll_desc "{size=+5}Hunger. Blood.{/size}"
+
+        if num_checks == 1:
+            if not hungrier:
+                rollie "Passed Rouse Check."
+            else:
+                rollie "Failed Rouse Check."
+        elif num_checks > 1:
+            if not hungrier:
+                rollie "Passed all [num_checks] Rouse Checks."
+            elif hunger_gained >= num_checks:
+                rollie "Failed all [num_checks] Rouse Checks."
+            else:
+                rollie "Failed [hunger_gained] out of [num_checks] Rouse Checks."
+        else:
+            $ raise ValueError("Number of Rouse Checks should not be less than 1!")
+
+        jump roll_control.end_rouse_check
+
     label .end:
 
-    hide roll_desc
+        hide roll_desc
 
-    return state.current_roll
+        return state.current_roll
+
+    label .end_rouse_check:
+
+        hide roll_desc
+
+        return hungrier
