@@ -262,7 +262,7 @@ init 1 python in game:
             self.hp, self.will = Tracker(self, 3, cfg.TRACK_HP), Tracker(self, 3, cfg.TRACK_WILL)
             self.crippled, self.shocked = False, False
             self.frenzied_bc_hunger, self.frenzied_bc_fear = False, False
-            self.cause_of_death = None
+            self.dead, self.cause_of_death = False, None
             self._status = "(All clear)"
             self.clan_blurbs = {}
             self.anames, self.snames, self.dnames = anames, snames, dnames
@@ -358,7 +358,7 @@ init 1 python in game:
             self.hp.boxes = int(self.attrs[cfg.AT_STA]) + 3
             self.will.boxes = int(self.attrs[cfg.AT_COM]) + int(self.attrs[cfg.AT_RES])
 
-        def apply_background(self, background: (dict, str), bg_key=None, force_add=False):
+        def apply_background(self, background: (dict, str), bg_key=None, force_add=False, force_replace=False):
             bg, key = background, bg_key
             if isinstance(background, str):
                 bg = cfg.CHAR_BACKGROUNDS[background]
@@ -367,7 +367,12 @@ init 1 python in game:
                 bg[cfg.REF_BG_NAME] = key
             # Reject any background if it shares a subtype with an existing background unless force_add == True
             # e.g. picking Nosferatu and Siren should leave PC with Repulsive and not Beautiful
+            # Setting force_replace to True removes any previous backgrounds of the same type.
             if cfg.REF_SUBTYPE not in bg or force_add:
+                self._backgrounds.append(bg)
+            elif force_replace:
+                filtered_bgs = [_bg for _bg in self._backgrounds if _bg[cfg.REF_SUBTYPE] != bg[cfg.REF_SUBTYPE]]
+                self._backgrounds = filtered_bgs
                 self._backgrounds.append(bg)
             else:
                 bg_subtype = bg[cfg.REF_SUBTYPE]
@@ -376,6 +381,8 @@ init 1 python in game:
                     self._backgrounds.append(bg)
             if bg[cfg.REF_TYPE] == cfg.REF_BG_PAST:
                 self.mortal_backstory = bg[cfg.REF_BG_NAME]
+            # elif bg[cfg.REF_TYPE] == cfg.REF_VENTRUE_PALATE:
+            #     self.ventrue_feeding_palate = bg[cfg.REF_BG_NAME]
             self.recalculate_stats()
 
         def apply_xp(self):
@@ -465,6 +472,7 @@ init 1 python in game:
             self.disciplines.unlock(disc, access)
 
         def handle_demise(self, tracker_type, damage_source):
+            self.dead = True
             self.cause_of_death = damage_source
             renpy.jump("end")
 
@@ -484,31 +492,76 @@ init 1 python in game:
             IT_EQUIPMENT: "#cbcbdc", IT_QUEST: "#763cb7", IT_MISC: "#cbcbdc", IT_FIREARM: "#71797E"
         }
 
-        def __init__(self, type, name, key=None, num=1, desc=None, **kwargs):
+        def __init__(self, type, name, key=None, num=1, desc=None, tier=1, **kwargs):
             self.item_type = type
             self.quantity = num
+            self.tier = tier
+            if self.item_type == Supply.IT_JUNK:
+                self.tier = 0
             self.color_key = Supply.ITEM_COLOR_KEYS[self.item_type]
             self.key = key
             if self.key is None:
                 self.key = utils.generate_random_id_str(label="supply#{}".format(self.item_type))
             self.name = name
             if desc:
-                self.description = desc
+                self.desc = desc
             else:
-                self.description = "({})".format(self.item_type)
+                self.desc = "({})".format(self.item_type)
             for kwarg in kwargs:
                 setattr(self, kwarg, kwargs[kwarg])
-            if self.item_type == Supply.IT_FIREARM:
-                if not hasattr(self, "concealable"):
-                    self.concealable = True
+
+        def copy(self, item_base=None):
+            if item_base is None:
+                item_copy = Supply(self.item_type, self.name, num=self.quantity, desc=self.desc, tier=self.tier)
+            else:
+                item_copy = item_base
+            for attr in self.__dict__:
+                if not hasattr(item_copy, attr):
+                    setattr(item_copy, attr, getattr(self, attr))
+            return item_copy
+
+
+    class Weapon(Supply):
+        def __init__(self, type, name, key=None, num=1, desc=None, tier=1, dmg_bonus=0, lethality=None, **kwargs):
+            super().__init__(type, name, key=key, num=num, desc=desc, tier=tier, **kwargs)
+            self.dmg_bonus = dmg_bonus
+            # Lethality:
+            # 0 = Non-lethal damage? (not implemented)
+            # 1 = Always Superficial damage,
+            # 2 = Superficial to vampires/Aggravated to mortals
+            # 3 = Unhalved Superficial to vampires/Aggravated to mortals
+            # 4 = Always aggravated
+
+            # Guns are concealable unless stated otherwise and have a default lethality of 3.
+            if lethality is not None:
+                self.lethality = lethality
+            elif self.item_type == Supply.IT_FIREARM:
+                self.lethality = 3
+            else:
+                self.lethality = 2
+
+            # Melee weapons are not concealable by default and have a default lethality of 2.
+            if not hasattr(self, "concealable"):
+                self.concealable = (self.item_type == Supply.IT_FIREARM)
+
+        def copy(self):
+            weapon_copy_base = Weapon(
+                self.item_type, self.name, num=self.quantity, desc=self.desc, tier=self.tier, dmg_bonus=self.dmg_bonus,
+                lethality = self.lethality
+            )
+            return super().copy(weapon_copy_base)
 
 
     class Inventory:
         ITEM_TYPES = [it for it in Supply.__dict__ if str(it).startswith("IT_")]
 
         def __init__(self, *items: Supply, **kwargs):
-            self.items = []
-            self.items += items
+            self._items = []
+            self._items += items
+
+        @property
+        def items(self):
+            return self._items
 
         def __len__(self):
             return len(self.items)
@@ -528,8 +581,25 @@ init 1 python in game:
             if new_item.item_type == Supply.IT_MONEY:
                 cash = next((it for it in self.items if it.item_type == Supply.IT_MONEY), None)
                 if cash is None:
-                    self.items.append(new_item)
+                    self._items.append(new_item)
                 else:
                     cash.quantity += new_item.quantity
+                    if new_item.tier > cash.tier:
+                        cash.desc, cash.tier = new_item.desc, new_item.tier
             else:
-                self.items.append(new_item)
+                self._items.append(new_item)
+
+        def lose(self, ikey=None, itype=None, cash_amount=None, intended=False):
+            if ikey:
+                self._items = [item for item in self.items if item.key != ikey]
+            elif itype:
+                raise NotImplemented("Hey bub, grip these!")
+            elif cash_amount:
+                cash = next((it for it in self.items if it.item_type == Supply.IT_MONEY), None)
+                if cash:
+                    cash.quantity -= cash_amount
+                    if cash.quantity < 0:
+                        cash.quantity = 0
+
+
+#

@@ -24,15 +24,22 @@ default state.predator_type_chosen  = False
 default state.siren_type_chosen     = False
 default state.siren_orientation     = None
 default state.starting_disc_dots    = False
+default state.ventrue_palate        = None
 
 default state.pc_car                = "old Toyota Camry"
 
+default state.innocent_killed       = False
+default state.innocent_drained      = False
+
 default state.opinions              = {}
 default state.masquerade            = 60  # 0 - 100
+default state.notoriety             = 6
 
 default state.pc_cash               = 250.00
 default state.roll_bonus            = 0
 default state.roll_malus            = 0
+default state.blood_surge_enabled   = False
+default state.blood_surge_active    = False
 
 default state.resonance_types       = [getattr(cfg, rt) for rt in cfg.__dict__ if str(rt).startswith("RESON_")]
 default state.resonances            = {
@@ -46,7 +53,8 @@ default state.resonances            = {
 
 default state.reson_intensity_table = [cfg.RINT_BALANCED, cfg.RINT_FLEETING, cfg.RINT_INTENSE, cfg.RINT_ACUTE]
 default state.rint_weights          = [1000, 500, 100, 10]
-default state.cum_intensity_weights = [(rw8 + state.rint_weights[i-1] if i > 0 else rw8) for i, rw8 in enumerate(state.rint_weights)]
+default state.cum_intensity_weights = store.utils.get_cum_weights(state.rint_weights)
+# [(rw8 + state.rint_weights[i-1] if i > 0 else rw8) for i, rw8 in enumerate(state.rint_weights)]
 
 
 init 1 python in state:
@@ -58,7 +66,7 @@ init 1 python in state:
     skill_names = [getattr(cfg, sname) for sname in gdict if str(sname).startswith("SK_")]
     discipline_names = [getattr(cfg, dname) for dname in gdict if str(dname).startswith("DISC_")]
 
-    from store.game import Supply, Inventory
+    from store.game import Supply, Weapon, Inventory
 
     # pc = renpy.store.game.PlayerChar(anames=attr_names, snames=skill_names, dnames=discipline_names)
 
@@ -70,12 +78,23 @@ init 1 python in state:
             return False
         if pc.blood_potency > 4:
             return False
-        if pc.blood_potency > 2 and cfg.POWER_ANIMALISM_SUCCULENCE not in pc.disciplines.pc_powers:
+        if pc.blood_potency > 2 and cfg.POWER_ANIMALISM_SUCCULENCE not in pc.disciplines.pc_powers[cfg.DISC_ANIMALISM]:
             return False
         return True
 
-    def set_hunger(delta, killed=False, innocent=False):
-        previous_hunger, hunger_floor = pc.hunger, cfg.HUNGER_MIN_KILL if killed else cfg.HUNGER_MIN
+    def pc_can_drink_swill_with_effort():
+        if pc_can_drink_swill():
+            return True
+        elif pc.clan == cfg.CLAN_VENTRUE:
+            if pc.blood_potency > 4:
+                return False
+            if pc.blood_potency > 2 and cfg.POWER_ANIMALISM_SUCCULENCE not in pc.disciplines.pc_powers[cfg.DISC_ANIMALISM]:
+                return False
+            return True
+        return False
+
+    def set_hunger(delta, killed=False, innocent=False, ignore_killed=False):
+        previous_hunger, hunger_floor = pc.hunger, cfg.HUNGER_MIN_KILL if killed or ignore_killed else cfg.HUNGER_MIN
         new_hunger = utils.nudge_int_value(pc.hunger, delta, "Hunger", floor=hunger_floor, ceiling=7)
         pc.hunger = new_hunger
         if pc.hunger > previous_hunger:
@@ -97,11 +116,27 @@ init 1 python in state:
         else:
             pc.will.damage(dtype, amount, source=source)
 
+    def masquerade_breach(base=10):
+        global masquerade
+        prev_masq = masquerade
+        notoriety_mult = cfg.VAL_BASE_NOTORIETY_MULTIPLIER + (float(notoriety) / 100)
+        base_breach_damage = float(utils.random_int_range(base, int(base * 1.5)))
+        masquerade_damage = notoriety_mult * base_breach_damage
+        masquerade -= int(masquerade_damage)
+        utils.log("Masquerade breach: {:5.2f} damage, sending it from {:5.2f} to {:5.2f}. Notoriety effect was {:7.4f} * {:5.2f}.".format(
+            masquerade_damage, prev_masq, masquerade, notoriety_mult, base_breach_damage
+        ))
+
+    def masquerade_redemption(amount=10):
+        global masquerade
+        masquerade += amount
+        if masquerade > cfg.VAL_MASQUERADE_MAX:
+            overfill = masquerade - cfg.VAL_MASQUERADE_MAX
+            give_item(Supply(Supply.IT_MONEY, name="Masquerade Bucks", quantity=overfill))  # TODO: change this to rep gain later
+
     def feed_resonance(intensity=None, reso=None, boost: int = 0):
         if not intensity:
-            i, tenzity = utils.get_weighted_random_sample(list(enumerate(reson_intensity_table)), cum_weights=cum_intensity_weights)[0]
-            mod_i = max(0, min(i + boost, len(reson_intensity_table) - 1))
-            intensity = reson_intensity_table[mod_i]
+            i, intensity = utils.get_wrs_adjusted(reson_intensity_table, boost, cum_weights=cum_intensity_weights)
         amount = utils.random_int_range(int(intensity * 0.8), int(intensity * 1.2))
         if not reso and intensity == cfg.RINT_BALANCED:
             reso = cfg.RESON_VARIED
@@ -150,25 +185,6 @@ init 1 python in state:
             tt_addendum += "of stolen moments, from which new powers could be born."
             return (True, xp_next, tt_addendum,"Spend {} {} resonance to gain a dot in {}?".format(xp_next, disc_resonance, dname))
         return (False, 0, "(Locked - feed on more {} resonance.)".format(disc_resonance), None)
-
-
-    loot_table = Inventory(
-        Supply(Supply.IT_MONEY, "Money", num=int(12.5 * 1000 * 1000 * 1000), desc="Local city's entire GDP"),
-        Supply(Supply.IT_EQUIPMENT, "Smartphone", desc="The latest and greatest in rooted burner phones. GPS disabled."),
-        Supply(Supply.IT_JUNK, "Bubble Gum", desc="You were hoping this would help with blood-breath. It doesn't."),
-        Supply(
-            Supply.IT_WEAPON, "Switchblade", lethality=2,
-            desc="You know what they say about knife fights. Good thing you're already dead."
-        ),
-        Supply(Supply.IT_FIREARM, "S & W Model 500", lethality=3, concealable=False, desc="Do you feel lucky?"),
-        Supply(
-            Supply.IT_FIREARM, "Stolen Ruger LCP", key="gun_ruger_1", lethality=2, desc="Confiscated and then re-confiscated."
-        ),
-        Supply(
-            Supply.IT_FIREARM, "Blood-spattered Colt 45", key="police_colt", lethality=2,
-            desc="I'm sure I'll need this, wherever I'm going..."
-        )
-    )
 
 
     class GameClock:
@@ -227,6 +243,26 @@ init 1 python in state:
             stack_str += "{}. {}\n".format(i+1, stack_layer)
         return stack_str
 
+    def give_item(supply: Supply, copy=True, gift_sound=True):
+        if pc.inventory is None:
+            raise ValueError("No valid inventory to add items to.")
+        gift = supply.copy() if copy else supply
+        pc.inventory.add(gift)
+        if gift_sound:
+            if gift.item_type == Supply.IT_FIREARM:
+                renpy.play(renpy.store.audio.sound.get_item_1_gun, "sound")
+            else:
+                renpy.play(renpy.store.audio.sound.get_item_2, "sound")
+
+    def take_item(ikey=None, itype=None, intended=False):
+        pc.inventory.lose(ikey=ikey, itype=itype, intended=intended)
+
+    def lose_cash(amount):
+        pc.inventory.lose(cash_amount=amount, intended=False)
+
+    def spend_cash(amount):
+        pc.inventory.lose(cash_amount=amount, intended=True)
+
 
 label pass_time(hours_passed, in_shelter=False):
 
@@ -248,7 +284,11 @@ label sun_threat:
 
     "{i}Too{/i} light. What time is it?"
 
+    play sound audio.sun_threat_1
+
     beast "You idiot. You goddamned fool. YOU ABSOLUTELY WORTHLESS BRAINDEAD FUCKING-"
+
+    scene bg sunrise sky with dissolve
 
     beast "THE SUUUUUUUUUUUN THE SUUUUUN THE SUUUN THE SUN SUN SUN SUN SUN SUN SUN"
 
@@ -260,7 +300,7 @@ label sun_threat:
             if roll_bonus and roll_bonus > 0:
                 search_pool += "+{}".format(int(roll_bonus))
 
-        call roll_control(search_pool, "diff0") from sunburn_damage
+        call roll_control(search_pool, "diff0", pool_mod=roll_bonus) from sunburn_damage
 
         python:
             death_save, min_burn = _return.margin, 2 if short_notice else 0
@@ -282,9 +322,11 @@ label sun_threat:
 
             "And where the hell are you, anyway?"
 
-            "The answers to those questions might matter later, but they certain don't matter now."
+            "The answers to those questions might matter later, but they don't matter now."
 
             "The only thing that matters now is that you made it to shelter. You collapse in a charred heap as the daysleep takes you."
+
+            $ state.masquerade_breach(base=utils.random_int_range(1, 20))
 
     # call new_night from sun_threat_event
 

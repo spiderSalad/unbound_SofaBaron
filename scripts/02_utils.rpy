@@ -1,17 +1,23 @@
 init 1 python in utils:
-    from random import randint, choices as random_choices
-    from string import ascii_letters
+    import random
     import json
+
+    from math import ceil
+    from string import ascii_letters
 
     cfg = renpy.store.cfg
 
-    def parse_pool_string(pool_str):
+    def parse_pool_string(pool_str, pool_mod=None, surge=False):
         raw_pool_str = str(pool_str)
         phases, contests = raw_pool_str.split(","), []
         for phase in phases:
             pools, phase_options = phase.split("/"), []
             for pool in pools:
                  pool_params = [str(prm).capitalize() for prm in pool.split("+")]
+                 if pool_mod:  # Should skip if we have an empty string (""), None, or 0
+                     pool_params.append(str(pool_mod))
+                 if surge:
+                     pool_params.append(cfg.REF_BLOOD_SURGE)
                  pretty_pool_str = " + ".join(pool_params)
                  phase_options.append(pretty_pool_str)
             contests.append(phase_options)
@@ -30,14 +36,26 @@ init 1 python in utils:
                 adjusted_params.append(str(param).capitalize())
         return " + ".join([str(p) for p in adjusted_params])
 
+    def get_bp_surge_bonus(potency):
+        return 1 + ceil(potency / 2)
+
     def bonus_color(txt):
         return "{color=#23ed23}" + "{}".format(txt) + "{/color}"
 
     def malus_color(txt):
         return "{color=#ed2323}" + "{}".format(txt) + "{/color}"
 
+    def get_cum_weights(weights):
+        enum_weights = enumerate(weights)
+        return [(w8 + weights[i-1] if i > 0 else w8) for i, w8 in enum_weights]
+
+    def percent_chance(chance_out_of_100):
+        threshold = chance_out_of_100 / 100
+        return (random.random() < threshold)
+
     def nudge_int_value(current_val, delta, value_desc="this variable", floor=None, ceiling=None):
         dstr = str(delta)
+        print("dstr = {}".format(dstr))
         dint = int(dstr.replace('=', ''))
         if "+" in dstr and "-" in dstr:
             raise ValueError("Attempting to add and substract at the same time?")
@@ -80,19 +98,24 @@ init 1 python in utils:
             return False
 
     def get_random_list_elem(collection, num_elems=1):
-        return random_choices(collection, k=num_elems)
+        return random.choices(collection, k=num_elems)
 
     def get_weighted_random_sample(collection, weights=None, cum_weights=None, num_elems=1):
-        return random_choices(collection, weights=weights, cum_weights=cum_weights, k=num_elems)
+        return random.choices(collection, weights=weights, cum_weights=cum_weights, k=num_elems)
+
+    def get_wrs_adjusted(collection, i_delta, weights=None, cum_weights=None):
+        i1, item = get_weighted_random_sample(list(enumerate(collection)), weights=weights, cum_weights=cum_weights)[0]
+        i2 = max(0, min(i1 + i_delta, len(collection) - 1))
+        return i2, collection[i2]
 
     def generate_random_id_str(leng=6, label: str = None):
-        return "{}_{}".format(label if label else "rid", ''.join(random_choices(ascii_letters, k=leng)))
+        return "{}_{}".format(label if label else "rid", ''.join(random.choices(ascii_letters, k=leng)))
 
     def make_dice_roll(max_val, num_dice):
-        return [randint(1, max_val) for _ in range(num_dice)]
+        return [random.randint(1, max_val) for _ in range(num_dice)]
 
     def random_int_range(min_val, max_val):
-        return randint(min_val, max_val)
+        return random.randint(min_val, max_val)
 
     def get_excerpt(exstr: str, start_token, end_token):
         tokens = exstr.split(start_token, maxsplit=1)

@@ -37,7 +37,8 @@ label intro:
         cfg, game = renpy.store.cfg, renpy.store.game
         state.pc = game.PlayerChar(anames=state.attr_names, snames=state.skill_names, dnames=state.discipline_names)
         state.pc.inventory = game.Inventory()
-        state.pc.inventory.add(game.Supply(game.Supply.IT_MONEY, "Cash", key="Money", num=105, desc="Cash on hand."))
+        # state.give_item(game.Supply(game.Supply.IT_MONEY, "Cash", key="Money", tier=0, num=15, desc="Cash on hand."))
+        state.give_item(state.get_random_cash())
         state.clock = state.GameClock(1, 9)
         state.diceroller_creation_count = 0
 
@@ -77,6 +78,9 @@ label intro:
 
     "And that can't happen here. Not again."
 
+    $ state.blood_surge_enabled = True
+    show screen bl_corner_panel
+
     menu:
         beast "He's seen too much. He has to go. Drain him."
 
@@ -113,7 +117,7 @@ label intro:
         $ state.set_hunger(0, killed=True, innocent=True)
         $ state.feed_resonance(boost=1, reso=(cfg.RESON_MELANCHOLIC, cfg.RESON_PHLEGMATIC))
         $ state.feed_resonance(intensity=cfg.RINT_FLEETING, reso=cfg.RESON_CHOLERIC)
-        $ state.intro_man_drank = state.intro_man_killed = True
+        $ state.intro_man_drank = state.intro_man_killed = state.innocent_killed = state.innocent_drained = True
 
         "Everything he is, was, and could have been pours down your throat and floods into your veins. There's a pleasant coppery tang, and an incredible rush. For once you feel... whole."
 
@@ -131,6 +135,8 @@ label intro:
         play sound fleeing_footsteps1
 
         "He staggers back and spins on his heels in an impressively smooth motion, and runs away without a word. You could chase him, but that would probably just make things worse."
+
+        $ state.masquerade_breach(base=5)
 
         "That could have gone better. No breakfast for you, it seems."
 
@@ -289,6 +295,8 @@ label clan_choice:
 
             "And in these modern nights there are plenty of ways to conceal or explain away the rest. But no matter what you do mortals still seem to get uneasy when you get close. Even Kindred of other clans tend not to appreciate your presence."
 
+            $ state.masquerade_redemption(10)
+
         "[clan_choice_ravnos]":
             $ state.pc.choose_clan(cfg.CLAN_RAVNOS)
             "You feel it in your daysleep sometimes - a scream in a language you don't know. Loud like a roaring furnace, quiet like the hum of an incandescent bulb. Hotter than you could ever describe."
@@ -297,11 +305,11 @@ label clan_choice:
 
         "[clan_choice_ventrue]":
             $ state.pc.choose_clan(cfg.CLAN_VENTRUE)
-            "You sometimes envy the licks who are just out there drinking anybody. Members of your clan usually have specific dietary requirements, though it's different for every Blue Blood. Not just any mortal will do."
+            "You sometimes envy other vampires who are just out there drinking anybody. Members of your clan usually have specific dietary requirements, though it's different for every Blue Blood. Not just any mortal will do."
+
+            $ state.give_item(state.get_random_cash(boost=1))
 
             call ventrue_feeding_choice from clan_choice_ventrue_1
-
-            # TODO: choice of specific feeding requirements?
 
         "[clan_choice_caitiff]":
             $ state.pc.choose_clan(cfg.CLAN_NONE_CAITIFF)
@@ -369,13 +377,23 @@ label ventrue_feeding_choice:
         "With one increasingly clear exception."
 
         "People who are used to giving orders.":  # +2 to Dominate
-            ""
+            $ chosen_palate = cfg.REF_VENTRUE_TARGET_COMMANDERS
+            "(ventrue type is commanders)"
 
         "People in physical pain.":  # +2 to Fortitude
-            ""
+            $ chosen_palate = cfg.REF_VENTRUE_TARGET_PAINED
+            "(ventrue type is pained)"
 
         "People who spend a lot of time or money maintaining their appearance.":  # +2 to Presence
-            ""
+            $ chosen_palate = cfg.REF_VENTRUE_TARGET_PEACOCKS
+            "(ventrue type is peacocks)"
+
+    python:
+        pc.apply_background(cfg.VENTRUE_PREF_BACKGROUNDS[chosen_palate])
+        if not state.ventrue_palate:
+            state.ventrue_palate = chosen_palate
+            if state.ventrue_palate != cfg.REF_VENTRUE_TARGET_PAINED and state.intro_man_drank:
+                state.deal_damage(cfg.TRACK_HP, cfg.DMG_SPF, 2, "Fed on James when he's not your Ventrue type")
 
     return
 
@@ -386,7 +404,7 @@ label end:
     if state.pc.cause_of_death == cfg.COD_SUN:
         "Unable to escape the merciless wrath of the sun, you crumple to the ground in a smoldering heap."
 
-        "By that time, of course, your mind was already gone."
+        "By that time, of course, your mind is long gone."
     else:
         "The ability of the vampiric to absorb punishment that would kill a mortal several times over is nothing short of extraordinary."
 
@@ -400,4 +418,6 @@ label end:
 
     "And so ends your unlife. Thanks for playing."
 
-    return
+    $ MainMenu(confirm=False)()
+
+    # return

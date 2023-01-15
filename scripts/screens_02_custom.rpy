@@ -3,6 +3,117 @@
 ################################################################################
 
 
+screen tl_corner_hud(*args):
+    frame id "calendar" align (0.0, 0.0) xysize (250, 40) background Frame("gui/frame.png"):
+        padding (7, 5)
+        margin (5, 0)
+        xfill False
+        yfill False
+
+        $ state = renpy.store.state
+        # $ p_night, p_hours = state.clock.posted_night, state.clock.posted_hours
+        $ p_night, p_hours = state.clock.night, state.clock.hours
+
+        text "Night [p_night]:  [p_hours] hours left" id "nightcounter" text_align 0.5 align (0.5, 0.5) size 18
+
+
+screen dev_panel(*args):
+    frame id "call_stack_readout" align (0.0, 0.18) xysize (350, 280) background Frame("gui/frame.png"):
+        padding (7, 5)
+        margin (5, 0)
+        xfill False
+        yfill False
+
+        $ state = renpy.store.state
+        $ stack_string = state.get_call_stack_str()
+
+        text "[stack_string]" text_align 0.5 align (0.1, 0.1) size 16
+
+    # frame id "second_dev_readout" align (0.0, 0.5) xysize (300, 200) background Frame("gui/frame.png"):
+    #     margin (5, 0)
+
+
+screen bl_corner_panel(*args):
+    frame id "contextual_action_bar" align (0.0, 0.64) xysize (350, 280) background Frame("gui/frame.png"):
+        at fadein_basic
+        padding (10, 15)
+        margin (5, 0)
+        python:
+            surge_tooltip = "Risk Hunger to transcend the limitations of the human body and mind.\n\n(+2 dice to next roll)"
+            bs_action, surge_prompt = None, "Can't Rouse..."
+            if not state.blood_surge_active and state.blood_surge_enabled:
+                surge_prompt = "Rouse the Blood?"
+                bs_action = Function(state.blood_surge, audio.heartbeat_faster_2)
+            elif state.blood_surge_active:
+                surge_prompt = "Blood Roused!"
+        side "c l":
+            viewport id "contextual_actions_list" draggable True mousewheel True:# scrollbars "vertical":
+                vbox spacing 5 align (0.5, 0.5) yfill False box_reverse True:
+                    use hovertext("{}".format(surge_prompt), tooltip=surge_tooltip, _action=bs_action)
+                    for i in range(3, 4):
+                        use hovertext("Option {}".format(i), tooltip="dafuq", _style="medium")
+                    for disc in pc.disciplines.get_unlocked():
+                        for pow_level in pc.disciplines.pc_powers[disc]:
+                            $ power = pc.disciplines.pc_powers[disc][pow_level]
+                            if power:
+                                use hovertext("{} ({})".format(power, disc), tooltip="da powah", _action=None)
+            vbar value YScrollValue("contextual_actions_list")
+
+
+screen ingame_sidebar_menu(*args):
+    frame id "sidebar" align (1.0, 0.0) ysize 224 background Frame("gui/frame.png"):
+        padding (10, 15, 10, 0)
+        margin (5, 0)
+        xfill False
+        vbox spacing 10:
+            yfill True
+            imagebutton id "charSheetButton":
+                yalign 0.0
+                auto "gui/button/charsheet_%s.png" at sidebar_button_image
+                action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexScoresPage", dissolve)]
+
+            imagebutton id "charPowersButton":
+                yalign 0.0
+                auto "gui/button/powers_button_new_%s.png" at sidebar_button_image
+                action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexPowersPage", dissolve)]
+
+            imagebutton id "charStatusButton":
+                yalign 0.0
+                auto "gui/button/charstatus_button_%s.png" at sidebar_button_image
+                action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexStatusPage", dissolve)]
+
+            imagebutton id "caseFilesButton":
+                yalign 0.0
+                auto "gui/button/casefiles_button_%s.png" at sidebar_button_image
+                action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexCasefilesPage", dissolve)]
+
+            imagebutton id "infoButton":
+                yalign 0.0
+                auto "gui/button/info_button_%s.png" at sidebar_button_image
+                action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexInfoPage", dissolve)]
+
+    key "z" action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexScoresPage", dissolve)]
+    key "x" action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexPowersPage", dissolve)]
+    key "c" action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexStatusPage", dissolve)]
+    key "b" action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexCasefilesPage", dissolve)]
+    key "n" action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexInfoPage", dissolve)]
+
+
+transform sidebar_button_image:
+    zoom 0.5
+    size (60, 60)
+
+
+transform fadein_basic:
+    alpha 0.0
+    linear 1.0 alpha 1.0
+
+
+transform fadeout_basic:
+    alpha 1.0
+    linear 1.0 alpha 0.0
+
+
 # Generates textbutton with tooltip, action optional
 screen hovertext(txt, tooltip=None, _style="medium", _xalign=0.0, _action=None):
     textbutton "[txt]" xalign _xalign:
@@ -68,7 +179,7 @@ screen trackerline(name, total, clearboxes, spfdamage, bonus=0, bonus_name=""):
 
 
 # Widget based on repbar, used for resonances
-screen xpbar(value, max, name, color="#232323", _action=None):
+screen xpbar(value, max, name, color="#232323", _action=None, _tooltip=None):
     python:
         ratio = float(value) / float(max)
         if _action is None:
@@ -79,7 +190,7 @@ screen xpbar(value, max, name, color="#232323", _action=None):
             textbutton "[name]" align (0.0, 0.5):  # size 18
                 text_style style.codex_hoverable_text
                 action _action
-                hovered ShowTransient("hovertip", None, "{tt}".format(tt="tooltip tbd"))
+                hovered ShowTransient("hovertip", None, "{tt}".format(tt="tooltip tbd" if not _tooltip else _tooltip))
                 unhovered Hide("hovertip", None)
             bar value StaticValue(value, max) xysize (160, 15):
                 align (0.5, 0.5)
@@ -132,7 +243,7 @@ screen codexTopRow():
 
     $ cfg, pc = renpy.store.cfg, renpy.store.state.pc
     frame id "top_status_row" background None xalign 0.5 padding (0, 0):
-        hbox xsize gui.codex_inner_width xalign 0.5:
+        hbox xsize gui.codex_inner_width xalign 0.5 spacing 15:
             frame id "pane_dossier" align (0.0, 0.0) xysize (510, 126):
                 hbox xfill True yfill True:
                     python:
@@ -143,15 +254,25 @@ screen codexTopRow():
                     text "Alias:\n[clan_string]\nGeneration:\nPredator Type:" text_align 0.0 size 18 xalign 0.0 line_spacing 7
                     text right_text text_align 1.0 size 18 xalign 1.0 line_spacing 7
 
-            frame id "pane_soulstate" align (0.4, 0.0) xysize (202, 126):
+            frame id "pane_soulstate" align (0.0, 0.0) xysize (192, 126):
                 $ humanityPhrase = cfg.HUMANITY_BLURBS[pc.humanity - cfg.MIN_HUMANITY]
                 $ hung_hum_index = max(0, int(pc.humanity) - cfg.MIN_HUMANITY - 1)
                 $ hungerPhrase = cfg.HUNGER_BLURBS[pc.hunger][hung_hum_index]
                 vbox spacing 2:
-                    use dotchain("Humanity", pc.humanity - 3, dcolor="bright", format="stack", dfsize=(190, 60), tooltip=humanityPhrase)
-                    use dotchain("Hunger", pc.hunger, format="stack", dfsize=(190, 60), tooltip=hungerPhrase)
+                    use dotchain("Humanity", pc.humanity - 3, dcolor="bright", format="stack", dfsize=(180, 60), tooltip=humanityPhrase)
+                    use dotchain("Hunger", pc.hunger, format="stack", dfsize=(180, 60), tooltip=hungerPhrase)
 
-            frame id "pane_trackers" align (1.0, 0.0) xysize (420, 126) style style.codex_panel_frame:
+            frame id "pane_public_relations" align (0.0, 0.0) xysize (376, 126):
+                vbox yalign 0.5 spacing 15:
+                    python:
+                        mq_tooltip, mq_action = "It can't happen again. You wouldn't survive.", None
+                        ntr_tooltip, ntr_action = "Make a name for yourself, but careful not to make too many waves...", None
+                        if cfg.DEV_MODE:
+                            mq_action = Function(state.masquerade_breach, base=10)
+                    use xpbar(state.masquerade, cfg.VAL_MASQUERADE_MAX, "Masquerade", _tooltip=mq_tooltip, color="#ededed", _action=mq_action)
+                    use xpbar(state.notoriety, cfg.VAL_NOTORIETY_MAX, "Notoriety", _tooltip=ntr_tooltip, color="#9306f4")
+
+            frame id "pane_trackers" align (0.0, 0.0) xysize (465, 126) style style.codex_panel_frame:
                 style_prefix "boxtracker"
 
                 vbox spacing 0 align (1.0, 0.5) xfill True yfill True:
@@ -319,6 +440,9 @@ screen codexStatusPage(*args):
                             use hovertext("Mortal past: {}".format(bg[cfg.REF_BG_NAME]), bg[cfg.REF_DESC], "big")
                         elif bg[cfg.REF_TYPE] == cfg.REF_PREDATOR_TYPE:
                             use hovertext("Predator Type: {}".format(bg[cfg.REF_BG_NAME]), bg[cfg.REF_DESC], "big")
+                        elif bg[cfg.REF_TYPE] == cfg.REF_VENTRUE_PALATE:
+                            $ vfp_desc = bg[cfg.REF_DESC] + " Feeding on anyone else requires an effort of will."
+                            use hovertext("Ventrue \"palate\": {}".format(bg[cfg.REF_BG_NAME]), vfp_desc, "big")
                         else:
                             use dotchain(
                                 bg[cfg.REF_BG_NAME], bg[cfg.REF_DOTS], altname=altname, dcolor=dcolor, format="merit",
@@ -341,7 +465,7 @@ screen codexCasefilesPage(*args):
                             python:
                                 color_str = game.Supply.ITEM_COLOR_KEYS[item.item_type]
                                 title = item.name
-                                tooltip = item.description
+                                tooltip = item.desc
                                 itype = item.item_type
 
                                 if itype == game.Supply.IT_MONEY:
@@ -351,7 +475,8 @@ screen codexCasefilesPage(*args):
                                         concealed = "You have your trusty forged CCW permit, just in case."
                                     else:
                                         concealed = "This is an open carry state, right?"
-                                    tooltip = "Lethality: {db}\n\n{cncl}\n\n{btt}".format(db=item.lethality, cncl=concealed, btt=tooltip)
+                                    lethal = " (Lethal)" if itype == game.Supply.IT_FIREARM or item.lethality >= 2 else ""
+                                    tooltip = "+{}{}\n\n{}\n\n{}".format(item.dmg_bonus, lethal, concealed, tooltip)
 
                             textbutton str(title) + " {color=[color_str]}(" + str(itype) + "){/color}":
                                 text_style style.codex_hoverable_text
@@ -480,12 +605,12 @@ screen powerSelectTree(dname, *args):
 
 # Used to display tooltips
 screen hovertip(tip, *args):
-    frame background Frame("gui/frame.png", Borders(5, 5, 5, 5)):
+    frame background Frame("gui/frame_original.png", Borders(5, 5, 5, 5)):  # TODO: make a different version of gui/frame.png for this with full opacity
         xmaximum 400
         ymaximum 200
         # ysize 80
         pos renpy.get_mouse_pos()
-        padding (10, 10)
+        padding (15, 30)
         text "[tip]" size 18 xfill True yfill True
 
 

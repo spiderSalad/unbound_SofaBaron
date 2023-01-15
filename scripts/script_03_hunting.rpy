@@ -10,9 +10,9 @@
 
 # separate first hunt?
 
-label hunt_confirm(pool_desc_raw, hunt_warning):
+label hunt_confirm(pool_desc_raw, hunt_warning, pool_mod=None):
     python:
-        pool_org, pool_tokens = renpy.store.utils.parse_pool_string(pool_desc_raw), []
+        pool_org, pool_tokens = renpy.store.utils.parse_pool_string(pool_desc_raw, pool_mod=pool_mod), []
         for phase in pool_org:
             phase_str = "/".join(phase)
             pool_tokens.append(phase_str)
@@ -75,7 +75,7 @@ label hunt_alley_cat(status):
 
         # TODO: add Blood Surge, probably a button that's always there and sometimes enabled
 
-        # call roll_control("wits+streetwise", "diff3") from hunt_river_phase1
+        # call roll_controal("wits+streetwise", "diff3") from hunt_river_phase1
 
         label .river_drain:
             ""
@@ -169,7 +169,7 @@ label hunt_farmer(status):
 
             "You're not sure where getting caught sucking on live rats falls on the sliding scale of Masquerade violations..."
 
-            "...but it'd be a pretty humiliating reason to be dragged before one of the Barons - or worse, the actual Sheriff."
+            "...but it'd be a pretty humiliating reason to be dragged in front of a local Baron - or worse, the actual Sheriff."
 
             $ hw = "{b}It's pretty humiliating either way{/b}. Even if other Kindred don't witness our shame, {i}we{/i} will."
 
@@ -210,7 +210,7 @@ label hunt_siren(status):
 
         "There's this new club downtown that I've been wanting to check out. I'm sure I can find someone to spend the night with there.":
 
-            "Clubs are choice hunting grounds in almost any city. They're places where the beautiful and energetic gather."
+            "Clubs and other trendy entertainment venues are choice hunting grounds in almost any city. They're places where the beautiful and energetic gather."
 
             "Young adults in their prime, taking risks and looking for a good time."
 
@@ -278,28 +278,33 @@ label generic_hunt_results(scoping_pool, scoping_test, feeding_pool, feeding_tes
         $ state.roll_bonus, state.roll_malus = state.current_roll.margin, 0
         $ time_spent = max(time_spent - state.roll_bonus, cfg.MIN_ACTIVITY_TIME)
         "> Successfully scoped out target. Hunt duration reduced to [time_spent] hours, +[state.roll_bonus] to feed roll."
-        jump .feed_roll
+        jump generic_hunt_results.feed_roll
 
     label .scope_fail:
         $ state.roll_malus, state.roll_bonus = abs(state.current_roll.margin), 0
         $ time_spent = min(time_spent + state.roll_malus, cfg.MAX_HUNT_TIME)
         "> Difficulty scoping out target. Hunt duration increased to [time_spent], -[state.roll_malus] to feed roll."
-        jump .feed_roll
+        jump generic_hunt_results.feed_roll
 
     label .feed_roll:
         python:
+            fp_mod = None
             if state.roll_bonus > 0:
-                final_feeding_pool = "{}+{}".format(feeding_pool, state.roll_bonus)
+                fp_mod = state.roll_bonus
             elif state.roll_malus > 0:
-                final_feeding_pool = "{}+{}".format(feeding_pool, -1 * state.roll_malus)
-            else:
-                final_feeding_pool = feeding_pool
-        call roll_control(final_feeding_pool, feeding_test)
+                fp_mod = -1 * state.roll_malus
+
+            final_feeding_pool = feeding_pool
+        call roll_control(final_feeding_pool, feeding_test, pool_mod=fp_mod)
         $ tll = "generic_hunt_results"
         jump expression renpy.store.game.manual_roll_route(_return, ".win", ".fail", mc=".messy", crit=".crit", bfail=".beastfail", top_label=tll)
 
     label .messy:  # A dead body - you also get here if your hunger is high and you fail a willpower roll
         $ state.hunted_tonight = True
+
+        play sound audio.feed_bite1
+        queue sound audio.feed_heartbeat
+
         $ state.set_hunger(0, killed=True, innocent=True)
         $ state.feed_resonance(boost=1)
         "You find yourself standing over a dead body. The problem of your Hunger is dealt with, but now you have a different problem."
@@ -311,22 +316,64 @@ label generic_hunt_results(scoping_pool, scoping_test, feeding_pool, feeding_tes
         else:
             "And even after taking a life some Hunger remains. That's not good."
 
+        stop sound
+        play sound audio.body_fall1
+
         jump .end
 
     label .crit:  # You feed successfully and get a bonus
         $ state.hunted_tonight = True
-        $ state.set_hunger("-=2")
-        $ state.feed_resonance(boost=1)
-        "That could hardly have gone better."
+
+        play sound audio.feed_bite1
+        queue sound audio.feed_heartbeat
+
+        if pc.humanity > cfg.KILLHUNT_HUMANITY_MAX:
+            $ drained = False
+        else:
+            call hunt_kill_choice from hunt_generic_crit
+            $ drained = _return
+
+        if drained:
+            $ state.set_hunger(0, killed=True, innocent=True)  # TODO: add innocence check
+            $ state.feed_resonance(boost=2)
+            "That went great, except for the dead body. That could be a problem."
+        else:
+            $ state.set_hunger("-=2")
+            $ state.feed_resonance(boost=1)
+            "That could hardly have gone better."
+
+        stop sound
+        if drained:
+            play sound audio.body_fall1
+
         jump .end
 
     label .win:  # successful feeding, hunger slaked depends on margin (1 or 2, 3 or 4 if humanity is low)
         $ state.hunted_tonight = True
-        $ temp_margin = state.current_roll.margin
-        $ max_slaked = 2 if pc.humanity > cfg.KILLHUNT_HUMANITY_MAX else min(4, 3 + (cfg.KILLHUNT_HUMANITY_MAX - pc.humanity))
-        $ slaked_hunger = min(max_slaked, 1 + int(temp_margin))
-        $ state.set_hunger("-={}".format(slaked_hunger))
-        if slaked_hunger > 3:
+        $ temp_margin, drained = state.current_roll.margin, False
+
+        play sound audio.feed_bite1
+        queue sound audio.feed_heartbeat
+
+        if temp_margin > 2 and pc.humanity <= cfg.KILLHUNT_HUMANITY_MAX:
+            call hunt_kill_choice from hunt_generic_win
+            $ drained = _return
+
+        python:
+            max_slaked = 2
+            if drained:
+                max_slaked = 5
+            elif pc.humanity > cfg.KILLHUNT_HUMANITY_MAX:
+                humanity_limit = cfg.KILLHUNT_HUMANITY_MAX + 4 - pc.humanity
+                max_slaked = min(4, max(2, humanity_limit))  # Should always be 2-4 inclusive.
+                print("max hunger slaked for this feeding is {}".format(max_slaked))
+            slaked_hunger = min(max_slaked, 1 + int(temp_margin))
+            state.set_hunger("-={}".format(slaked_hunger), killed=drained, innocent=True)  # TODO: add innocence check
+
+        if drained:
+            "You drink your fill, basking in warm contentment, and leave the body for your future self to worry about."
+            $ state.feed_resonance(boost=1)
+        elif slaked_hunger > 3:
             "You drink your fill. Your prey will live, assuming someone notices them in time."
             $ state.feed_resonance()
         elif slaked_hunger > 2:
@@ -338,19 +385,35 @@ label generic_hunt_results(scoping_pool, scoping_test, feeding_pool, feeding_tes
         else:
             "You take a few good gulps; just enough to take the edge off before you have to split."
             $ state.feed_resonance(boost=-1)
+
+        stop sound
+        if drained:
+            play sound audio.body_fall1
+
         jump .end
 
     label .fail:  # You fail to feed
+        play sound audio.fleeing_footsteps1
+
         "That could have gone better. You fail to feed, but manage a clean escape."
+
         jump .end
 
     label .beastfail:  # You fail to feed and get penalized further
-        beast "YOU INCOMPETENT, MISERABLE LITTLE-"
+        play sound audio.fleeing_footsteps1
+        queue sound audio.oncoming_frenzy_2
+
+        beast "YOU INCOMPETENT, MISERABLE-"
 
         "Your vision goes red. There are screams, the sound of shattering glass, and what might have been a gunshot."
 
         "You come to your senses in an alley."
+
+        $ state.masquerade_breach()
         # TODO: further consequences
+
+        stop sound fadeout 0.5# with fadeout 0.5
+
         jump .end
 
     label .end:
@@ -392,12 +455,13 @@ label hunger_frenzy:
     # TODO: even more nasty consequences (esp. Masquerade), and some crazy sounds
 
     # masquerade penalty
-
     python:
-        hf_kill = True if utils.random_int_range(0, 4) > 2 else False  # 40% chance to kill
-        hf_innocent = True if hf_kill and utils.random_int_range(0, 3) > 0 else False  # 75% chance they were innocent
+        state.masquerade_breach(15)
+
+        hf_kill = utils.percent_chance(0.4)
+        hf_innocent = (hf_kill and utils.percent_chance(0.75))
         hf_hours_lost = utils.random_int_range(0, 3)  # 0 to 3 hours lost
-        hf_outside_haven = True if utils.random_int_range(0, 1) > 0 else False  # 50% chance to end up back at your haven
+        hf_outside_haven = utils.percent_chance(0.5)
         state.set_hunger(0, killed=hf_kill, innocent=hf_innocent)
 
     call pass_time(hf_hours_lost, in_shelter=not hf_outside_haven) from hunger_frenzy_blackout
@@ -483,11 +547,11 @@ label predator_type_subsets:
     label .siren:
         "Most of the clubs downtown are new, in part because of how many closed down the last time the Inquisition swept through this city."
 
-        "Any Kindred-owned business they managed to learn about was seized, shut down, razed to the ground in a \"botched drug raid\", or otherwise eliminated."
+        "Any Kindred-owned business they managed to learn about was seized, shut down, razed to the ground in a \"terrible act of criminal arson\", or otherwise eliminated."
 
         "In the aftermath, some enterprising mortal investors made a killing buying up what was left on the cheap."
 
-        "You doubt any of the mortal profiteers have any idea who or what they've been poaching from, but you'll have to be careful nonetheless."
+        "You doubt the profiteering kine have any idea who or what they've been poaching from, but you'll have to be careful nonetheless."
 
         "You're probably lucky that your antics didn't get you fried along with some of those other licks."
 
@@ -504,5 +568,33 @@ label predator_type_subsets:
 
         return
 
+
+label hunt_kill_choice:
+
+    beast "This kine is helpless. Let's drain it. We have to eat well to keep up our strength, don't we?"
+
+    python:
+        kill_choice_prompt = "Just let it happen. They were going to die soon anyway. Relatively speaking."
+        kill_yes = "I take everything they have to give."
+        if state.innocent_drained:
+            kill_no = "No, I can't do this again."
+        else:
+            kill_no = "No, it's not worth it."
+
+    if pc.humanity <= cfg.KILLHUNT_HUMANITY_MAX and pc.hunger > cfg.HUNGER_MAX_CALM:
+        $ kill_choice_prompt = "Yes... You know what to do."
+        $ kill_yes = "I drain them dry and banish the Hunger."
+        $ kill_no = "Nah. Not this time."
+
+    menu:
+        beast "[kill_choice_prompt]"
+
+        "[kill_yes]":
+            return True
+
+        "[kill_no]":
+            return False
+
+    $ raise ValueError("Shouldn't reach here!")
 
 # placeholder

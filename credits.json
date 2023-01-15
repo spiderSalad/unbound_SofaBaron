@@ -898,5 +898,93 @@
         "socials":[
             {"site":"freesound.org", "handle":"Division4884", "url":"https://freesound.org/people/Division4884/"}
         ]
+    },
+    {
+        "name":"Bpianoholic",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"simple heartbeat", "licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"Bpianoholic", "url":"https://freesound.org/people/Bpianoholic/"}
+        ]
+    },
+    {
+        "name":"Unknown (Pixabay)",
+        "type":"photographer",
+        "works":[
+            {"name":"Photograph of Sun, unknown photographer", "licenseUrl":"https://www.pexels.com/license/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"pexels.com", "handle":"Pixabay", "url":"https://www.pexels.com/@pixabay/"}
+        ]
+    },
+    {
+        "name":"shimsewn",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Quaver Pokes.wav", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
+        ],
+        "website":"http://shimsewn.bandcamp.com/",
+        "socials":[
+            {"site":"freesound.org", "handle":"shimsewn", "url":"https://freesound.org/people/shimsewn/"}
+        ]
+    },
+    {
+        "name":"Curly123456",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Monster 185 flange.wav", "licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"Curly123456", "url":"https://freesound.org/people/Curly123456/"}
+        ]
+    },
+    {
+        "name":"volivieri",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"funky static.wav", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"volivieri", "url":"https://freesound.org/people/volivieri/"}
+        ]
+    },
+    {
+        "name":"nowism",
+        "type":"sound_engineer",
+        "works":[
+            {"name":" FX_long_meepf.wav", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"https://soundcloud.com/nwsm",
+        "socials":[
+            {"site":"freesound.org", "handle":"nowism", "url":"https://freesound.org/people/nowism/"}
+        ]
+    },
+    {
+        "name":"woodmouse",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"fLowerGunCock.wav", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"woodmouse", "url":"https://freesound.org/people/woodmoose/"}
+        ]
+    },
+    {
+        "name":"Flem0527",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Shuffling Backpack.wav", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"Flem0527", "url":"https://freesound.org/people/Flem0527/"}
+        ]
     }
 ]

@@ -9,6 +9,9 @@ label haven:
         stop sound
         scene bg haven basic
 
+        if pc.dead:
+            return
+
         if not state.clan_chosen:
             $ state.outside_haven = False
             jump clan_choice
@@ -66,9 +69,9 @@ label haven:
 
                 call expression "hunt_" + str(pc.predator_type).replace(" ", "_").lower() pass (None) from main_hub_hunt
 
-            "Stagnation and complacency are a Kindred's most insidious enemies. What can I do to improve?" if other_activities:
-                "get swole son"
-                call pass_time(1) from training_test1
+            "Stagnation and complacency are deadly enemies for a Kindred. What can I do to improve my situation?" if other_activities:
+                jump haven.submenu_work
+                # call pass_time(1) from training_test1
 
             "Enemies closing in. Need to counterattack before I'm cornered." if other_activities:
                 "sortie"
@@ -86,9 +89,63 @@ label haven:
                     "You spend the remainder of the night in calm repose, [relax_text]"
                     $ pc.will.mend(cfg.DMG_FULL_SPF, min(spf_will_mend, state.clock.hours))
                 else:
-                    "You spend what remains of the night on the edge of madness. When the daysleep takes you it's a mercy."
+                    "You spend what remains of the night on the edge of madness. It's a mercy when the daysleep finally takes you."
 
                 call pass_time(None, in_shelter=True)
+
+        jump post_activity_main
+
+    label .submenu_work:
+
+        "For a vampire, there's no such thing as safety. There's always another enemy, always another threat."
+
+        if pc.clan == cfg.CLAN_RAVNOS:
+            "The survivors of your clan understand this better than most Kindred. Death is always just a few steps behind."
+
+            "And there's always the worst threat of all, lurking within."
+
+            "So you can't just sit around waiting for your doom to find you."
+        else:
+            "Even if you aren't aware of them yet, you know they're out there. The worst threat of all, of course, lurks within."
+
+            beast "Please. Where would you be without me?"
+
+            "So you can't just sit around waiting to be crushed like a bug."
+
+        "You have to prepare. You have to seize every available advantage, shore up every available defense. You have to {i}act{/i}."
+
+        menu:
+
+            "But you have to act carefully. Sloppy mistakes will get you dusted just as quickly."
+
+            "I think I'll just make my rounds, see what's happening around town.":
+                "make rounds --> random events"
+                call pass_time(1) from make_rounds_test_1
+
+            "What's my financial situation looking like?":
+                "money"
+                call pass_time(2) from make_money_test_1
+
+            "Maybe flying solo isn't the way to go. Maybe I need allies.":
+                "ghoul/coterie/factions"
+                call pass_time(4) from seek_allies_test_1
+
+            "Is there any chance I could expand?":
+                "domain"
+                call pass_time(None) from expand_domain_test_1
+
+        jump post_activity_main
+
+    label .submenu_sorties:
+
+        menu:
+            "(Not implemented.)"
+
+            "Sortie option #1":
+                "Get some!"
+
+            "Sortie option #2":
+                "Ah fuck, I can't believe you've done this."
 
         jump post_activity_main
 

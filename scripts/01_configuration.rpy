@@ -16,7 +16,7 @@ init 0 python in cfg:
 
     REF_TYPE = "type"
     REF_SUBTYPE = "subtype"
-    REF_DESC = "description"
+    REF_DESC = "desc"
     REF_TOOLTIP = "tooltip"
     REF_DOTS = "dots"
     REF_EID = "eid"
@@ -95,8 +95,11 @@ init 0 python in cfg:
         "Serenely absolved undead"
     ]
 
-    MASQUERADE_MAX = 100
-    MASQUERADE_MIN = 0
+    VAL_MASQUERADE_MAX = 100
+    VAL_MASQUERADE_MIN = 0
+    VAL_NOTORIETY_MIN = 0
+    VAL_NOTORIETY_MAX = 100
+    VAL_BASE_NOTORIETY_MULTIPLIER = 0.8
 
     CLAN_BRUJAH = "Brujah"
     CLAN_NOSFERATU = "Nosferatu"
@@ -136,6 +139,10 @@ init 0 python in cfg:
             REF_CLAN_SLUR: "Trash"
         }
     }
+
+    # REF_VENTRUE_TARGET_COMMANDERS = "commanders"
+    # REF_VENTRUE_TARGET_PAINED = "pained"
+    # REF_VENTRUE_TARGET_PEACOCKS = "peacocks"
 
     MAX_SCORE = 5
     MIN_SCORE_ATTR = 1
@@ -195,6 +202,8 @@ init 0 python in cfg:
     ROLL_CONTEST = "pool"
     REF_ROLL_BONUS_PREFIX = "bonus_"
     REF_ROLL_EVENT_BONUS = "bonus_current_event"
+    # REF_ROLL_BLOOD_SURGE_BONUS
+    REF_BLOOD_SURGE = "Blood Surge"
     REF_ROLL_LOOKS = "Looks"
     REF_BG_NAME = "background_name"
 
@@ -208,6 +217,7 @@ init 0 python in cfg:
     BG_UGLY = "Ugly"
     BG_REPULSIVE = "Repulsive"
 
+    REF_VENTRUE_PALATE = "ventrue_palate"
     REF_PREDATOR_TYPE = "predator_type"
     PT_ALLEYCAT = "Alley Cat"  # +1 Combat, +1 Intimidation, +1 Potence, -1 Humanity, +3 Contacts
     PT_BAGGER = "Bagger"  # +1 Clandestine, +Streetwise, +1 Obfuscate, more notoriety
@@ -351,6 +361,24 @@ init 0 python in cfg:
         BG_ENEMY: {
             REF_TYPE: REF_BG_FLAW,
             REF_DESC: "Some mortal has it out for you. They may even know who you are, though hopefully not {i}what{/i}."
+        }
+    }
+
+    REF_VENTRUE_TARGET_COMMANDERS = "Commanders"
+    REF_VENTRUE_TARGET_PAINED = "Pained"
+    REF_VENTRUE_TARGET_PEACOCKS = "Peacocks"
+    VENTRUE_PREF_BACKGROUNDS = {
+        REF_VENTRUE_TARGET_COMMANDERS: {
+            REF_TYPE: REF_VENTRUE_PALATE, REF_SUBTYPE: REF_VENTRUE_PALATE, REF_BG_NAME: REF_VENTRUE_TARGET_COMMANDERS,
+            REF_DESC: "You feed on people who are used to giving orders."
+        },
+        REF_VENTRUE_TARGET_PAINED: {
+            REF_TYPE: REF_VENTRUE_PALATE, REF_SUBTYPE: REF_VENTRUE_PALATE, REF_BG_NAME: REF_VENTRUE_TARGET_PAINED,
+            REF_DESC: "You feed on people in physical pain, whether acute or chronic."
+        },
+        REF_VENTRUE_TARGET_PEACOCKS: {
+            REF_TYPE: REF_VENTRUE_PALATE, REF_SUBTYPE: REF_VENTRUE_PALATE, REF_BG_NAME: REF_VENTRUE_TARGET_PEACOCKS,
+            REF_DESC: "You feed on people who spend a lot of time maintaining their appearance."
         }
     }
 
@@ -600,19 +628,21 @@ init 0 python in cfg:
     }
 
     MERIT_DISPLAY_MAX = 4
+    MAX_ITEM_TIER = 7
 
     COD_SUN = "Sunlight"
     COD_FIRE = "Fire"
     COD_PHYSICAL = "Physical Damage"
     COD_DECAPITATION = "Decapitation"
 
-    DP_DISCLAIMER = "This game was created as a part of Vampire: The Masquerade game jam. "
+    DP_DISCLAIMER = "This game was created as a part of Vampire: The Masquerade game jam. "  # TODO: update this for unbound
     DP_DISCLAIMER += "Events portrayed in this game are not canon within World of Darkness."
 
 
 image bg city main_menu         = "gui/main_menu.png"
 image bg haven basic            = "images/bg_haven.jpg"
 image bg domain basic           = "images/bg_domain.jpg"
+image bg sunrise sky            = "images/bg_sunrise.jpg"
 
 define audio.main_theme         = "audio/music/Darkstar83 - Shadow Walker.mp3"
 
@@ -627,7 +657,16 @@ define audio.footsteps1         = "audio/sound/318900__robinhood76__05934-heels-
 define audio.dice_roll_many     = "audio/sound/220744__dermotte__dice-06.mp3"
 define audio.dice_roll_few      = "audio/sound/353975__nettimato__rolling-dice-1.mp3"
 define audio.fleeing_footsteps1 = "audio/sound/316924__rudmer-rotteveel__footsteps-running-away-fading.mp3"
-define audio.heartbeast_faster  = "audio/sound/181805__klankbeeld__heart-beat-increasing-116642-excerpt02.mp3"
+define audio.heartbeat_faster   = "audio/sound/181805__klankbeeld__heart-beat-increasing-116642-excerpt02.mp3"
 define audio.beastgrowl2        = "audio/sound/98337__cgeffex__roar.mp3"
 define audio.samurai_blade_warp = "audio/sound/37411__funkymuskrat__chil.mp3"
 define audio.mutation_jingle    = "audio/sound/342336__division4884__simple-mutate-monster.mp3"
+define audio.heartbeat_faster_2 = "audio/sound/181805__klankbeeld__heart-beat-increasing-116642_EXCERPT-edit-a02.mp3"
+define audio.oncoming_frenzy_2  = "audio/sound/37192__volivieri__funky-static.mp3"
+define audio.flanging_clang_1   = "audio/sound/39377__shimsewn__quaver-pokes.mp3"
+define audio.alien_whisper      = "audio/sound/329333__curly123456__monster-185-flange.mp3"
+define audio.sun_threat_1       = "audio/sound/484461__nowism__fx-long-meepf.mp3"
+define audio.get_item_1_gun     = "audio/sound/177054__woodmoose__lowerguncock.mp3"
+define audio.get_item_2         = "audio/sound/630021__flem0527__shuffling-backpack"
+
+#

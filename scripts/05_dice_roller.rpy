@@ -7,26 +7,24 @@ init 1 python in game:
             cfg.REF_ROLL_LOOKS
         ]
 
-        def __init__(self, pool_text, has_opp=False, **kwargs):
+        def __init__(self, pool_text, has_opp=False, pool_mod=None, surge=False, **kwargs):
             utils = renpy.store.utils
             self.num_dice = 0
-            # self.pool_stats = str(pool_text).split('+')  # TODO: here is where I need to implement optional pools denoted by "/"
             self.has_opponent = has_opp
-            self.contests = utils.parse_pool_string(pool_text)
+            self.surge = surge
+            self.contests = utils.parse_pool_string(pool_text, pool_mod=pool_mod, surge=self.surge)
+            print("\nCONTESTS: {}".format(self.contests))
             if len(self.contests) != 1:
                 raise ValueError("There should be exactly one phase per RollConfig object, not {}.".format(len(self.contests)))
             self.pool_options = self.contests[0]
             self.roll_config_options = [self.evaluate(po) for po in self.pool_options]
             # Here we do a max or something
             self.chosen_rc_opt = max(self.roll_config_options, key=lambda rco: rco.num_dice)
-            # for i, rco in enumerate(self.roll_config_options):
-            #     print("OPTION #{}: {} with {} dice".format(i, rco.pool_text, rco.num_dice))
             for key in self.chosen_rc_opt.__dict__:
                 val = getattr(self.chosen_rc_opt, key)
                 setattr(self, key, val)
 
         def evaluate(self, pool_option):
-            print("HEY\nHEY\npool_option = {}".format(pool_option))
             required_stats, optional_stats = [], [] # TODO: what was I doing here?
             pool_stats = pool_option.replace(" ", "").split("+")
             pool_choice = object()
@@ -41,6 +39,8 @@ init 1 python in game:
             pc = renpy.store.state.pc
             for stat in pool_stats:  # self.pool_stats:
                 stat = str(stat).capitalize()
+                if "Bloodsurge" in stat:
+                    stat = "Blood Surge"
                 if stat in pc.attrs:
                     pool_choice.num_dice += pc.attrs[stat]
                 elif stat in pc.skills:
@@ -60,6 +60,9 @@ init 1 python in game:
                 elif utils.is_number(stat) and utils.has_int(stat):
                     pool_choice.has_bonuses = True
                     setattr(pool_choice, cfg.REF_ROLL_EVENT_BONUS, stat)
+                elif stat == cfg.REF_BLOOD_SURGE:
+                    pool_choice.has_bonuses = True
+                    setattr(pool_choice, bonus_key + cfg.REF_BLOOD_SURGE, utils.get_bp_surge_bonus(pc.blood_potency))
                 else:
                     # TODO: backgrounds, banes
                     raise ValueError("Stat \"{}\" is not an attribute, skill, or discipline.".format(stat))
@@ -139,6 +142,8 @@ init 1 python in game:
             self.player_wins = False
 
         def test(self, pool, difficulty, hunger=1, include_hunger=True):
+            if int(pool) < 1:
+                pool = 1
             self.current_opp_roll = None
             self.can_reroll_to_improve = self.can_reroll_to_avert_mc = False
             self.current_roll = V5DiceRoll(int(pool), int(difficulty), hunger=hunger, include_hunger=include_hunger)
@@ -149,6 +154,8 @@ init 1 python in game:
             return self.current_roll
 
         def contest(self, pool1, pool2, hunger=1, include_hunger=True):
+            if int(pool1) < 1:
+                pool1 = 1
             self.can_reroll_to_improve = self.can_reroll_to_avert_mc = False
             self.current_opp_roll = V5DiceRoll(int(pool2), 0, include_hunger=False)
             self.current_roll = V5DiceRoll(int(pool1), self.current_opp_roll.num_successes, hunger=hunger, include_hunger=include_hunger)
@@ -261,6 +268,7 @@ init python in state:
         delim = " "
         global pool_readout
         plus_min_tmp = str(temp_rconfig.pool_text).replace(" ", "").replace("+-", " - ")
+        plus_min_tmp = plus_min_tmp.replace("Bloodsurge", "Blood Surge")
         pool_readout = plus_min_tmp.replace("+", " + ")
         if temp_rconfig.has_opponent:
             test_summary = "Versus {}, margin of {}".format(temp_roll.opp_ws, temp_roll.margin)
@@ -295,7 +303,7 @@ init python in state:
             return "Roll: {}".format(renpy.store.state.pool_readout)
         return "Roll: (Empty)"
 
-    def rouse_check(num_checks=1, reroll=False):
+    def rouse_check(num_checks=1, reroll=False, q_sound=None):
         num_dice_per_check = 2 if reroll else 1
         hungrier, rc_fails = False, 0
         for i in range(num_checks):
@@ -305,10 +313,21 @@ init python in state:
                 set_hunger("+=1")
                 rc_fails += 1
                 hungrier = True
+            # elif q_sound is not None:
+                # renpy.play(success_sound, u'sound')
+            renpy.sound.queue(q_sound, u'sound')
         return hungrier, rc_fails
 
+    def blood_surge(rouse_check_success_sound=None):
+        if pc.hunger >= cfg.HUNGER_MAX or not renpy.store.state.blood_surge_enabled:
+            return  # TODO: raise exception here?
+        rouse_check(q_sound=rouse_check_success_sound)
+        # TODO: additional sound effect here?
+        renpy.store.state.blood_surge_active = True
+        print("ROUSE")
 
-label roll_control(pool_str, test_str):
+
+label roll_control(pool_str, test_str, pool_mod=None):
 
     python:
         if not state.diceroller:
@@ -328,7 +347,10 @@ label roll_control(pool_str, test_str):
             opool = str(test_str).split(cfg.ROLL_CONTEST)[1]
         else:
             diff = str(test_str).split(cfg.ROLL_TEST)[1]
-        state.roll_config = renpy.store.game.RollConfig(pool_str, has_opp=(cfg.ROLL_CONTEST in test_str))
+        state.roll_config = renpy.store.game.RollConfig(
+            pool_str, has_opp=(cfg.ROLL_CONTEST in test_str), pool_mod=pool_mod,
+            surge=state.blood_surge_active
+        )
         state.roll_bones(opp_pool=opool, difficulty=diff)
 
     label .choices:
@@ -382,6 +404,8 @@ label roll_control(pool_str, test_str):
         jump roll_control.end_rouse_check
 
     label .end:
+
+        $ state.blood_surge_active = False
 
         hide roll_desc
 

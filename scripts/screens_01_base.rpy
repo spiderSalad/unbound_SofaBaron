@@ -110,74 +110,21 @@ screen say(who, what):
 
         text what id "what"
 
-    # CHANGED: sidebar, components, and transform below
-    frame id "calendar" align (0.0, 0.0) xysize (250, 40) background Frame("gui/frame.png"):
-        padding (7, 5)
-        xfill False
-        yfill False
-
-        $ state = renpy.store.state
-        # $ p_night, p_hours = state.clock.posted_night, state.clock.posted_hours
-        $ p_night, p_hours = state.clock.night, state.clock.hours
-
-        text "Night [p_night]:  [p_hours] hours left" id "nightcounter" text_align 0.5 align (0.5, 0.5) size 18
+    ## --- CUSTOM ---
+    use tl_corner_hud
 
     if renpy.store.cfg.DEV_MODE:
-        frame id "dev_panel" align (0.0, 0.3) xysize (300, 300) background Frame("gui/frame.png"):
-            padding (7, 5)
-            xfill False
-            yfill False
+        use dev_panel
 
-            $ state = renpy.store.state
-            $ stack_string = state.get_call_stack_str()
+    use ingame_sidebar_menu
+    ## --- CUSTOM END ---
 
-            text "[stack_string]" text_align 0.5 align (0.1, 0.1) size 16
-
-    window id "sidebar" align (1.0, 0.0) ysize 224 background Frame("gui/frame.png"):
-        padding (10, 15, 10, 0)
-        xfill False
-        vbox spacing 10:
-            yfill True
-            imagebutton id "charSheetButton":
-                yalign 0.0
-                auto "gui/button/charsheet_%s.png" at sidebar_button_image
-                action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexScoresPage", dissolve)]
-
-            imagebutton id "charPowersButton":
-                yalign 0.0
-                auto "gui/button/powers_button_new_%s.png" at sidebar_button_image
-                action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexPowersPage", dissolve)]
-
-            imagebutton id "charStatusButton":
-                yalign 0.0
-                auto "gui/button/charstatus_button_%s.png" at sidebar_button_image
-                action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexStatusPage", dissolve)]
-
-            imagebutton id "caseFilesButton":
-                yalign 0.0
-                auto "gui/button/casefiles_button_%s.png" at sidebar_button_image
-                action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexCasefilesPage", dissolve)]
-
-            imagebutton id "infoButton":
-                yalign 0.0
-                auto "gui/button/info_button_%s.png" at sidebar_button_image
-                action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexInfoPage", dissolve)]
-
-    key "z" action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexScoresPage", dissolve)]
-    key "x" action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexPowersPage", dissolve)]
-    key "c" action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexStatusPage", dissolve)]
-    key "b" action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexCasefilesPage", dissolve)]
-    key "n" action [Play("sound", audio.gui_heartbeat), ToggleScreen("codexInfoPage", dissolve)]
+    # use bl_corner_panel
 
     ## If there's a side image, display it above the text. Do not display on the
     ## phone variant - there's no room.
     if not renpy.variant("small"):
         add SideImage() xalign 0.0 yalign 1.0
-
-
-transform sidebar_button_image:
-    zoom 0.5
-    size (60, 60)
 
 
 ## Make the namebox available for styling through the Character object.
