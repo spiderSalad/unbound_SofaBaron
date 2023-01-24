@@ -243,7 +243,7 @@ label hunt_siren(status):
     label .club:
 
         if state.siren_orientation is None:
-            $ desired = utils.get_random_list_elem([cfg.PN_WOMEN, cfg.PN_MEN, cfg.PN_NONBINARY])
+            $ desired = utils.get_random_list_elem([cfg.PN_WOMEN, cfg.PN_MEN, cfg.PN_NONBINARY])[0]
         else:
             $ desired = state.siren_orientation
 
@@ -254,7 +254,7 @@ label hunt_siren(status):
     label .party_maybe:
 
         if state.siren_orientation is None:
-            $ desired = utils.get_random_list_elem([cfg.PN_WOMEN, cfg.PN_MEN, cfg.PN_NONBINARY])
+            $ desired = utils.get_random_list_elem([cfg.PN_WOMEN, cfg.PN_MEN, cfg.PN_NONBINARY])[0]
         else:
             $ desired = state.siren_orientation
 

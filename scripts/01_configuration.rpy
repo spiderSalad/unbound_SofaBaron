@@ -41,6 +41,16 @@ init 0 python in cfg:
     # REF_ANY_WIN = [REF_WIN, REF_CRIT, REF_MESSYCRIT]
     # REF_ANY_FAIL = [REF_FAIL, REF_BEASTFAIL]
 
+    CT_ANIMAL = "Animal"
+    CT_FAMULUS = "Ghoul (Animal)"
+    CT_HUMAN = "Human"
+    CT_GHOUL = "Ghoul (Human)"
+    CT_VAMPIRE = "Kindred"
+    CT_LUPINE = "Werewolf"
+
+    REF_MORTALS = [CT_ANIMAL, CT_FAMULUS, CT_HUMAN, CT_GHOUL, CT_LUPINE]
+    REF_UNDEAD = [CT_VAMPIRE]
+
     PN_SHE_HE_THEY = "pn_subjective"
     PN_HER_HIM_THEM = "pn_objective"
     PN_STRANGER = "pn_stranger"
@@ -107,6 +117,8 @@ init 0 python in cfg:
     CLAN_VENTRUE = "Ventrue"
     CLAN_NONE_CAITIFF = "Caitiff"
 
+    REF_PLAYABLE_CLANS = [CLAN_BRUJAH, CLAN_NOSFERATU, CLAN_RAVNOS, CLAN_VENTRUE]
+
     REF_CLAN_EPITHET = "clan_epithet"
     REF_CLAN_NICKNAME = "clan_nickname"
     REF_CLAN_SLUR = "clan_slur"
@@ -156,6 +168,7 @@ init 0 python in cfg:
     DMG_FULL_SPF = "unhalved_superficial_dmg"
     DMG_AGG = "aggravated_dmg"
     DMG_NONE = "clear"
+    BULLET_DODGE_PENALTY = 2
 
     REF_ATTRS_ALL = "All Attributes"
     REF_ATTRS = "attrs"
@@ -176,6 +189,10 @@ init 0 python in cfg:
     REF_SOCIAL_ATTRS = [AT_CHA, AT_MAN, AT_COM]
     REF_MENTAL_ATTRS = [AT_INT, AT_WIT, AT_RES]
     REF_ATTR_ORDER = REF_PHYSICAL_ATTRS + REF_SOCIAL_ATTRS + REF_MENTAL_ATTRS
+
+    NPCAT_PHYS = "physical"
+    NPCAT_SOCL = "social"
+    NPCAT_MENT = "mental"
 
     SK_ATHL = "Athletics"
     SK_CLAN = "Clandestine"  # Larceny, Stealth
@@ -456,6 +473,10 @@ init 0 python in cfg:
     POWER_ANIMALISM_HIVE = "Unliving Hive"
     POWER_ANIMALISM_QUELL = "Quell the Beast"
 
+    POWER_AUSPEX_DAREDEVIL = "Heightened Senses"
+    POWER_AUSPEX_ESP = "Sense the Unseen"
+    # Rest of Auspex here
+
     POWER_CELERITY_GRACE = "Cat's Grace"
     POWER_CELERITY_TWITCH = "Rapid Reflexes"
     POWER_CELERITY_SPEED = "Fleetness"
@@ -490,7 +511,7 @@ init 0 python in cfg:
     POWER_PRESENCE_AWE = "Awe"
     POWER_PRESENCE_DAUNT = "Daunt"
     POWER_PRESENCE_ADDICTED2U = "Lingering Kiss"
-    POWER_PRESENCE_ENTRANCE = "Entracement"
+    POWER_PRESENCE_ENTRANCE = "Entrancement"
     POWER_PRESENCE_SCARYFACE = "Dread Gaze"
 
     POWER_PROTEAN_REDEYE = "Eyes of the Beast"
@@ -503,6 +524,28 @@ init 0 python in cfg:
     POWER_PROTEAN_DRUID = "Metamorphosis"
     POWER_PROTEAN_FINALFORM = "Horrid Form"
 
+    REF_DISC_POWER_PASSIVES = [
+        POWER_CELERITY_GRACE,
+        POWER_DOMINATE_DEVOTION,
+        POWER_FORTITUDE_HP, POWER_FORTITUDE_WILL,
+        POWER_OBFUSCATE_LAUGHINGMAN,
+        #POWER_POTENCE_FATALITY,
+        POWER_PRESENCE_ADDICTED2U
+    ]
+
+    REF_DISC_POWER_BUFFS = [
+        POWER_CELERITY_SPEED,
+        POWER_FORTITUDE_TOUGH, POWER_FORTITUDE_BANE,
+        POWER_OBFUSCATE_FADE, POWER_OBFUSCATE_SILENCE, POWER_OBFUSCATE_STEALTH,
+        POWER_POTENCE_FATALITY, POWER_POTENCE_PROWESS,
+        POWER_PROTEAN_REDEYE, POWER_PROTEAN_FLOAT, POWER_PROTEAN_TOOTH_N_CLAW, POWER_PROTEAN_MOLD_SELF
+    ]
+
+    REF_DISC_POWERS_SNEAKY = [
+        POWER_OBFUSCATE_FADE, POWER_OBFUSCATE_SILENCE, POWER_OBFUSCATE_STEALTH
+    ]
+
+    # Actual discipline power relationships
     REF_DISC_POWER_TREES = {
         DISC_ANIMALISM: [
             [POWER_ANIMALISM_FAMULUS, POWER_ANIMALISM_SENSE],
@@ -576,6 +619,8 @@ init 0 python in cfg:
         POWER_PROTEAN_FINALFORM: [POWER_PROTEAN_MOLD_SELF],
         POWER_PROTEAN_DRUID: [POWER_PROTEAN_BOO_BLEH]
     }
+
+
 
     SEM_HUB_MAIN = "haven-hub-default"
 
@@ -667,6 +712,6 @@ define audio.flanging_clang_1   = "audio/sound/39377__shimsewn__quaver-pokes.mp3
 define audio.alien_whisper      = "audio/sound/329333__curly123456__monster-185-flange.mp3"
 define audio.sun_threat_1       = "audio/sound/484461__nowism__fx-long-meepf.mp3"
 define audio.get_item_1_gun     = "audio/sound/177054__woodmoose__lowerguncock.mp3"
-define audio.get_item_2         = "audio/sound/630021__flem0527__shuffling-backpack"
+define audio.get_item_2         = "audio/sound/630021__flem0527__shuffling-backpack.mp3"
 
 #

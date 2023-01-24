@@ -78,5 +78,5 @@ init 1 python in state:
         eligible_items = [item for item in loot_tables[itype] if item.tier == tier]
         if not len(eligible_items) or len(eligible_items) < 1:
             raise ValueError("No items of type {} and tier {} found.".format(itype, tier))
-        loot_item = utils.get_random_list_elem(eligible_items, num_elems=1)
+        loot_item = utils.get_random_list_elem(eligible_items, num_elems=1)[0]
         return loot_item.copy()

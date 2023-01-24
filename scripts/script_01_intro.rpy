@@ -54,6 +54,11 @@ label intro:
 
     # show eileen happy
 
+    if cfg.DEV_MODE:
+        $ state.blood_surge_enabled = True
+        show screen bl_corner_panel
+        jump devtests.dt_combat_a1
+
     # start at hunger 3
     $ state.set_hunger(3)
     # play sound audio.beastgrowl1
@@ -393,7 +398,7 @@ label ventrue_feeding_choice:
         if not state.ventrue_palate:
             state.ventrue_palate = chosen_palate
             if state.ventrue_palate != cfg.REF_VENTRUE_TARGET_PAINED and state.intro_man_drank:
-                state.deal_damage(cfg.TRACK_HP, cfg.DMG_SPF, 2, "Fed on James when he's not your Ventrue type")
+                state.deal_damage(cfg.TRACK_WILL, cfg.DMG_FULL_SPF, 2, source="Fed on James when he's not your Ventrue type")
 
     return
 

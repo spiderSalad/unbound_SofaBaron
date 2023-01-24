@@ -1,13 +1,16 @@
 default state.pc                    = None
 default state.diceroller            = None
+default state.BattleArena           = None
 default state.clock                 = None
 
-default state.outside_haven         = True
 default state.night                 = 0
 default state.hours_left            = 12
 default state.first_hunt            = False
 default state.daybreak              = False
 default state.overtime              = 0
+
+default state.outside_haven         = True
+default state.in_combat             = False
 
 default state.tried_hunt_tonight    = False
 default state.hunted_tonight        = False
@@ -66,7 +69,7 @@ init 1 python in state:
     skill_names = [getattr(cfg, sname) for sname in gdict if str(sname).startswith("SK_")]
     discipline_names = [getattr(cfg, dname) for dname in gdict if str(dname).startswith("DISC_")]
 
-    from store.game import Supply, Weapon, Inventory
+    from store.game import Supply, Weapon, Inventory, Entity
 
     # pc = renpy.store.game.PlayerChar(anames=attr_names, snames=skill_names, dnames=discipline_names)
 
@@ -78,7 +81,7 @@ init 1 python in state:
             return False
         if pc.blood_potency > 4:
             return False
-        if pc.blood_potency > 2 and cfg.POWER_ANIMALISM_SUCCULENCE not in pc.disciplines.pc_powers[cfg.DISC_ANIMALISM]:
+        if pc.blood_potency > 2 and not pc.has_disc_power(cfg.POWER_ANIMALISM_SUCCULENCE, cfg.DISC_ANIMALISM):
             return False
         return True
 
@@ -88,10 +91,26 @@ init 1 python in state:
         elif pc.clan == cfg.CLAN_VENTRUE:
             if pc.blood_potency > 4:
                 return False
-            if pc.blood_potency > 2 and cfg.POWER_ANIMALISM_SUCCULENCE not in pc.disciplines.pc_powers[cfg.DISC_ANIMALISM]:
+            if pc.blood_potency > 2 and not pc.has_disc_power(cfg.POWER_ANIMALISM_SUCCULENCE, cfg.DISC_ANIMALISM):
                 return False
             return True
         return False
+
+    def pc_has_ranged_weapon():
+        if not hasattr(pc, "inventory") or not pc.inventory:
+            return False
+        if Supply.IT_FIREARM in pc.inventory:
+            return True
+        throwing_weapons = [tw for tw in pc.inventory.items if tw.item_type == Supply.IT_WEAPON and tw.throwable]
+        if len(throwing_weapons) > 0:
+            return True
+        return False
+
+    def pc_has_ranged_power():
+        return False  # TODO: add this
+
+    def pc_has_ranged_attack():
+        return (pc_has_ranged_weapon() or pc_has_ranged_power())
 
     def set_hunger(delta, killed=False, innocent=False, ignore_killed=False):
         previous_hunger, hunger_floor = pc.hunger, cfg.HUNGER_MIN_KILL if killed or ignore_killed else cfg.HUNGER_MIN
@@ -110,11 +129,13 @@ init 1 python in state:
         new_humanity = utils.nudge_int_value(pc.humanity, delta, "Humanity", floor=cfg.MIN_HUMANITY, ceiling=cfg.MAX_HUMANITY)
         pc.humanity = new_humanity
 
-    def deal_damage(tracker, dtype, amount, source=None):
+    def deal_damage(tracker, dtype, amount, target: Entity = None, source=None):
+        dmg_target = pc if target is None else target
+        print("\ndtype = {}, amount = {}, tracker = {}".format(dtype, amount, target))
         if tracker == cfg.TRACK_HP:
-            pc.hp.damage(dtype, amount, source=source)
+            dmg_target.hp.damage(dtype, amount, source=source)
         else:
-            pc.will.damage(dtype, amount, source=source)
+            dmg_target.will.damage(dtype, amount, source=source)
 
     def masquerade_breach(base=10):
         global masquerade
@@ -243,16 +264,18 @@ init 1 python in state:
             stack_str += "{}. {}\n".format(i+1, stack_layer)
         return stack_str
 
-    def give_item(supply: Supply, copy=True, gift_sound=True):
+    def give_item(supply, *supplies, copy=True, equip_it=False, gift_sound=True):
         if pc.inventory is None:
             raise ValueError("No valid inventory to add items to.")
         gift = supply.copy() if copy else supply
         pc.inventory.add(gift)
+        if supply.item_type in [Supply.IT_FIREARM, Supply.IT_WEAPON] and equip_it:
+            pc.inventory.equip(gift, force=True)
         if gift_sound:
             if gift.item_type == Supply.IT_FIREARM:
-                renpy.play(renpy.store.audio.sound.get_item_1_gun, "sound")
+                renpy.play(renpy.store.audio.get_item_1_gun, "sound")
             else:
-                renpy.play(renpy.store.audio.sound.get_item_2, "sound")
+                renpy.play(renpy.store.audio.get_item_2, "sound")
 
     def take_item(ikey=None, itype=None, intended=False):
         pc.inventory.lose(ikey=ikey, itype=itype, intended=intended)
@@ -262,6 +285,13 @@ init 1 python in state:
 
     def spend_cash(amount):
         pc.inventory.lose(cash_amount=amount, intended=True)
+
+    def apply_test_build(backstory, clan, pred_type, pt_disc):
+        pc.mortal_backstory = backstory
+        pc.apply_background(cfg.CHAR_BACKGROUNDS[pc.mortal_backstory], bg_key=pc.mortal_backstory)
+        pc.choose_clan(clan)
+        clan_chosen = True
+        pc.choose_predator_type(pred_type, pt_disc)
 
 
 label pass_time(hours_passed, in_shelter=False):

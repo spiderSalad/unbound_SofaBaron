@@ -4,100 +4,22 @@ init 1 python in game:
     cfg, utils = renpy.store.cfg, renpy.store.utils
     # NOTE: this persists between game load/cycles, as it's run when Ren'py starts - NOT when the game starts.
 
-    class Tracker:
-        def __init__(self, pc, boxes: int, trackertype: str, armor: int = 0, bonus: int = 0):
-            self.playerchar = pc
-            self.trackertype = trackertype
-            self._boxes = boxes
-            self._armor = armor
-            self.armor_active = False
-            self._bonus = bonus
-            self.spf_damage = 0
-            self.agg_damage = 0
-            self.last_damage_source = None
 
-        @property
-        def boxes(self):
-            return self._boxes
-
-        @boxes.setter
-        def boxes(self, new_num_boxes: int):
-            self._boxes = new_num_boxes
+    class PCTracker(Tracker):
+        def __init__(self, pc, boxes: int, tracker_type: str, armor: int = 0, bonus: int = 0):
+            super().__init__(char=pc, boxes=boxes, tracker_type=tracker_type, armor=armor, bonus=bonus)
 
         @property
         def armor(self):  # Blocks superficial damage prior to halving.
-            if self.trackertype == cfg.TRACK_HP:
-                return self.playerchar.get_fort_toughness_armor()
+            if self.tracker_type == cfg.TRACK_HP:
+                return self.char.get_fort_toughness_armor()
             return self._armor
-
-        @armor.setter
-        def armor(self, new_armor_val):
-            self._armor = new_armor_val
 
         @property
         def bonus(self):
-            if self.trackertype == cfg.TRACK_HP:
-                return self.playerchar.get_fort_resilience_bonus()
+            if self.tracker_type == cfg.TRACK_HP:
+                return self.char.get_fort_resilience_bonus()
             return self._bonus
-
-        @bonus.setter
-        def bonus(self, new_bonus: int):
-            self._bonus = new_bonus
-
-        def damage(self, dtype, amount, source=None):
-            total_boxes = self.boxes + self.bonus
-
-            temp_armor = self.armor if self.armor_active else 0
-
-            dented = False
-            injured = False
-            true_amount = amount
-            if dtype == cfg.DMG_SPF:
-                true_amount = math_ceil(float(amount) / 2)
-
-            for point in range(int(true_amount)):
-                if temp_armor > 0:
-                    dented = True
-                    temp_armor -= 1
-                    continue
-
-                clear_boxes = total_boxes - (self.spf_damage + self.agg_damage)
-                if clear_boxes > 0:  # clear spaces get filled first
-                    self.playerchar.impair(False, self.trackertype)
-                    if dtype == cfg.DMG_SPF or dtype == cfg.DMG_FULL_SPF:
-                        self.spf_damage += 1
-                    else:
-                        self.agg_damage += 1
-                    utils.log("====> damage " + str(point) + ": filling a clear space")
-                elif self.spf_damage > 0:  # if there are no clear boxes, tracker is filled with mix of damage types
-                    self.playerchar.impair(True, self.trackertype)
-                    self.spf_damage -= 1
-                    self.agg_damage += 1  # if there's any superficial damage left, turn it into an aggravated
-                    utils.log("====> damage " + str(point) + ": removing a superficial and replacing with aggravated")
-                if self.agg_damage >= total_boxes:
-                    # A tracker completely filled with aggravated damage = game over:
-                    # torpor, death, or a total loss of faculties, face and status
-                    self.playerchar.handle_demise(self.trackertype, self.last_damage_source)
-                    utils.log("====> damage " + str(point) + ": oh shit you dead")
-
-                injured = True
-            if dented and not injured:
-                # renpy.sound.queue(audio.pc_hit_fort_melee, u'sound')  # TODO: add sounds here
-                pass
-            elif injured:
-                # renpy.sound.queue(audio.stab2, u'sound')
-                self.last_damage_source = source
-                if self.last_damage_source is None:
-                    self.last_damage_source = cfg.COD_PHYSICAL
-                pass
-
-        def mend(self, dtype, amount):
-            if dtype == cfg.DMG_SPF or dtype == cfg.DMG_FULL_SPF:
-                damage = self.spf_damage
-                self.spf_damage = max(damage - amount, 0)
-            else:
-                damage = self.agg_damage
-                self.agg_damage = max(damage - amount, 0)
 
 
     class SuperpowerArsenal:
@@ -121,8 +43,9 @@ init 1 python in game:
                 for i in range(1, 6):
                     score_word = cfg.SCORE_WORDS[i]
                     self._pc_powers[dname][score_word] = None
-                    if dname in self.chosen_powers and self.chosen_powers[dname] and score_word in self.chosen_powers[dname]:
-                        self._pc_powers[dname][score_word] = self.chosen_powers[dname][score_word]
+                    if dname in self.chosen_powers and self.chosen_powers[dname]:
+                        if score_word in self.chosen_powers[dname]:
+                            self._pc_powers[dname][score_word] = self.chosen_powers[dname][score_word]
             self.recalculate_power_choices()
 
         # None of these properties should have setters
@@ -178,16 +101,32 @@ init 1 python in game:
                         continue
                     for j in range(i, 0, -1):
                         possible_at_level += power_tree[j-1]
-                    available_at_level = [pw for pw in possible_at_level if pw not in self.pc_powers[ul_disc].values()]
+                    available_at_level = [pw for pw in possible_at_level if not self.power_unlocked(pw, ul_disc)]
                     power_options[sw] = available_at_level
                 self._power_choices[ul_disc] = power_options
             # print(utils.json_prettify(self.power_choices, sort_keys=False))
 
+        def power_unlocked_known_disc(self, power, disc):
+            if power in self.pc_powers[disc].values():
+                return True
+            return False
+
+        def power_unlocked(self, power, disc=None):
+            if disc is not None:
+                return self.power_unlocked_known_disc(power, disc)
+            disciplines = [key for key in cfg.__dict__ if str(key).startswith("DISC_")]
+            for dname in disciplines:
+                if self.power_unlocked_known_disc(power, dname):
+                    return True
+            return False
+
         def power_prereqs_met(self, dname, power):
             if power in cfg.REF_DISC_POWER_PREREQS:
                 prereq_power = cfg.REF_DISC_POWER_PREREQS[power]
-                if prereq_power not in self.pc_powers[dname].values():
-                    return False, "Should not be able to choose {} without prerequisite power {}".format(power, prereq_power)
+                if not self.power_unlocked(prereq_power, dname):
+                    return False, "Should not be able to choose {} without prerequisite power {}".format(
+                        power, prereq_power
+                    )
             return True, None
 
         def amalgam_reqs_met(self, dname, power):
@@ -196,7 +135,9 @@ init 1 python in game:
                 # We don't check to make sure all power slots of amalgam discipline are filled to required level,
                 # only that the required number of dots is there.
                 if self.levels[amalg] < amalg_level:
-                    return False, "Cannot choose amalgam power {} with a {} level below {}.".format(power, amalg, amalg_level)
+                    return False, "Cannot choose amalgam power {} with a {} level below {}.".format(
+                        power, amalg, amalg_level
+                    )
             return True, None
 
         def can_unlock_power(self, dname, power_name):
@@ -208,11 +149,13 @@ init 1 python in game:
             if power_name not in all_d_powers:
                 return False, "{} is not a power of {} discipline; something's gone wrong.".format(power_name, dname)
             del all_d_powers
-            empty_slots = [(cfg.SCORE_WORDS.index(pl), pl) for pl in self.pc_powers[dname] if self.pc_powers[dname][pl] is None]
-            nxt_ava_lvl = min([pl[0] for pl in empty_slots])
+            empty = [(cfg.SCORE_WORDS.index(pl), pl) for pl in self.pc_powers[dname] if self.pc_powers[dname][pl] is None]
+            nxt_ava_lvl = min([pl[0] for pl in empty])
             if nxt_ava_lvl > self.levels[dname]:
-                return False, "Cannot choose a level {} power; {} is at level {}.".format(nxt_ava_lvl, dname, self.levels[dname])
-            if power_name in self.pc_powers[dname].values():
+                return False, "Cannot choose a level {} power; {} is at level {}.".format(
+                    nxt_ava_lvl, dname, self.levels[dname]
+                )
+            if self.power_unlocked(power_name, dname):
                 return False, "{} has already been taken.".format(power_name)
             nal_token = cfg.SCORE_WORDS[nxt_ava_lvl]
             available_powers = self.power_choices[dname][nal_token]
@@ -250,8 +193,10 @@ init 1 python in game:
             utils.log(utils.json_prettify(self.pc_powers[dname]))
 
 
-    class PlayerChar:
-        def __init__(self, anames, snames, dnames):
+    class PlayerChar(Entity):
+        def __init__(self, anames, snames, dnames, **kwargs):
+            super().__init__(ctype=cfg.CT_VAMPIRE, **kwargs)
+            self.is_pc = True
             self.nickname = "That lick from around the way"
             self.pronouns = {}  # TODO: implement this
             self.clan = None
@@ -259,10 +204,10 @@ init 1 python in game:
             self.blood_potency = 1
             self._hunger = 1
             self._humanity = 7
-            self.hp, self.will = Tracker(self, 3, cfg.TRACK_HP), Tracker(self, 3, cfg.TRACK_WILL)
-            self.crippled, self.shocked = False, False
+            self.hp, self.will = PCTracker(self, 3, cfg.TRACK_HP), PCTracker(self, 3, cfg.TRACK_WILL)
+            # self.crippled, self.shocked = False, False
             self.frenzied_bc_hunger, self.frenzied_bc_fear = False, False
-            self.dead, self.cause_of_death = False, None
+            # self.dead, self.cause_of_death = False, None
             self._status = "(All clear)"
             self.clan_blurbs = {}
             self.anames, self.snames, self.dnames = anames, snames, dnames
@@ -272,8 +217,13 @@ init 1 python in game:
             self._backgrounds = []
             self.disciplines = SuperpowerArsenal(self.dnames)
             self.disciplines.reset(hard_reset=True)
-            self.inventory = None
+            self.inventory, self.equipped_weapon = None, None
             self.reset_charsheet_stats()
+
+        @property
+        def name(self):
+            return "You"
+            # return self.nickname
 
         @property
         def status(self):
@@ -388,21 +338,30 @@ init 1 python in game:
         def apply_xp(self):
             return self  # TODO: implement this
 
-        def impair(self, impaired, tracker_type):
-            if tracker_type == cfg.TRACK_HP:
-                self.crippled = impaired
-            elif tracker_type == cfg.TRACK_WILL:
-                self.shocked = impaired
+        def attack(self, action_order, ao_index, enemy_targets, all_targets):
+            pass
+
+        def defend(self, attacker, atk_action):
+            pass
+
+        # def impair(self, impaired, tracker_type):
+        #     if tracker_type == cfg.TRACK_HP:
+        #         self.crippled = impaired
+        #     elif tracker_type == cfg.TRACK_WILL:
+        #         self.shocked = impaired
 
         def get_fort_resilience_bonus(self):
-            if cfg.POWER_FORTITUDE_HP not in self.disciplines.pc_powers[cfg.DISC_FORTITUDE].values():
+            if not self.has_disc_power(cfg.POWER_FORTITUDE_HP, cfg.DISC_FORTITUDE):
                 return 0
             return self.disciplines.levels[cfg.DISC_FORTITUDE]
 
         def get_fort_toughness_armor(self):
-            if cfg.POWER_FORTITUDE_TOUGH not in self.disciplines.pc_powers[cfg.DISC_FORTITUDE].values():
+            if not self.has_disc_power(cfg.POWER_FORTITUDE_TOUGH, cfg.DISC_FORTITUDE):
                 return 0
             return self.disciplines.levels[cfg.DISC_FORTITUDE]
+
+        def has_disc_power(self, power, disc=None):
+            return self.disciplines.power_unlocked(power, disc)
 
         def choose_clan(self, clan):
             self.clan = clan
@@ -472,8 +431,9 @@ init 1 python in game:
             self.disciplines.unlock(disc, access)
 
         def handle_demise(self, tracker_type, damage_source):
-            self.dead = True
-            self.cause_of_death = damage_source
+            # self.dead = True
+            # self.cause_of_death = damage_source
+            super().handle_demise(tracker_type=tracker_type, damage_source=damage_source)
             renpy.jump("end")
 
 
@@ -481,15 +441,18 @@ init 1 python in game:
         IT_MONEY = "Money"
         IT_WEAPON = "Weapon"
         IT_FIREARM = "Firearm"
+        IT_AMMO = "Ammunition"
         IT_EQUIPMENT = "Equipment"
         IT_QUEST = "Important"
+        IT_CONSUMABLE = "Consumable"
         IT_MISC = "Miscellaneous"
         IT_JUNK = "Junk"
         IT_CLUE = "Clue"
 
         ITEM_COLOR_KEYS = {
             IT_MONEY: "#399642", IT_JUNK: "#707070", IT_CLUE: "#ffffff", IT_WEAPON: "#8f8f8f",
-            IT_EQUIPMENT: "#cbcbdc", IT_QUEST: "#763cb7", IT_MISC: "#cbcbdc", IT_FIREARM: "#71797E"
+            IT_EQUIPMENT: "#cbcbdc", IT_QUEST: "#763cb7", IT_MISC: "#cbcbdc", IT_FIREARM: "#71797E",
+            IT_AMMO: "#60686D", IT_CONSUMABLE: "#dcdced"
         }
 
         def __init__(self, type, name, key=None, num=1, desc=None, tier=1, **kwargs):
@@ -525,24 +488,22 @@ init 1 python in game:
         def __init__(self, type, name, key=None, num=1, desc=None, tier=1, dmg_bonus=0, lethality=None, **kwargs):
             super().__init__(type, name, key=key, num=num, desc=desc, tier=tier, **kwargs)
             self.dmg_bonus = dmg_bonus
-            # Lethality:
-            # 0 = Non-lethal damage? (not implemented)
-            # 1 = Always Superficial damage,
-            # 2 = Superficial to vampires/Aggravated to mortals
-            # 3 = Unhalved Superficial to vampires/Aggravated to mortals
-            # 4 = Always aggravated
 
-            # Guns are concealable unless stated otherwise and have a default lethality of 3.
+            # Guns are concealable unless stated otherwise and have a default lethality of 2.
             if lethality is not None:
                 self.lethality = lethality
             elif self.item_type == Supply.IT_FIREARM:
-                self.lethality = 3
-            else:
                 self.lethality = 2
+            else:
+                self.lethality = 1
 
-            # Melee weapons are not concealable by default and have a default lethality of 2.
+            # Melee weapons are not concealable by default and have a default lethality of 1.
             if not hasattr(self, "concealable"):
                 self.concealable = (self.item_type == Supply.IT_FIREARM)
+            if not hasattr(self, "many"):
+                self.many = False
+            if not hasattr(self, "throwable"):
+                self.throwable = (self.item_type == Supply.IT_WEAPON and self.concealable and self.many)
 
         def copy(self):
             weapon_copy_base = Weapon(
@@ -551,17 +512,45 @@ init 1 python in game:
             )
             return super().copy(weapon_copy_base)
 
+        @staticmethod
+        def get_damage_type(lethality, target_creature_type):
+            mortal_target = target_creature_type in cfg.REF_MORTALS
+            if lethality >= 4:  # 4 = Always aggravated
+                return cfg.DMG_AGG
+            elif lethality == 3:  # 3 = Unhalved Superficial to vampires/Aggravated to mortals
+                return cfg.DMG_AGG if mortal_target else cfg.DMG_FULL_SPF
+            elif lethality == 2:  # 2 = Superficial to vampires/Aggravated to mortals
+                return cfg.DMG_AGG if mortal_target else cfg.DMG_SPF
+            elif lethality == 1:  # 1 = Always Superficial damage,
+                return cfg.DMG_SPF
+            else:  # 0 = Non-lethal damage? (not implemented)
+                return cfg.DMG_NONE
+
 
     class Inventory:
         ITEM_TYPES = [it for it in Supply.__dict__ if str(it).startswith("IT_")]
+        EQ_WEAPON = "weapon"
+        EQ_WEAPON_ALT = "sidearm"
+        EQ_TOOL_1 = "tool_slot_1"
+        EQ_TOOL_2 = "tool_slot_2"
+        EQ_CONSUMABLE_1 = "consumable_slot_1"
+        EQ_CONSUMABLE_2 = "consumable_slot_2"
 
         def __init__(self, *items: Supply, **kwargs):
             self._items = []
             self._items += items
+            self._equipped = {
+                Inventory.EQ_WEAPON: None, Inventory.EQ_WEAPON_ALT: None, Inventory.EQ_TOOL_1: None,
+                Inventory.EQ_TOOL_2: None, Inventory.EQ_CONSUMABLE_1: None, Inventory.EQ_CONSUMABLE_2: None
+            }
 
         @property
         def items(self):
             return self._items
+
+        @property
+        def equipped(self):
+            return self._equipped
 
         def __len__(self):
             return len(self.items)
@@ -600,6 +589,77 @@ init 1 python in game:
                     cash.quantity -= cash_amount
                     if cash.quantity < 0:
                         cash.quantity = 0
+
+        def slot_is_free(self, slot):
+            if slot not in self.equipped:
+                return False
+            return self.equipped[slot] is None
+
+        def get_valid_equipment_slots(self, item_type):
+            if item_type in [Supply.IT_WEAPON, Supply.IT_FIREARM]:
+                return [Inventory.EQ_WEAPON, Inventory.EQ_WEAPON_ALT]
+            elif item_type == Supply.IT_EQUIPMENT:
+                return [Inventory.EQ_TOOL_1, Inventory.EQ_TOOL_2]
+            elif item_type == Supply.IT_CONSUMABLE:
+                return [Inventory.EQ_CONSUMABLE_1, Inventory.EQ_CONSUMABLE_2]
+            else:
+                return None
+
+        def get_free_equipment_slot(self, item_type, preferred_slot=None):
+            valid_slots = self.get_valid_equipment_slots(item_type)
+            if not valid_slots:
+                raise ValueError("No slots exist for item type \"{}\"; check if it's valid.".format(item_type))
+            if preferred_slot is not None and preferred_slot in valid_slots and self.slot_is_free(preferred_slot):
+                return preferred_slot
+            for slot in valid_slots:  # If preferred slot is unavailable or invalid, returns first available.
+                if self.slot_is_free(slot):
+                    return slot
+            return None
+
+        @staticmethod
+        def item_match(item1: Supply, item2: Supply, require_is_match=False):
+            if item1 is item2:
+                return True
+            if not require_is_match and item1.name == item2.name:
+                return True
+            return False
+
+        def is_equipped(self, item):
+            if item.item_type in [Supply.IT_WEAPON, Supply.IT_FIREARM]:
+                return Inventory.item_match(self.equipped[Inventory.EQ_WEAPON], self.equipped[Inventory.EQ_WEAPON_ALT])
+            if item.item_type == Supply.IT_EQUIPMENT:
+                return Inventory.item_match(self.equipped[Inventory.EQ_TOOL_1], self.equipped[Inventory.EQ_TOOL_2])
+            elif item.item_type == Supply.IT_CONSUMABLE:
+                return Inventory.item_match(
+                    self.equipped[Inventory.EQ_CONSUMABLE_1], self.equipped[Inventory.EQ_CONSUMABLE_2]
+                )
+            return False
+
+        def equip(self, item, slot=None, force=False):
+            equip_slot = self.get_free_equipment_slot(item.item_type, preferred_slot=slot)
+            if equip_slot is None and not force:
+                utils.log("Could not equip item \"{}\"; there are no free valid slots.".format(item.name))
+            elif equip_slot is None:
+                valid_slots = self.get_valid_equipment_slots(item.item_type)
+                if valid_slots is None:
+                    raise ValueError("Could not equip \"{}\"; \"{}\" is not a valid type.".format(
+                        item.name, item.item_type
+                    ))
+                self.equipped[valid_slots[0]] = item
+            else:
+                self.equipped[equip_slot] = item
+
+        def unequip(self, item, slot=None):
+            if not self.is_equipped(item):
+                utils.log("Attempted to unequip item \"{}\", but it's not equipped.".format(item.name))
+                return
+            valid_slots = self.get_valid_equipment_slots(item.item_type)
+            if valid_slots is None:
+                raise ValueError("Could not equip \"{}\"; \"{}\" is not a valid type.".format(item.name, item.item_type))
+            for slot in valid_slots:
+                if Inventory.item_match(item, self.equipped[slot]):
+                    self.equipped[slot] = None
+                    break
 
 
 #

@@ -70,12 +70,18 @@ label haven:
                 call expression "hunt_" + str(pc.predator_type).replace(" ", "_").lower() pass (None) from main_hub_hunt
 
             "Stagnation and complacency are deadly enemies for a Kindred. What can I do to improve my situation?" if other_activities:
-                jump haven.submenu_work
+                $ state.outside_haven = True
+
+                scene bg domain basic
+
+                call haven.submenu_work from main_hub_work
                 # call pass_time(1) from training_test1
 
             "Enemies closing in. Need to counterattack before I'm cornered." if other_activities:
                 "sortie"
-                call pass_time(2) from sortie_test1
+
+                call haven.submenu_sorties from main_hub_sortie
+                # call pass_time(2) from sortie_test1
 
             # TODO: Option for mending here
 
@@ -118,9 +124,10 @@ label haven:
 
             "But you have to act carefully. Sloppy mistakes will get you dusted just as quickly."
 
-            "I think I'll just make my rounds, see what's happening around town.":
-                "make rounds --> random events"
-                call pass_time(1) from make_rounds_test_1
+            "I can't afford to fall out of touch. I need to know what's going on outside my little hovel.":
+                "gather information --> random events"
+                call investigation_menu from gather_info_test_1
+                # call pass_time(1) from gather_info_test_1
 
             "What's my financial situation looking like?":
                 "money"
@@ -134,7 +141,12 @@ label haven:
                 "domain"
                 call pass_time(None) from expand_domain_test_1
 
-        jump post_activity_main
+            "Or maybe I'll do something else...":
+                $ state.outside_haven = False
+                return
+
+        # jump post_activity_main
+        return
 
     label .submenu_sorties:
 
@@ -143,11 +155,17 @@ label haven:
 
             "Sortie option #1":
                 "Get some!"
+                call combat_test_scenario_1 from sortie_test_1
 
             "Sortie option #2":
                 "Ah fuck, I can't believe you've done this."
 
-        jump post_activity_main
+            "Actually, nah.":
+                $ state.outside_haven = False
+                return
+
+        # jump post_activity_main
+        return
 
 
 label post_activity_main:

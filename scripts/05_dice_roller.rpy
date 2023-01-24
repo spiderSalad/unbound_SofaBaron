@@ -15,7 +15,7 @@ init 1 python in game:
             self.contests = utils.parse_pool_string(pool_text, pool_mod=pool_mod, surge=self.surge)
             print("\nCONTESTS: {}".format(self.contests))
             if len(self.contests) != 1:
-                raise ValueError("There should be exactly one phase per RollConfig object, not {}.".format(len(self.contests)))
+                raise ValueError("Should be exactly one phase per RollConfig object, not {}.".format(len(self.contests)))
             self.pool_options = self.contests[0]
             self.roll_config_options = [self.evaluate(po) for po in self.pool_options]
             # Here we do a max or something
@@ -41,7 +41,9 @@ init 1 python in game:
                 stat = str(stat).capitalize()
                 if "Bloodsurge" in stat:
                     stat = "Blood Surge"
-                if stat in pc.attrs:
+                if str(stat).lower().startswith("pool"):
+                    pool_choice.num_dice += int(str(stat)[len("pool"):])
+                elif stat in pc.attrs:
                     pool_choice.num_dice += pc.attrs[stat]
                 elif stat in pc.skills:
                     pool_choice.num_dice += pc.skills[stat]
@@ -87,10 +89,11 @@ init 1 python in game:
         RESULT_ANY_WIN = [RESULT_WIN, RESULT_CRIT, RESULT_MESSY_CRIT]
         RESULT_ANY_FAIL = [RESULT_FAIL, RESULT_BESTIAL_FAIL]
 
-        def __init__(self, pool, difficulty, hunger=1, include_hunger=True):
+        def __init__(self, pool, difficulty, hunger=1, include_hunger=True, win_on_tie=True):
             self.hunger = int(hunger) if include_hunger else 0
             self.pool, self.difficulty = int(pool), int(difficulty)
             self.opp_ws = None
+            self.win_threshold = 0 if win_on_tie else 1
             self.red_results, self.red_ones, self.red_tens = [], 0, 0
             self.black_tens, self.black_failures = 0, 0
             self.result_descriptor = V5DiceRoll.RESULT_FAIL
@@ -119,7 +122,7 @@ init 1 python in game:
                 self.crit = True
                 self.num_successes += (self.red_tens + self.black_tens)
             self.margin = self.num_successes - self.difficulty
-            if self.margin >= 0:
+            if self.margin >= self.win_threshold:
                 if self.red_tens > 0 and self.included_hunger and self.crit:
                     self.outcome = V5DiceRoll.RESULT_MESSY_CRIT
                 elif self.crit:
@@ -149,16 +152,20 @@ init 1 python in game:
             self.current_roll = V5DiceRoll(int(pool), int(difficulty), hunger=hunger, include_hunger=include_hunger)
             if self.current_roll.black_failures > 0:
                 self.can_reroll_to_improve = True
-            if self.current_roll.outcome == V5DiceRoll.RESULT_MESSY_CRIT and self.current_roll.red_tens < 2 and self.current_roll.black_tens < 4:
+            red10s, black10s = self.current_roll.red_tens, self.current_roll.black_tens
+            if self.current_roll.outcome == V5DiceRoll.RESULT_MESSY_CRIT and red10s < 2 and black10s < 4:
                 self.can_reroll_to_avert_mc = True
             return self.current_roll
 
-        def contest(self, pool1, pool2, hunger=1, include_hunger=True):
+        def contest(self, pool1, pool2, hunger=1, include_hunger=True, win_on_tie=True):
             if int(pool1) < 1:
                 pool1 = 1
             self.can_reroll_to_improve = self.can_reroll_to_avert_mc = False
             self.current_opp_roll = V5DiceRoll(int(pool2), 0, include_hunger=False)
-            self.current_roll = V5DiceRoll(int(pool1), self.current_opp_roll.num_successes, hunger=hunger, include_hunger=include_hunger)
+            self.current_roll = V5DiceRoll(
+                int(pool1), self.current_opp_roll.num_successes, hunger=hunger,
+                include_hunger=include_hunger, win_on_tie=win_on_tie
+            )
             margin = self.current_roll.num_successes - self.current_opp_roll.num_successes
             self.current_roll.margin = margin
             self.current_roll.opp_ws = self.current_opp_roll.num_successes
@@ -166,7 +173,8 @@ init 1 python in game:
                 self.player_wins = True
             if self.current_roll.black_failures > 0:
                 self.can_reroll_to_improve = True
-            if self.current_roll.outcome == V5DiceRoll.RESULT_MESSY_CRIT and self.current_roll.red_tens < 2 and self.current_roll.black_tens < 4:
+            red10s, black10s = self.current_roll.red_tens, self.current_roll.black_tens
+            if self.current_roll.outcome == V5DiceRoll.RESULT_MESSY_CRIT and red10s < 2 and black10s < 4:
                 self.can_reroll_to_avert_mc = True
             return self.current_roll
 
@@ -180,7 +188,6 @@ init 1 python in game:
                     break
                 if d10result < V5DiceRoll.D10_WIN_INC:
                     tmp = renpy.store.utils.make_dice_roll(V5DiceRoll.D10_MAX, 1)[0]
-                    print("rerolling a {} at i = {}, and it's now a {}".format(self.current_roll.black_results[i], i, tmp))
                     self.current_roll.black_results[i] = tmp
                     num_rerolls -= 1
             self.current_roll.calculate()
@@ -230,7 +237,7 @@ init 1 python in game:
 
 
 init python in state:
-    diceroller = None
+    # diceroller = None
     current_roll, roll_config, pool_readout = None, None, None
     cfg, utils = renpy.store.cfg, renpy.store.utils
     gdict = cfg.__dict__
@@ -243,7 +250,7 @@ init python in state:
     def available_pc_will():
         return pc.will.boxes - (pc.will.spf_damage + pc.will.agg_damage)
 
-    def roll_bones(opp_pool=None, difficulty=None):
+    def roll_bones(opp_pool=None, difficulty=None, win_on_tie=True):
         # roll_config = get_roll_summary_object(player_pool, True if opp_pool else False)
         global current_roll
         global roll_config
@@ -251,7 +258,9 @@ init python in state:
         del current_roll
 
         if opp_pool:
-            current_roll = diceroller.contest(pool1=roll_config.num_dice, pool2=opp_pool, hunger=pc.hunger)
+            current_roll = diceroller.contest(
+                pool1=roll_config.num_dice, pool2=opp_pool, hunger=pc.hunger, win_on_tie=win_on_tie
+            )
         elif difficulty:
             current_roll = diceroller.test(roll_config.num_dice, difficulty=difficulty, hunger=pc.hunger)
         else:
@@ -279,7 +288,10 @@ init python in state:
             temp_roll.pool, "ce" if temp_roll.pool != 1 else "e", test_summary
         )
         actual_dice_repr = delim.join(["< {} >".format(dr) for dr in temp_roll.black_results])
-        actual_dice_repr += delim + delim.join([("{color=#ef0404}< " + "{}".format(dr) + " >{/color}") for dr in temp_roll.red_results])
+        actual_dice_repr += delim + delim.join([
+            ("{color=#ef0404}< " + "{}".format(dr) + " >{/color}")
+            for dr in temp_roll.red_results
+        ])
         global can_reroll_to_improve, can_reroll_to_avert_mc
         if available_pc_will() > 0 and not temp_roll.rerolled:
             can_reroll_to_improve = temp_rconfig.can_reroll_to_improve
@@ -324,16 +336,30 @@ init python in state:
         rouse_check(q_sound=rouse_check_success_sound)
         # TODO: additional sound effect here?
         renpy.store.state.blood_surge_active = True
-        print("ROUSE")
+
+    def can_sense_unseen(hidden, seer):
+        if not seer.always_detector and not seer.get_se_ttl(Entity.SE_AUSPEX_ESP):
+            return False
+        if hidden.is_pc:
+            hide_pool = hidden.attrs[cfg.AT_WIT] + hidden.disciplines.levels[cfg.DISC_OBFUSCATE]
+        else:
+            obfu_stats = [sk for sk in hidden.special_skills if sk in CAction.SNEAK_VARIANTS]
+            hide_pool = max(obfu_stats)
+        if seer.is_pc:
+            seek_pool = seer.attrs[cfg.AT_WIT] + seer.disciplines.levels[cfg.DISC_AUSPEX]
+        else:
+            ausp_stats = [sk for sk in seer.special_skills if sk in CAction.DETECTION_VARIANTS]
+            seek_pool = max(ausp_stats)
+        roll_result = diceroller.contest(pool1=seek_pool, pool2=hide_pool, hunger=pc.hunger, include_hunger=seer.is_pc)
+        return roll_result.margin > -1
 
 
-label roll_control(pool_str, test_str, pool_mod=None):
+label roll_control(pool_str, test_str, pool_mod=None, npc_only=False, win_on_tie=True):
 
     python:
         if not state.diceroller:
             state.diceroller = game.DiceRoller()
             state.diceroller_creation_count += 1
-            print("\n\nCREATED NEW DICEROLLER for time #{}".format(state.diceroller_creation_count), state.diceroller)
         if not state.pc:
             state.pc = game.PlayerChar(anames=state.attr_names, snames=state.skill_names, dnames=state.discipline_names)
 
@@ -351,7 +377,12 @@ label roll_control(pool_str, test_str, pool_mod=None):
             pool_str, has_opp=(cfg.ROLL_CONTEST in test_str), pool_mod=pool_mod,
             surge=state.blood_surge_active
         )
-        state.roll_bones(opp_pool=opool, difficulty=diff)
+        state.roll_bones(opp_pool=opool, difficulty=diff, win_on_tie=win_on_tie)
+
+    if npc_only:
+        if not cfg.DEV_MODE:
+            $ renpy.block_rollback()
+        jump .end_npc_clash
 
     label .choices:
 
@@ -416,3 +447,9 @@ label roll_control(pool_str, test_str, pool_mod=None):
         hide roll_desc
 
         return hungrier
+
+    label .end_npc_clash:
+
+        hide roll_desc
+
+        return state.current_roll

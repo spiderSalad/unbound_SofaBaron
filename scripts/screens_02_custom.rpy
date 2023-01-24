@@ -18,7 +18,7 @@ screen tl_corner_hud(*args):
 
 
 screen dev_panel(*args):
-    frame id "call_stack_readout" align (0.0, 0.18) xysize (350, 280) background Frame("gui/frame.png"):
+    frame id "call_stack_readout" align (0.0, 0.06) xysize (500, 180) background Frame("gui/frame.png"):
         padding (7, 5)
         margin (5, 0)
         xfill False
@@ -26,11 +26,64 @@ screen dev_panel(*args):
 
         $ state = renpy.store.state
         $ stack_string = state.get_call_stack_str()
+        side "c l":
+            viewport id "call_stack_list" draggable True mousewheel True:# scrollbars "vertical":
+                frame padding (7, 0) background None:
+                    text "[stack_string]" text_align 0.0 align (0.1, 0.1) size 16
+            vbar value YScrollValue("call_stack_list")
 
-        text "[stack_string]" text_align 0.5 align (0.1, 0.1) size 16
+    frame id "second_dev_readout" align (0.0, 0.3) xysize (600, 250) background Frame("gui/frame.png"):
+        margin (5, 0)
+        padding (7, 5)
+        xfill False
+        yfill False
+        python:
+            state, ro_text_main, ao_r, rosters_r = renpy.store.state, "", "", ""
 
-    # frame id "second_dev_readout" align (0.0, 0.5) xysize (300, 200) background Frame("gui/frame.png"):
-    #     margin (5, 0)
+            # ent_format = lambda ent: " {}   {}".format(">" if state.arena.get_up_next() is ent else " ", ent.name)
+            def ent_format(ent, show_stats=False):
+                if ent.dead:
+                    key = "X"
+                elif state.arena.get_up_next() is ent:
+                    key = ">"
+                else:
+                    key = "  "
+                status_l, status_r, eng = " [ {} ] ".format(ent.current_pos), "", "[e]" if ent.engaged else ""
+                if show_stats:
+                    if ent.dead:
+                        status_r = "  (dead)"
+                    else:
+                        spf, agg, clear, total = ent.hp.spf_damage, ent.hp.agg_damage, ent.hp.undamaged, ent.hp.total
+                        # status_r = "  ({} spf + {} agg/{} hp)  [ {} ]{}".format(
+                            # spf, agg, total, ent.current_pos, eng
+                        # )
+                        status_r = "  (hp: {})   {}".format(ent.hp, eng)
+                return " {0}{1}   {2: <8}{3}".format(key, status_l, ent.name, status_r)
+
+            if not hasattr(state, "arena") or not state.arena:
+                ro_text_main = "Battle engine not initialized."
+            elif state.arena.battle_end:
+                ro_text_main = "Battle engine initialized & g2g."
+            else:
+                ro_text_main = "Ongoing battle: R{}, T{}\n".format(state.arena.round+1, state.arena.ao_index+1)
+                ro_text_main += "round order:  " + ",  ".join(state.arena.round_order)
+                ao_r = "act order:\n\n" + "\n".join([ent_format(ent) for ent in state.arena.action_order])
+                pc_team, enemies = state.arena.pc_team, state.arena.enemies
+                rosters_r = "Team Rosters:\n\n"
+                rosters_r += "PC Team:\n" + "\n".join([ent_format(ent, True) for ent in pc_team]) + "\n"
+                rosters_r += "Enemies:\n" + "\n".join([ent_format(ent, True) for ent in enemies]) + "\n"
+                ro_text_main += "..."
+        side "c l":
+            viewport id "battle_readout_list" draggable True mousewheel True:
+                frame padding (7, 0) background None:
+                    vbox spacing 15:
+                        text "[ro_text_main]" text_align 0.0 align (0.1, 0.1) size 16
+                        hbox spacing 20:
+                            text "[rosters_r]" text_align 0.0 yalign 0.0 size 16
+                            text "[ao_r]" text_align 0.0 yalign 0.0 size 16
+            vbar value YScrollValue("battle_readout_list")
+
+
 
 
 screen bl_corner_panel(*args):
@@ -39,6 +92,9 @@ screen bl_corner_panel(*args):
         padding (10, 15)
         margin (5, 0)
         python:
+            state, Inventory = renpy.store.state, renpy.store.game.Inventory
+            pc, qb_key = state.pc, ""
+            equipped = pc.inventory.equipped
             surge_tooltip = "Risk Hunger to transcend the limitations of the human body and mind.\n\n(+2 dice to next roll)"
             bs_action, surge_prompt = None, "Can't Rouse..."
             if not state.blood_surge_active and state.blood_surge_enabled:
@@ -50,12 +106,20 @@ screen bl_corner_panel(*args):
             viewport id "contextual_actions_list" draggable True mousewheel True:# scrollbars "vertical":
                 vbox spacing 5 align (0.5, 0.5) yfill False box_reverse True:
                     use hovertext("{}".format(surge_prompt), tooltip=surge_tooltip, _action=bs_action)
-                    for i in range(3, 4):
-                        use hovertext("Option {}".format(i), tooltip="dafuq", _style="medium")
+                    for item_slot in equipped:  # Add quickbar later
+                        $ item, qb_key = equipped[item_slot] if equipped[item_slot] else None, ""
+                        if item and item_slot in [Inventory.EQ_CONSUMABLE_1, Inventory.EQ_CONSUMABLE_2]:
+                            $ qb_key = " (x{})".format(equipped[item_slot].quantity)
+                        elif item_slot == Inventory.EQ_WEAPON:
+                            $ qb_key = " (Held)"
+                        elif item_slot == Inventory.EQ_WEAPON:
+                            $ qb_key = " (Sidearm)"
+                        if item:
+                            use hovertext("{}{}".format(item.name, qb_key), tooltip=item.desc, _action=None)
                     for disc in pc.disciplines.get_unlocked():
                         for pow_level in pc.disciplines.pc_powers[disc]:
                             $ power = pc.disciplines.pc_powers[disc][pow_level]
-                            if power:
+                            if power and state.context_relevant(power):
                                 use hovertext("{} ({})".format(power, disc), tooltip="da powah", _action=None)
             vbar value YScrollValue("contextual_actions_list")
 
@@ -532,7 +596,7 @@ screen powerSelectTree(dname, *args):
         access_token = state.pc.disciplines.access[dname]
         title_tt = cfg.TOOLTIP_TABLE[access_token]
 
-    window id "powertree_main" align (0.82, 0.1) xysize (gui.codex_base_width, 700) padding (15, 10):  # TODO: here, no really!
+    window id "powertree_main" align (0.82, 0.1) xysize (gui.codex_base_width, 700) padding (15, 10):
         style style.codex_panel_frame
         background Frame("gui/nvl.png", 5, 5, 5, 5)
         modal False
