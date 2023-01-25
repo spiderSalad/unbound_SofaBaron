@@ -89,11 +89,11 @@ init 1 python in game:
         RESULT_ANY_WIN = [RESULT_WIN, RESULT_CRIT, RESULT_MESSY_CRIT]
         RESULT_ANY_FAIL = [RESULT_FAIL, RESULT_BESTIAL_FAIL]
 
-        def __init__(self, pool, difficulty, hunger=1, include_hunger=True, win_on_tie=True):
+        def __init__(self, pool, difficulty, hunger=1, include_hunger=True, win_threshold=0):
             self.hunger = int(hunger) if include_hunger else 0
             self.pool, self.difficulty = int(pool), int(difficulty)
             self.opp_ws = None
-            self.win_threshold = 0 if win_on_tie else 1
+            self.win_threshold = win_threshold
             self.red_results, self.red_ones, self.red_tens = [], 0, 0
             self.black_tens, self.black_failures = 0, 0
             self.result_descriptor = V5DiceRoll.RESULT_FAIL
@@ -157,15 +157,20 @@ init 1 python in game:
                 self.can_reroll_to_avert_mc = True
             return self.current_roll
 
-        def contest(self, pool1, pool2, hunger=1, include_hunger=True, win_on_tie=True):
+        def contest(self, pool1, pool2, hunger=1, include_hunger=True, npc_atk=False):
             if int(pool1) < 1:
                 pool1 = 1
             self.can_reroll_to_improve = self.can_reroll_to_avert_mc = False
+            # if not npc_atk:
             self.current_opp_roll = V5DiceRoll(int(pool2), 0, include_hunger=False)
+            threshold = 1 if npc_atk else 0
             self.current_roll = V5DiceRoll(
                 int(pool1), self.current_opp_roll.num_successes, hunger=hunger,
-                include_hunger=include_hunger, win_on_tie=win_on_tie
+                include_hunger=include_hunger, win_threshold=threshold
             )
+            # else:
+                # self.current_opp_roll = V5DiceRoll(int(pool2), 0, hunger=hunger, include_hunger=include_hunger)
+                # self.current_roll = V5DiceRoll(int(pool1), self.current_opp_roll.num_successes, include_hunger=False)
             margin = self.current_roll.num_successes - self.current_opp_roll.num_successes
             self.current_roll.margin = margin
             self.current_roll.opp_ws = self.current_opp_roll.num_successes
@@ -250,17 +255,17 @@ init python in state:
     def available_pc_will():
         return pc.will.boxes - (pc.will.spf_damage + pc.will.agg_damage)
 
-    def roll_bones(opp_pool=None, difficulty=None, win_on_tie=True):
+    def roll_bones(opp_pool=None, difficulty=None, npc_attacker=False):
         # roll_config = get_roll_summary_object(player_pool, True if opp_pool else False)
         global current_roll
         global roll_config
 
         del current_roll
 
-        if opp_pool:
-            current_roll = diceroller.contest(
-                pool1=roll_config.num_dice, pool2=opp_pool, hunger=pc.hunger, win_on_tie=win_on_tie
-            )
+        if opp_pool and not npc_attacker:
+            current_roll = diceroller.contest(pool1=roll_config.num_dice, pool2=opp_pool, hunger=pc.hunger)
+        elif opp_pool:
+            current_roll = diceroller.contest(pool1=roll_config.num_dice, pool2=opp_pool, hunger=pc.hunger, npc_atk=True)
         elif difficulty:
             current_roll = diceroller.test(roll_config.num_dice, difficulty=difficulty, hunger=pc.hunger)
         else:
@@ -354,7 +359,7 @@ init python in state:
         return roll_result.margin > -1
 
 
-label roll_control(pool_str, test_str, pool_mod=None, npc_only=False, win_on_tie=True):
+label roll_control(pool_str, test_str, pool_mod=None, npc_attacker=False, npc_only=False):
 
     python:
         if not state.diceroller:
@@ -369,15 +374,18 @@ label roll_control(pool_str, test_str, pool_mod=None, npc_only=False, win_on_tie
 
     python:
         diff, opool = None, None
-        if cfg.ROLL_CONTEST in test_str:
-            opool = str(test_str).split(cfg.ROLL_CONTEST)[1]
+        if not npc_attacker:
+            rco_pool = pool_str
+            if cfg.ROLL_CONTEST in test_str:
+                opool, is_contest = str(test_str).split(cfg.ROLL_CONTEST)[1], True
+            else:  #cfg.ROLL_TEST in test_str:
+                diff, is_contest = str(test_str).split(cfg.ROLL_TEST)[1], False
         else:
-            diff = str(test_str).split(cfg.ROLL_TEST)[1]
+            rco_pool, opool, is_contest = test_str, str(pool_str).split(cfg.ROLL_CONTEST)[1], True
         state.roll_config = renpy.store.game.RollConfig(
-            pool_str, has_opp=(cfg.ROLL_CONTEST in test_str), pool_mod=pool_mod,
-            surge=state.blood_surge_active
+            rco_pool, has_opp=is_contest, pool_mod=pool_mod, surge=state.blood_surge_active
         )
-        state.roll_bones(opp_pool=opool, difficulty=diff, win_on_tie=win_on_tie)
+        state.roll_bones(opp_pool=opool, difficulty=diff, npc_attacker=npc_attacker)
 
     if npc_only:
         if not cfg.DEV_MODE:

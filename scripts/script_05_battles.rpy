@@ -4,7 +4,7 @@ label combat_test_scenario_1:
         cfg, utils, state, game = renpy.store.cfg, renpy.store.utils, renpy.store.state, renpy.store.game
         pc, CAction, Weapon = state.pc, game.CAction, game.Weapon
 
-        if not hasattr(state, "arena"):
+        if not hasattr(state, "arena") or not state.arena:
             state.arena = game.BattleArena()
 
         # Fighters are brawlers by default.
@@ -63,6 +63,8 @@ label combat_test_scenario_1:
                     close_enough.append(enemy)
                 else:
                     at_range.append(enemy)
+            can_attack_ranged = not pc.engaged and state.pc_has_ranged_attack()
+            can_throw = can_attack_ranged and (pc.held.throwable or pc.sidearm.throwable)
 
         menu:
             "What will you do?"
@@ -98,18 +100,28 @@ label combat_test_scenario_1:
                     pc_atk = CAction(CAction.MELEE_ATTACK, target, user=pc, pool=pa_pool)
                 "you attack a random target in melee"
 
-            "Shoot at them" if not pc.engaged and state.pc_has_ranged_attack() and at_range:
+            "Shoot at them" if at_range and can_attack_ranged:
                 $ target = utils.get_random_list_elem(at_range)[0]
                 $ pa_pool, dmg_type = "dexterity+firearms", cfg.DMG_AGG if target.mortal else cfg.DMG_SPF
                 $ pc_atk = CAction(CAction.RANGED_ATTACK, target, user=pc, pool=pa_pool)
                 "you draw your gun and fire at a random enemy"
+
+            "Throw something!" if at_range and can_throw:
+                python:
+                    target = utils.get_random_list_elem(at_range)[0]
+                    pa_pool, dmg_type = "dexterity+athletics", cfg.DMG_AGG if target.mortal else cfg.DMG_SPF
+                    pc_atk = CAction(
+                        CAction.RANGED_ATTACK, target, user=pc, pool=pa_pool,
+                        use_held_weapon=pc.held.throwable, use_sidearm=pc.sidearm.throwable
+                    )
+                "you throw something, like maybe a knife"
 
             "Pass turn":
                 "Reckless haste will get you killed..."
                 jump .pass_turn_submenu
 
             "Run":
-                "you run, like a little bitch"
+                "run awaaaaaaaaaaaayyyyy"
                 jump .end
 
     label .pc_attack_post:
@@ -153,8 +165,10 @@ label combat_test_scenario_1:
             atk_pool, attacker = "pool{}".format(atk_action.pool), atk_action.user
             can_counter_melee = attacker.current_pos == pc.current_pos
             can_counter_ranged = not pc.engaged and state.pc_has_ranged_attack()
+            can_throw = can_counter_ranged and (pc.held.throwable or pc.sidearm.throwable)
 
         menu:
+            # TODO: specify attack type/weapon, for narrative use later and for user benefit
             "You're being attacked by [attacker.name]! Oh shit what you gonna do?!"
 
             "Dodge  (Dexterity + Athletics)":  # Only defense that's always available.
@@ -182,9 +196,17 @@ label combat_test_scenario_1:
                 "you bust back"
                 # jump .pc_defend_post
 
+            "Throw something!" if can_throw:
+                python:
+                    pd_pool = "dexterity+athletics"
+                    pc_def = CAction(
+                        CAction.RANGED_ATTACK, atk_action.user, user=pc, defending=True, pool=pd_pool,
+                        use_held_weapon=pc.held.throwable, use_sidearm=pc.sidearm.throwable
+                    )
+
     label .pc_defend_post:
 
-        call roll_control(pd_pool, atk_pool, win_on_tie=False) from combat_gen_pc_defense_test2
+        call roll_control(atk_pool, pd_pool, npc_attacker=True) from combat_gen_pc_defense_test2
         $ roll_result = _return
         $ report = state.arena.process_new_result(roll_result, atk_action, pc_def)
 
@@ -203,7 +225,7 @@ label devtests:
 
     label .dt_combat_a1:
         python:
-            Supply, Weapon = game.Supply, game.Weapon
+            Supply, Weapon, Inventory = game.Supply, game.Weapon, game.Inventory
             pc = state.pc
 
         menu:
@@ -227,8 +249,9 @@ label devtests:
                 python:
                     state.apply_test_build("Veteran", cfg.CLAN_VENTRUE, cfg.PT_ALLEYCAT, cfg.DISC_CELERITY)
                     knife = Weapon(Supply.IT_WEAPON, "Butterfly Knife", tier=1, dmg_bonus=1, concealable=True)
-                    gun = Weapon(Supply.IT_FIREARM, "9mm", tier=2, dmg_bonus=2)
+                    gun = Weapon(Supply.IT_FIREARM, "Glock 19", tier=2, dmg_bonus=2)  # glock 19 uses 9mm ammo
                     state.give_item(knife, gun, equip_it=True)
+                    pc.inventory.equip(gun, Inventory.EQ_WEAPON_ALT)
                     pc.disciplines.unlock_power(cfg.DISC_FORTITUDE, cfg.POWER_FORTITUDE_HP)
                     pc.disciplines.unlock_power(cfg.DISC_FORTITUDE, cfg.POWER_FORTITUDE_TOUGH)
                     pc.disciplines.unlock_power(cfg.DISC_DOMINATE, cfg.POWER_DOMINATE_COMPEL)

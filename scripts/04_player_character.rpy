@@ -272,6 +272,18 @@ init 1 python in game:
         def backgrounds(self):
             return self._backgrounds
 
+        @property
+        def held(self):
+            if self.inventory:
+                return self.inventory.held
+            return None
+
+        @property
+        def sidearm(self):
+            if self.inventory:
+                return self.inventory.sidearm
+            return None
+
         def reset_charsheet_stats(self):
             for aname in self.anames:
                 self.attrs[aname] = cfg.MIN_SCORE_ATTR
@@ -565,6 +577,14 @@ init 1 python in game:
                     if item.key == key:
                         return True
             return False
+
+        @property
+        def held(self):
+            return self._equipped[Inventory.EQ_WEAPON]
+
+        @property
+        def sidearm(self):
+            return self._equipped[Inventory.EQ_WEAPON_ALT]
 
         def add(self, new_item: Supply):
             if new_item.item_type == Supply.IT_MONEY:

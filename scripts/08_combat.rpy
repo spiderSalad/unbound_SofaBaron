@@ -61,26 +61,29 @@ init 1 python in game:
         OUCH = [MELEE_ATTACK, RANGED_ATTACK, SPECIAL_ATTACK]
         NO_CONTEST = [NO_ACTION, FALL_BACK]
 
-        def __init__(self, action_type, target:Entity, user=None, defending=False, pool=None, lethality=None, subtype=None):
+        def __init__(self, action_type, target:Entity, user=None, defending=False, pool=None, subtype=None, use_held_weapon=True, use_sidearm=False, lethality=None):
             self.action_type = action_type  # Should be one of above types; subtype should be a discipline power or similar or None.
             self.pool = pool
             self.target, self.defending = target, defending
             self.user = user
             self.action_label = subtype
+            self.weapon_used = None
             if self.action_type is None and self.action_label is None:
                 raise ValueError("At least one of 'action_type' and 'action_label' must be defined; they can't both be empty!")
             elif self.action_type is None:
                 self.action_type = self.evaluate_type()
             # ---
             self.dmg_bonus, self.lethality = 0, 1
+            if use_held_weapon and user.is_pc and user.held:
+                self.weapon_used = user.held
+            elif use_sidearm and user.is_pc and user.sidearm:
+                self.weapon_used = user.sidearm
+
+            self.dmg_bonus = 0
             if hasattr(self.user, "npc_dmg_bonus"):
                 self.dmg_bonus, self.lethality = self.user.npc_dmg_bonus, self.user.npc_atk_lethality
-            elif self.user.inventory and hasattr(self.user.inventory, "equipped"):
-                equipment, self.dmg_bonus = self.user.inventory.equipped, 0
-                if Inventory.EQ_WEAPON in equipment and equipment[Inventory.EQ_WEAPON]:
-                    hwep, atype = equipment[Inventory.EQ_WEAPON], self.action_type
-                    if atype == CAction.MELEE_ATTACK or hwep.item_type == Supply.IT_FIREARM or hwep.throwable:
-                        self.dmg_bonus, self.lethality = hwep.dmg_bonus, hwep.lethality
+            elif self.weapon_used:
+                self.dmg_bonus, self.lethality = self.weapon_used.dmg_bonus, self.weapon_used.lethality
             # TODO: add checks for active buffs e.g. Fist of Caine.
             if lethality is not None:  # If lethality value is passed it overrides other sources.
                 self.lethality = lethality
@@ -128,21 +131,66 @@ init 1 python in game:
             return False
 
 
-    # TODO: delete this nephew
-    at_trl = {
-        CAction.MELEE_ENGAGE: "Rush",
-        CAction.MELEE_ATTACK: "Melee",
-        CAction.RANGED_ATTACK: "Ranged",
-        CAction.DODGE: "Dodge",
-        CAction.ESCAPE_ATTEMPT: "Flee",
-        CAction.SPECIAL_ATTACK: "Special",
-        CAction.FALL_BACK: "Slink Back",
-        CAction.NO_ACTION: "No Action",
+    class ClashTracker:
+        DEV_REPORT_FLAGS = {
+            CAction.MELEE_ENGAGE: "Rush",
+            CAction.MELEE_ATTACK: "Melee",
+            CAction.RANGED_ATTACK: "Ranged",
+            CAction.DODGE: "Dodge",
+            CAction.ESCAPE_ATTEMPT: "Flee",
+            CAction.SPECIAL_ATTACK: "Special",
+            CAction.FALL_BACK: "Slink Back",
+            CAction.NO_ACTION: "No Action",
 
-        cfg.DMG_SPF: "spf dmg",
-        cfg.DMG_FULL_SPF: "full spf dmg",
-        cfg.DMG_AGG: "agg dmg"
-    }
+            cfg.DMG_SPF: "spf dmg",
+            cfg.DMG_FULL_SPF: "full spf dmg",
+            cfg.DMG_AGG: "agg dmg",
+            cfg.DMG_NONE: "None"
+        }
+
+        def __init__(self, dfa=None, dfd=None, dbfa=None, dbfd=None):
+            self.dmg_atk, self.dmg_def = None, None
+            self.dtype_atk, self.dtype_def = cfg.DMG_NONE, cfg.DMG_NONE
+            self.dmg_bonus_atk, self.dmg_bonus_def = None, None
+            self.report_str_atk, self.report_str_def = "", ""
+
+        def reset(self):
+            self.dmg_atk, self.dmg_def = None, None
+            self.dtype_atk, self.dtype_def = cfg.DMG_NONE, cfg.DMG_NONE
+            self.dmg_bonus_atk, self.dmg_bonus_def = None, None
+            self.report_str_atk, self.report_str_def = "", ""
+
+        def set_damage_flags(self, margin, atk_action, def_action):
+            self.reset()
+            at_trl = ClashTracker.DEV_REPORT_FLAGS
+            if margin >= 0:
+                damage_val = margin if margin != 0 else 1
+                self.dmg_atk, self.dtype_atk = damage_val + atk_action.dmg_bonus, atk_action.dmg_type
+                self.dmg_bonus_atk = atk_action.dmg_bonus
+                self.report_str_atk = "{}{}".format(self.dmg_atk, at_trl[self.dtype_atk])
+                if self.dtype_atk == cfg.DMG_SPF:
+                    self.report_str_atk += " =/=> {}".format(math.ceil(float(self.dmg_atk) / 2))
+                if atk_action.weapon_used:
+                    weapon_str = "+{} dmg from {}".format(self.dmg_bonus_atk, atk_action.weapon_used.name)
+                    self.report_str_atk = weapon_str + self.report_str_atk
+                elif atk_action.dmg_bonus > 0:
+                    weapon_str = "+{} dmg (no weapon?)".format(self.dmg_bonus_atk)
+                    self.report_str_atk = weapon_str + self.report_str_atk
+            print("\n\nSEMEN CONTENT: {}".format(margin))
+            if margin <= 0:
+                damage_val = abs(margin) if margin != 0 else 1
+                self.dmg_def, self.dtype_def = damage_val + def_action.dmg_bonus, def_action.dmg_type
+                print("\nself.dmg_def = {}, self.dtype_def = {}".format(self.dmg_def, self.dtype_def))
+                self.dmg_bonus_def = def_action.dmg_bonus
+                self.report_str_def = "{}{}".format(self.dmg_def, at_trl[self.dtype_def])
+                if self.dtype_def == cfg.DMG_SPF:
+                    self.report_str_def += " =/=> {}".format(math.ceil(float(self.dmg_def) / 2))
+                if def_action.weapon_used:
+                    weapon_str = "+{} dmg from {}".format(self.dmg_bonus_def, def_action.weapon_used.name)
+                    self.report_str_def = weapon_str + self.report_str_def
+                elif def_action.dmg_bonus > 0:
+                    weapon_str = "+{} dmg (no weapon?)".format(self.dmg_bonus_def)
+                    self.report_str_def = weapon_str + self.report_str_def
 
 
     class BattleArena:
@@ -157,7 +205,7 @@ init 1 python in game:
             self.player_directive = None
             self.pc_team, self.enemies = [], []
             self.action_order, self.ao_index = [], 0
-            self.dmg_flag, self.dmg_bonus_flag = None, None
+            self.clash_tracker = ClashTracker()
             #
             if not state.diceroller:
                 state.diceroller = DiceRoller()
@@ -252,13 +300,13 @@ init 1 python in game:
             if atk_action.action_type not in CAction.NO_CONTEST:
                 if def_action.user.is_pc or (atk_action.target.is_pc and not atk_action.user.is_pc):
                     margin_threshold = 1
-            self.handle_clash(roll_result, atk_action, def_action, mt=margin_threshold)
+            self.handle_clash(roll_result, atk_action, def_action)
             self.ao_index += 1
             return self.report(roll_result, atk_action, def_action)
 
-        def handle_clash(self, roll_result, atk_action, def_action, mt=0):
+        def handle_clash(self, roll_result, atk_action, def_action):
             atype, dtype = atk_action.action_type, def_action.action_type if def_action else None
-            self.dmg_flag = 0
+            self.clash_tracker.reset()
             # track = cfg.TRACK_HP  # TODO: add conditions for mental attacks dealing willpower damage here
 
             if atype == CAction.MELEE_ENGAGE:  # Melee Engage always behaves the same regardless of defense action.
@@ -275,45 +323,52 @@ init 1 python in game:
             else:
                 raise ValueError("\"{}\" is not a valid action type!".format(atype))
 
-        def handle_melee_engage(self, rolled, atk_action, def_action, mt=0):
+        def handle_melee_engage(self, rolled, atk_action, def_action):
             # Always move to the target's position and engage self, but only engage them if successful.
             margin = rolled.margin * (-1 if self.attack_on_pc(atk_action) else 1)
-            self.dmg_flag = None
+            # margin = rolled.margin
+            print("\n(hme) MARGIN = {}".format(margin))
             atk_action.user.current_pos = atk_action.target.current_pos
             atk_action.user.engaged.append(atk_action.target)
-            if margin >= mt:
+            if margin >= 0:
                 atk_action.target.engaged.append(atk_action.user)
             elif def_action.action_type in CAction.OUCH:
                 self.deal_damage(margin, atk_action, def_action)
             else:
-                print("Failed melee engage against non-damaging attack.")
+                utils.log("Failed melee engage against non-damaging attack.")
 
-        def handle_ranged_attack(self, rolled, atk_action, def_action, mt=0):
+        def handle_ranged_attack(self, rolled, atk_action, def_action):
             margin = rolled.margin * (-1 if self.attack_on_pc(atk_action) else 1)
-            if margin >= mt:  # If a ranged attack lands nothing else matters.
+            # margin = rolled.margin
+            print("\n(hra) MARGIN = {}".format(margin))
+            if margin > 0:  # If a ranged attack lands nothing else matters.
                 self.deal_damage(margin, atk_action, def_action)
             else:  # If it fails, it may matter if the response is a ranged attack.
                 if def_action.action_type == CAction.RANGED_ATTACK:
                     self.deal_damage(margin, atk_action, def_action)
                 elif def_action.action_type in CAction.OUCH and atk_action.user.current_pos == atk_action.target.current_pos:
                     self.deal_damage(margin, atk_action, def_action)
+                elif margin == 0:  # A tie with a ranged attack & non-damaging defense => win at margin 0.
+                    self.deal_damage(margin, atk_action, def_action)
                 else:
-                    self.dmg_flag = None
-                    print("Failed ranged attack with non-damaging response.")
+                    utils.log("Failed ranged attack with non-damaging response.")
 
-        def handle_melee_attack(self, rolled, atk_action, def_action, mt=0):
+        def handle_melee_attack(self, rolled, atk_action, def_action):
             margin = rolled.margin * (-1 if self.attack_on_pc(atk_action) else 1)
+            # margin = rolled.margin
+            print("\n(hma) MARGIN = {}".format(margin))
             if atk_action.user.current_pos != atk_action.target.current_pos:
-                print("Melee attack launched against out-of-position target. This shouldn't ever be reached.")
+                utils.log("Melee attack launched against out-of-position target. This shouldn't ever be reached.")
                 return
             atk_action.user.engaged.append(atk_action.target)
-            if margin >= mt:  # Successful melee attack engages both user and target.
+            if margin > 0:  # Successful melee attack engages both user and target.
                 atk_action.target.engaged.append(atk_action.user)
                 self.deal_damage(margin, atk_action, def_action)
             elif def_action.action_type in CAction.OUCH:
                 self.deal_damage(margin, atk_action, def_action)
+            elif margin == 0:
+                self.deal_damage(margin, atk_action, def_action)
             else:
-                self.dmg_flag = None
                 print("Failed melee attack with non-damaging response.")
 
         def handle_special_attack(self, rolled, atk_action, def_action):
@@ -329,17 +384,16 @@ init 1 python in game:
         def attack_on_pc(self, atk_action):
             return atk_action.target.is_pc and not atk_action.user.is_pc
 
-        def deal_damage(self, margin, atk_action, def_action, track=cfg.TRACK_HP, mt=0):
-            if margin >= mt:
-                target, dmg_type, dmg_bonus = atk_action.target, atk_action.dmg_type, atk_action.dmg_bonus
-            else:
-                target, dmg_type, dmg_bonus = atk_action.user, def_action.dmg_type, def_action.dmg_bonus
-            self.dmg_bonus_flag = "+{} dmg".format(dmg_bonus)
-            self.dmg_flag, df_append = max(1, abs(margin)) + dmg_bonus, "{}".format(at_trl[dmg_type])
-            if dmg_type == cfg.DMG_SPF:
-                df_append += " =/=> {}".format(math.ceil(float(self.dmg_flag) / 2))
-            state.deal_damage(track, dmg_type, self.dmg_flag, source="Combat", target=target)
-            self.dmg_flag = str(self.dmg_flag) + df_append
+        def deal_damage(self, margin, atk_action, def_action, track=cfg.TRACK_HP):
+            self.clash_tracker.set_damage_flags(margin, atk_action, def_action)
+            target, target_2 = atk_action.target, atk_action.user
+            dmg_atk, dmg_def = self.clash_tracker.dmg_atk, self.clash_tracker.dmg_def
+            if margin >= 0:
+                print("\n--> DEAL DAMAGE: (+marg) {} of type {}".format(dmg_atk, self.clash_tracker.dtype_atk))
+                state.deal_damage(track, self.clash_tracker.dtype_atk, dmg_atk, source="Combat", target=target)
+            if margin <= 0:
+                print("\n--> DEAL DAMAGE (-marg): {} of type {}".format(dmg_def, self.clash_tracker.dtype_def))
+                state.deal_damage(track, self.clash_tracker.dtype_def, dmg_def, source="Combat", target=target_2)
 
         def report(self, roll, atk_action, def_action):
             rep_round, rep_ao_index = self.round + 1, self.ao_index
@@ -353,21 +407,26 @@ init 1 python in game:
                 rpt_str = rpt_template.format(atk_action.user, pass_str)
                 return rpt_str
             # rpt_template = "R{}, T{}/{} | {} ({}) => {} ({}). | margin of {} ({}/{} vs {}/{}) (dmg: {})"
-            rpt_template = "{} ({}) => {} ({}). | margin of {} ({}/{} vs {}/{}) ({}) => {}"
+            rpt_template = "{} ({}) => {} ({}). | margin of {} ({}/{} vs {}/{}) {}{}"
             if self.attack_on_pc(atk_action):
                 r1, r2, r3, r4, r5 = roll.margin * -1, roll.opp_ws, atk_action.pool, roll.num_successes, roll.pool
             else:
                 r1, r2, r3, r4, r5 = roll.margin, roll.num_successes, roll.pool, roll.opp_ws, def_action.pool,
+            atype = ClashTracker.DEV_REPORT_FLAGS[atk_action.action_type]
+            dtype = ClashTracker.DEV_REPORT_FLAGS[def_action.action_type]
+            rep_atk_str, rep_def_str = "", ""
+            if self.clash_tracker.report_str_atk:
+                rep_atk_str = "({})".format(self.clash_tracker.report_str_atk)
+            if self.clash_tracker.report_str_def:
+                rep_def_str = " / ({})".format(self.clash_tracker.report_str_def)
             rpt_str = rpt_template.format(
                 # rep_round, rep_ao_index, len(self.action_order),
-                atk_action.user.name, at_trl[atk_action.action_type],
-                atk_action.target.name, at_trl[def_action.action_type], r1, r2, r3, r4, r5,
-                self.dmg_bonus_flag, self.dmg_flag
+                atk_action.user.name, atype, atk_action.target.name, dtype, r1, r2, r3, r4, r5, rep_atk_str, rep_def_str
             )
             return rpt_str
 
         def battle_end_cleanup(self):
-            self.dmg_flag, self.dmg_bonus_flag = None, None
+            self.clash_tracker.reset()
             for entity in (self.pc_team + self.enemies):
                 entity.engaged = []
                 entity.current_pos = None

@@ -97,6 +97,7 @@ screen bl_corner_panel(*args):
             equipped = pc.inventory.equipped
             surge_tooltip = "Risk Hunger to transcend the limitations of the human body and mind.\n\n(+2 dice to next roll)"
             bs_action, surge_prompt = None, "Can't Rouse..."
+            sw_action, item_action = Function(state.switch_weapons), None
             if not state.blood_surge_active and state.blood_surge_enabled:
                 surge_prompt = "Rouse the Blood?"
                 bs_action = Function(state.blood_surge, audio.heartbeat_faster_2)
@@ -106,16 +107,17 @@ screen bl_corner_panel(*args):
             viewport id "contextual_actions_list" draggable True mousewheel True:# scrollbars "vertical":
                 vbox spacing 5 align (0.5, 0.5) yfill False box_reverse True:
                     use hovertext("{}".format(surge_prompt), tooltip=surge_tooltip, _action=bs_action)
+                    $ print("\n\n")
                     for item_slot in equipped:  # Add quickbar later
                         $ item, qb_key = equipped[item_slot] if equipped[item_slot] else None, ""
+                        $ print("we have item {} at slot {}".format(item.name if item else None, item_slot))
                         if item and item_slot in [Inventory.EQ_CONSUMABLE_1, Inventory.EQ_CONSUMABLE_2]:
                             $ qb_key = " (x{})".format(equipped[item_slot].quantity)
-                        elif item_slot == Inventory.EQ_WEAPON:
-                            $ qb_key = " (Held)"
-                        elif item_slot == Inventory.EQ_WEAPON:
-                            $ qb_key = " (Sidearm)"
+                        elif item_slot in [Inventory.EQ_WEAPON, Inventory.EQ_WEAPON_ALT]:
+                            $ item_action = sw_action
+                            $ qb_key = "{b}At hand{/b}: " if item_slot == Inventory.EQ_WEAPON else "At side: "
                         if item:
-                            use hovertext("{}{}".format(item.name, qb_key), tooltip=item.desc, _action=None)
+                            use hovertext("{}{}".format(qb_key, item.name), tooltip=item.desc, _action=item_action)
                     for disc in pc.disciplines.get_unlocked():
                         for pow_level in pc.disciplines.pc_powers[disc]:
                             $ power = pc.disciplines.pc_powers[disc][pow_level]

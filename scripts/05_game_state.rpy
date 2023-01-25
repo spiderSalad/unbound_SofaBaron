@@ -1,6 +1,6 @@
 default state.pc                    = None
 default state.diceroller            = None
-default state.BattleArena           = None
+default state.arena                 = None
 default state.clock                 = None
 
 default state.night                 = 0
@@ -96,21 +96,21 @@ init 1 python in state:
             return True
         return False
 
-    def pc_has_ranged_weapon():
+    def pc_holding_ranged_weapon():
         if not hasattr(pc, "inventory") or not pc.inventory:
             return False
-        if Supply.IT_FIREARM in pc.inventory:
-            return True
-        throwing_weapons = [tw for tw in pc.inventory.items if tw.item_type == Supply.IT_WEAPON and tw.throwable]
-        if len(throwing_weapons) > 0:
+        held_weapon = pc.inventory.equipped[Inventory.EQ_WEAPON]
+        if not held_weapon:
+            return False
+        if held_weapon.item_type == Supply.IT_FIREARM or held_weapon.throwable:
             return True
         return False
 
-    def pc_has_ranged_power():
+    def pc_has_ranged_attack_power():
         return False  # TODO: add this
 
     def pc_has_ranged_attack():
-        return (pc_has_ranged_weapon() or pc_has_ranged_power())
+        return (pc_holding_ranged_weapon() or pc_has_ranged_attack_power())
 
     def set_hunger(delta, killed=False, innocent=False, ignore_killed=False):
         previous_hunger, hunger_floor = pc.hunger, cfg.HUNGER_MIN_KILL if killed or ignore_killed else cfg.HUNGER_MIN
@@ -263,6 +263,16 @@ init 1 python in state:
         for i, stack_layer in enumerate(stack):
             stack_str += "{}. {}\n".format(i+1, stack_layer)
         return stack_str
+
+    def switch_weapons(play_sound=True):
+        if in_combat and (not arena or arena.get_up_next() is not pc):
+            utils.log("Can only switch weapons in combat if it's your turn.")
+            return
+        temp_weapon = pc.inventory.equipped[Inventory.EQ_WEAPON]
+        pc.inventory.equipped[Inventory.EQ_WEAPON] = pc.inventory.equipped[Inventory.EQ_WEAPON_ALT]
+        pc.inventory.equipped[Inventory.EQ_WEAPON_ALT] = temp_weapon
+        if play_sound and False:
+            renpy.play(renpy.store.audio.gunrack, "sound")  # TODO: this sound doesn't exist; find it.
 
     def give_item(supply, *supplies, copy=True, equip_it=False, gift_sound=True):
         if pc.inventory is None:
