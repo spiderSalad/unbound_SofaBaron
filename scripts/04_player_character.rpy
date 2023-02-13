@@ -1,11 +1,10 @@
 init 1 python in game:
-    from math import ceil as math_ceil
 
     cfg, utils = renpy.store.cfg, renpy.store.utils
     # NOTE: this persists between game load/cycles, as it's run when Ren'py starts - NOT when the game starts.
 
 
-    class PCTracker(Tracker):
+    class PC_V5Tracker(V5Tracker):
         def __init__(self, pc, boxes: int, tracker_type: str, armor: int = 0, bonus: int = 0):
             super().__init__(char=pc, boxes=boxes, tracker_type=tracker_type, armor=armor, bonus=bonus)
 
@@ -14,6 +13,12 @@ init 1 python in game:
             if self.tracker_type == cfg.TRACK_HP:
                 return self.char.get_fort_toughness_armor()
             return self._armor
+
+        @property
+        def deathsave(self):
+            if self.tracker_type == cfg.TRACK_HP:
+                return self.char.get_fort_defybane_armor()
+            return self._deathsave
 
         @property
         def bonus(self):
@@ -107,6 +112,8 @@ init 1 python in game:
             # print(utils.json_prettify(self.power_choices, sort_keys=False))
 
         def power_unlocked_known_disc(self, power, disc):
+            if disc not in self.pc_powers or not self.pc_powers[disc] or not hasattr(self.pc_powers[disc], "values"):
+                return False
             if power in self.pc_powers[disc].values():
                 return True
             return False
@@ -124,7 +131,7 @@ init 1 python in game:
             if power in cfg.REF_DISC_POWER_PREREQS:
                 prereq_power = cfg.REF_DISC_POWER_PREREQS[power]
                 if not self.power_unlocked(prereq_power, dname):
-                    return False, "Should not be able to choose {} without prerequisite power {}".format(
+                    return False, "Should not be able to choose power \"{}\" without prerequisite power \"{}\"".format(
                         power, prereq_power
                     )
             return True, None
@@ -135,7 +142,7 @@ init 1 python in game:
                 # We don't check to make sure all power slots of amalgam discipline are filled to required level,
                 # only that the required number of dots is there.
                 if self.levels[amalg] < amalg_level:
-                    return False, "Cannot choose amalgam power {} with a {} level below {}.".format(
+                    return False, "Cannot choose amalgam power \"{}\" with a {} level below {}.".format(
                         power, amalg, amalg_level
                     )
             return True, None
@@ -198,17 +205,16 @@ init 1 python in game:
             super().__init__(ctype=cfg.CT_VAMPIRE, **kwargs)
             self.is_pc = True
             self.nickname = "That lick from around the way"
-            self.pronouns = {}  # TODO: implement this
             self.clan = None
             self.predator_type = None
             self.blood_potency = 1
             self._hunger = 1
             self._humanity = 7
-            self.hp, self.will = PCTracker(self, 3, cfg.TRACK_HP), PCTracker(self, 3, cfg.TRACK_WILL)
+            self.hp, self.will = PC_V5Tracker(self, 3, cfg.TRACK_HP), PC_V5Tracker(self, 3, cfg.TRACK_WILL)
             # self.crippled, self.shocked = False, False
             self.frenzied_bc_hunger, self.frenzied_bc_fear = False, False
             # self.dead, self.cause_of_death = False, None
-            self._status = "(All clear)"
+            # self._status = "(All clear)"
             self.clan_blurbs = {}
             self.anames, self.snames, self.dnames = anames, snames, dnames
             self.attrs = {}
@@ -218,6 +224,7 @@ init 1 python in game:
             self.disciplines = SuperpowerArsenal(self.dnames)
             self.disciplines.reset(hard_reset=True)
             self.inventory, self.equipped_weapon = None, None
+            self.lethal_body_active = False
             self.reset_charsheet_stats()
 
         @property
@@ -239,10 +246,10 @@ init 1 python in game:
             if self.shocked:
                 status_list.append("Shellshocked")
             if len(status_list) == 0:
-                self._status = "\"Fine\""
+                return "\"Fine\""
             else:
-                self._status = ", ".join(status_list)
-            return self._status
+                return ", ".join(status_list)
+            # return self._status
 
         @property
         def hunger(self):
@@ -257,7 +264,7 @@ init 1 python in game:
                 self.hunger = cfg.HUNGER_MAX
             else:
                 utils.log("Hunger now set at {}".format(self.hunger))
-                if self.frenzied_bc_hunger and  self.hunger < cfg.HUNGER_MAX_CALM:
+                if self.frenzied_bc_hunger and self.hunger < cfg.HUNGER_MAX_CALM:
                     self.frenzied_bc_hunger = False
 
         @property
@@ -372,6 +379,11 @@ init 1 python in game:
                 return 0
             return self.disciplines.levels[cfg.DISC_FORTITUDE]
 
+        def get_fort_defybane_armor(self):
+            if not self.has_disc_power(cfg.POWER_FORTITUDE_BANE, cfg.DISC_FORTITUDE):
+                return 0
+            return self.disciplines.levels[cfg.DISC_FORTITUDE]
+
         def has_disc_power(self, power, disc=None):
             return self.disciplines.power_unlocked(power, disc)
 
@@ -447,239 +459,6 @@ init 1 python in game:
             # self.cause_of_death = damage_source
             super().handle_demise(tracker_type=tracker_type, damage_source=damage_source)
             renpy.jump("end")
-
-
-    class Supply:
-        IT_MONEY = "Money"
-        IT_WEAPON = "Weapon"
-        IT_FIREARM = "Firearm"
-        IT_AMMO = "Ammunition"
-        IT_EQUIPMENT = "Equipment"
-        IT_QUEST = "Important"
-        IT_CONSUMABLE = "Consumable"
-        IT_MISC = "Miscellaneous"
-        IT_JUNK = "Junk"
-        IT_CLUE = "Clue"
-
-        ITEM_COLOR_KEYS = {
-            IT_MONEY: "#399642", IT_JUNK: "#707070", IT_CLUE: "#ffffff", IT_WEAPON: "#8f8f8f",
-            IT_EQUIPMENT: "#cbcbdc", IT_QUEST: "#763cb7", IT_MISC: "#cbcbdc", IT_FIREARM: "#71797E",
-            IT_AMMO: "#60686D", IT_CONSUMABLE: "#dcdced"
-        }
-
-        def __init__(self, type, name, key=None, num=1, desc=None, tier=1, **kwargs):
-            self.item_type = type
-            self.quantity = num
-            self.tier = tier
-            if self.item_type == Supply.IT_JUNK:
-                self.tier = 0
-            self.color_key = Supply.ITEM_COLOR_KEYS[self.item_type]
-            self.key = key
-            if self.key is None:
-                self.key = utils.generate_random_id_str(label="supply#{}".format(self.item_type))
-            self.name = name
-            if desc:
-                self.desc = desc
-            else:
-                self.desc = "({})".format(self.item_type)
-            for kwarg in kwargs:
-                setattr(self, kwarg, kwargs[kwarg])
-
-        def copy(self, item_base=None):
-            if item_base is None:
-                item_copy = Supply(self.item_type, self.name, num=self.quantity, desc=self.desc, tier=self.tier)
-            else:
-                item_copy = item_base
-            for attr in self.__dict__:
-                if not hasattr(item_copy, attr):
-                    setattr(item_copy, attr, getattr(self, attr))
-            return item_copy
-
-
-    class Weapon(Supply):
-        def __init__(self, type, name, key=None, num=1, desc=None, tier=1, dmg_bonus=0, lethality=None, **kwargs):
-            super().__init__(type, name, key=key, num=num, desc=desc, tier=tier, **kwargs)
-            self.dmg_bonus = dmg_bonus
-
-            # Guns are concealable unless stated otherwise and have a default lethality of 2.
-            if lethality is not None:
-                self.lethality = lethality
-            elif self.item_type == Supply.IT_FIREARM:
-                self.lethality = 2
-            else:
-                self.lethality = 1
-
-            # Melee weapons are not concealable by default and have a default lethality of 1.
-            if not hasattr(self, "concealable"):
-                self.concealable = (self.item_type == Supply.IT_FIREARM)
-            if not hasattr(self, "many"):
-                self.many = False
-            if not hasattr(self, "throwable"):
-                self.throwable = (self.item_type == Supply.IT_WEAPON and self.concealable and self.many)
-
-        def copy(self):
-            weapon_copy_base = Weapon(
-                self.item_type, self.name, num=self.quantity, desc=self.desc, tier=self.tier, dmg_bonus=self.dmg_bonus,
-                lethality = self.lethality
-            )
-            return super().copy(weapon_copy_base)
-
-        @staticmethod
-        def get_damage_type(lethality, target_creature_type):
-            mortal_target = target_creature_type in cfg.REF_MORTALS
-            if lethality >= 4:  # 4 = Always aggravated
-                return cfg.DMG_AGG
-            elif lethality == 3:  # 3 = Unhalved Superficial to vampires/Aggravated to mortals
-                return cfg.DMG_AGG if mortal_target else cfg.DMG_FULL_SPF
-            elif lethality == 2:  # 2 = Superficial to vampires/Aggravated to mortals
-                return cfg.DMG_AGG if mortal_target else cfg.DMG_SPF
-            elif lethality == 1:  # 1 = Always Superficial damage,
-                return cfg.DMG_SPF
-            else:  # 0 = Non-lethal damage? (not implemented)
-                return cfg.DMG_NONE
-
-
-    class Inventory:
-        ITEM_TYPES = [it for it in Supply.__dict__ if str(it).startswith("IT_")]
-        EQ_WEAPON = "weapon"
-        EQ_WEAPON_ALT = "sidearm"
-        EQ_TOOL_1 = "tool_slot_1"
-        EQ_TOOL_2 = "tool_slot_2"
-        EQ_CONSUMABLE_1 = "consumable_slot_1"
-        EQ_CONSUMABLE_2 = "consumable_slot_2"
-
-        def __init__(self, *items: Supply, **kwargs):
-            self._items = []
-            self._items += items
-            self._equipped = {
-                Inventory.EQ_WEAPON: None, Inventory.EQ_WEAPON_ALT: None, Inventory.EQ_TOOL_1: None,
-                Inventory.EQ_TOOL_2: None, Inventory.EQ_CONSUMABLE_1: None, Inventory.EQ_CONSUMABLE_2: None
-            }
-
-        @property
-        def items(self):
-            return self._items
-
-        @property
-        def equipped(self):
-            return self._equipped
-
-        def __len__(self):
-            return len(self.items)
-
-        def __contains__(self, key):
-            if key in Inventory.ITEM_TYPES:
-                for item in self.items:
-                    if item.item_type == key:
-                        return True
-            else:
-                for item in self.items:
-                    if item.key == key:
-                        return True
-            return False
-
-        @property
-        def held(self):
-            return self._equipped[Inventory.EQ_WEAPON]
-
-        @property
-        def sidearm(self):
-            return self._equipped[Inventory.EQ_WEAPON_ALT]
-
-        def add(self, new_item: Supply):
-            if new_item.item_type == Supply.IT_MONEY:
-                cash = next((it for it in self.items if it.item_type == Supply.IT_MONEY), None)
-                if cash is None:
-                    self._items.append(new_item)
-                else:
-                    cash.quantity += new_item.quantity
-                    if new_item.tier > cash.tier:
-                        cash.desc, cash.tier = new_item.desc, new_item.tier
-            else:
-                self._items.append(new_item)
-
-        def lose(self, ikey=None, itype=None, cash_amount=None, intended=False):
-            if ikey:
-                self._items = [item for item in self.items if item.key != ikey]
-            elif itype:
-                raise NotImplemented("Hey bub, grip these!")
-            elif cash_amount:
-                cash = next((it for it in self.items if it.item_type == Supply.IT_MONEY), None)
-                if cash:
-                    cash.quantity -= cash_amount
-                    if cash.quantity < 0:
-                        cash.quantity = 0
-
-        def slot_is_free(self, slot):
-            if slot not in self.equipped:
-                return False
-            return self.equipped[slot] is None
-
-        def get_valid_equipment_slots(self, item_type):
-            if item_type in [Supply.IT_WEAPON, Supply.IT_FIREARM]:
-                return [Inventory.EQ_WEAPON, Inventory.EQ_WEAPON_ALT]
-            elif item_type == Supply.IT_EQUIPMENT:
-                return [Inventory.EQ_TOOL_1, Inventory.EQ_TOOL_2]
-            elif item_type == Supply.IT_CONSUMABLE:
-                return [Inventory.EQ_CONSUMABLE_1, Inventory.EQ_CONSUMABLE_2]
-            else:
-                return None
-
-        def get_free_equipment_slot(self, item_type, preferred_slot=None):
-            valid_slots = self.get_valid_equipment_slots(item_type)
-            if not valid_slots:
-                raise ValueError("No slots exist for item type \"{}\"; check if it's valid.".format(item_type))
-            if preferred_slot is not None and preferred_slot in valid_slots and self.slot_is_free(preferred_slot):
-                return preferred_slot
-            for slot in valid_slots:  # If preferred slot is unavailable or invalid, returns first available.
-                if self.slot_is_free(slot):
-                    return slot
-            return None
-
-        @staticmethod
-        def item_match(item1: Supply, item2: Supply, require_is_match=False):
-            if item1 is item2:
-                return True
-            if not require_is_match and item1.name == item2.name:
-                return True
-            return False
-
-        def is_equipped(self, item):
-            if item.item_type in [Supply.IT_WEAPON, Supply.IT_FIREARM]:
-                return Inventory.item_match(self.equipped[Inventory.EQ_WEAPON], self.equipped[Inventory.EQ_WEAPON_ALT])
-            if item.item_type == Supply.IT_EQUIPMENT:
-                return Inventory.item_match(self.equipped[Inventory.EQ_TOOL_1], self.equipped[Inventory.EQ_TOOL_2])
-            elif item.item_type == Supply.IT_CONSUMABLE:
-                return Inventory.item_match(
-                    self.equipped[Inventory.EQ_CONSUMABLE_1], self.equipped[Inventory.EQ_CONSUMABLE_2]
-                )
-            return False
-
-        def equip(self, item, slot=None, force=False):
-            equip_slot = self.get_free_equipment_slot(item.item_type, preferred_slot=slot)
-            if equip_slot is None and not force:
-                utils.log("Could not equip item \"{}\"; there are no free valid slots.".format(item.name))
-            elif equip_slot is None:
-                valid_slots = self.get_valid_equipment_slots(item.item_type)
-                if valid_slots is None:
-                    raise ValueError("Could not equip \"{}\"; \"{}\" is not a valid type.".format(
-                        item.name, item.item_type
-                    ))
-                self.equipped[valid_slots[0]] = item
-            else:
-                self.equipped[equip_slot] = item
-
-        def unequip(self, item, slot=None):
-            if not self.is_equipped(item):
-                utils.log("Attempted to unequip item \"{}\", but it's not equipped.".format(item.name))
-                return
-            valid_slots = self.get_valid_equipment_slots(item.item_type)
-            if valid_slots is None:
-                raise ValueError("Could not equip \"{}\"; \"{}\" is not a valid type.".format(item.name, item.item_type))
-            for slot in valid_slots:
-                if Inventory.item_match(item, self.equipped[slot]):
-                    self.equipped[slot] = None
-                    break
 
 
 #

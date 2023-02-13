@@ -1,5 +1,7 @@
 init 1 python in game:
 
+    state = renpy.store.state
+
     class FightBrain:  # Shitty combat AI for NPCs
         @staticmethod
         def npc_attack(attacker, action_order, ao_index, enemy_targets, all_targets):
@@ -27,7 +29,7 @@ init 1 python in game:
                     valid_skills.append({"name": skill, "value": defender.special_skills[skill]})
             best_skill = max(valid_skills, key=lambda pair: pair["value"])
             bsk_name, bsk_value = best_skill["name"], best_skill["value"]
-            if str(bsk_name).lower() == 'physical':  # Physical attribute is a special case.
+            if utils.caseless_equal(bsk_name, 'physical'):  # Physical attribute is a special case.
                 if defender.ftype == NPCFighter.FT_BRAWLER and attacker.current_pos == defender.current_pos:
                     atype = CAction.MELEE_ATTACK
                 elif defender.ftype == NPCFighter.FT_SHOOTER:
@@ -54,7 +56,7 @@ init 1 python in game:
 
         @staticmethod
         def brawler_attack(attacker, action_order, ao_index, atk_targets):
-            # Attack a target in melee range (same current_pos), or close to a target at range.
+            # Attack a target in melee range (same current_pos), or attempt to close in on a target at range.
             high_priority, low_priority = [], []
             for enemy in atk_targets:
                 if enemy.current_pos == attacker.current_pos:
@@ -76,45 +78,60 @@ init 1 python in game:
         @staticmethod
         def shooter_attack(attacker, action_order, ao_index, atk_targets):
             # Shoot at a target if not engaged, otherwise melee attack a target.
-            can_shoot = not attacker.engaged
+            r_held, r_sidearm = state.holding_ranged_weapon(attacker), state.holding_ranged_weapon(attacker, check_alt=True)
+            can_shoot = not attacker.engaged and r_sidearm
             atype = CAction.RANGED_ATTACK if can_shoot else CAction.MELEE_ATTACK
             if can_shoot:
                 target = utils.get_random_list_elem(atk_targets)[0]
-                # atk_label, atk_pool = ranked_attacks[0]
             else:
                 melee_targets = [t for t in atk_targets if t.current_pos == attacker.current_pos]
+                if len(melee_targets) < 1:
+                    return None  # Shooters do not seek out melee targets like brawlers, but TODO come back to this.
                 target = utils.get_random_list_elem(melee_targets)[0]
             ranked_attacks = FightBrain.get_ranked_usable_combat_skills(attacker, must_be_melee=not can_shoot, must_be_ranged=can_shoot)
             atk_label, atk_pool = ranked_attacks[0]
-            return CAction(atype, target, user=attacker, pool=atk_pool, subtype=atk_label)
+            return CAction(atype, target, user=attacker, pool=atk_pool, subtype=atk_label, use_sidearm=r_sidearm and not r_held)
 
         @staticmethod
         def wildcard_attack(attacker, action_order, ao_index, atk_targets):
             # If engaged or lacking ranged attacks, act like a Brawler. Otherwise pick random target and attack.
-            if attacker.engaged:
+            r_held, r_sidearm = state.holding_ranged_weapon(attacker), state.holding_ranged_weapon(attacker, check_alt=True)
+            can_shoot = not attacker.engaged and r_sidearm
+            if not can_shoot:
                 return FightBrain.brawler_attack(attacker, action_order, ao_index, atk_targets)
             ranged_atk_options = FightBrain.get_ranked_usable_combat_skills(attacker, must_be_ranged=True)
-            if len(ranged_atk_options) < 1:
-                return FightBrain.brawler_attack(attacker, action_order, ao_idnex, atk_targets)
+            print("\nWILD 1: ranged_atk_options = {}".format(ranged_atk_options))
+            if len(ranged_atk_options) < 1 or not renpy.store.state.holding_ranged_weapon(attacker):
+                return FightBrain.brawler_attack(attacker, action_order, ao_index, atk_targets)
             target = utils.get_random_list_elem(atk_targets)[0]
+            print("\nWILD 2: target = {}, from atk_targets ({})".format(target.name, [t.name for t in atk_targets]))
             use_melee = target.current_pos == attacker.current_pos
             atype = CAction.MELEE_ATTACK if use_melee else CAction.RANGED_ATTACK
             ranked_attacks = FightBrain.get_ranked_usable_combat_skills(attacker, must_be_melee=use_melee)
             atk_label, atk_pool = ranked_attacks[0]
-            return CAction(atype, target, user=attacker, pool=atk_pool, subtype=atk_label)
+            print("\nWILD 3: use_melee = {}, atype = {}, atk_label = {}".format(use_melee, atype, atk_label))
+            use_sidearm = not use_melee and r_sidearm and not r_held
+            return CAction(atype, target, user=attacker, pool=atk_pool, subtype=atk_label, use_sidearm=use_sidearm)
 
         @staticmethod
         def pc_hunter_attack(attacker, action_order, ao_index, atk_targets):
-            pc = renpy.store.state.pc
+            state = renpy.store.state
+            pc = state.pc
             atk_pc_m, atk_pc_r = FightBrain.can_attack_target(attacker, pc)
             if not atk_pc_m and not atk_pc_r:
                 return FightBrain.wildcard_attack(attacker, action_order, ao_index, atk_targets)
-            ranked_attacks = FightBrain.get_ranked_usable_combat_skills(attacker)
+            ranked_attacks = FightBrain.get_ranked_usable_combat_skills(
+                attacker, must_be_melee=not atk_pc_r, must_be_ranged=not atk_pc_m
+            )
             atk_label, atk_pool = ranked_attacks[0]
-            if atk_label in CAction.MELEE_ACTIONS or atk_label in CAction.ANYWHERE_ACTIONS:
+            if atk_pc_m and (atk_label in CAction.MELEE_ACTIONS or atk_label in CAction.ANYWHERE_ACTIONS):
+                atype = CAction.MELEE_ATTACK
+            elif atk_pc_r and state.holding_ranged_weapon():
+                atype = CAction.RANGED_ATTACK
+            elif atk_pc_m:
                 atype = CAction.MELEE_ATTACK
             else:
-                atype = CAction.RANGED_ATTACK
+                atype = CAction.MELEE_ENGAGE
             return CAction(atype, pc, user=attacker, pool=atk_pool, subtype=atk_label)
 
         @staticmethod
@@ -124,15 +141,26 @@ init 1 python in game:
 
         @staticmethod
         def get_ranked_usable_combat_skills(user, must_be_ranged=False, must_be_melee=False):
-            bc_stat = (user.base_combat_stat, getattr(user, user.base_combat_stat))
+            if not state.holding_ranged_weapon(user):
+                must_be_melee = True
+            bc_stat = None
+            if hasattr(user, "base_combat_stat"):
+                bc_stat = (user.base_combat_stat, getattr(user, user.base_combat_stat))
             available_attacks = list(user.special_skills.items())
-            if must_be_ranged:
-                usable = [atk for atk in available_attacks if atk[0] in (CAction.RANGED_ACTIONS + CAction.ANYWHERE_ACTIONS)]
+            if not must_be_melee and not must_be_ranged:
+                usable, possibly_usable = [atk for atk in available_attacks], None
+            elif must_be_ranged and must_be_melee:
+                possibly_usable = CAction.ANYWHERE_ACTIONS
+            elif must_be_ranged:
+                possibly_usable = CAction.RANGED_ACTIONS + CAction.ANYWHERE_ACTIONS
             elif must_be_melee:
-                usable = [atk for atk in available_attacks if atk[0] in (CAction.MELEE_ACTIONS + CAction.ANYWHERE_ACTIONS)]
+                possibly_usable = CAction.MELEE_ACTIONS + CAction.ANYWHERE_ACTIONS
             else:
-                usable = [atk for atk in available_attacks]
-            usable.append(bc_stat)
+                raise ValueError("Shouldn't ever reach here in get_ranked_usable_combat_skills()!")
+            if possibly_usable is not None:
+                usable = [atk for atk in available_attacks if atk[0] in possibly_usable]
+            if bc_stat:
+                usable.append(bc_stat)
             ranked_attacks = sorted(usable, key=lambda atk_opt: atk_opt[1])
             return ranked_attacks
 
@@ -141,7 +169,7 @@ init 1 python in game:
             can_attack_melee, can_attack_ranged = True, True
             if attacker.current_pos != target.current_pos:
                 can_attack_melee = False
-            if attacker.engaged:
+            if attacker.engaged or not state.holding_ranged_weapon(attacker, check_alt=True):
                 can_attack_ranged = False
             if not can_attack_melee and not can_attack_ranged:
                 return False, False
@@ -159,19 +187,25 @@ init 1 python in game:
         def filter_considered_targets(enemy_targets, all_targets, attacker):
             considering = enemy_targets
             # Consider allies for attacks if in rage frenzy.
-            if attacker.get_se_ttl(Entity.SE_BERSERK):
+            if attacker.get_effect_ttl(Entity.SE_BERSERK):
                 considering = all_targets
             # Ignore obfuscated targets unless we can sense them.
-            obfuscated, visible = [], []
+            obfuscated, visible, seem_dead = [], [], []
             for ct in considering:
-                if ct.get_se_ttl(Entity.SE_OBFUSCATED) or ct.get_se_ttl(Entity.SE_OBFUSCATED_TECH):
-                    obfuscated.append(ct)
+                if ct.dead or (ct.appears_dead and True):  # TODO: detect feign death?
+                    seem_dead.append(ct)
+                    continue
+                if ct.get_effect_ttl(Entity.SE_OBFU_MOBILE) or ct.get_effect_ttl(Entity.SE_OBFU_ROOTED):
+                    if not attacker.detector_tech or ct.stealth_ignore_tech:
+                        obfuscated.append(ct)
+                    else:
+                        visible.append(ct)
                 else:
                     visible.append(ct)
             for ob in obfuscated:
                 if renpy.store.state.can_sense_unseen(ob, attacker):
                     visible.append(ct)
-            del considering, obfuscated
+            del considering, obfuscated, seem_dead
             considering = visible
             # Additional tests here.
             return considering
@@ -182,6 +216,6 @@ init 1 python in game:
                 return False
             if engaged and action in CAction.RANGED_ACTIONS:
                 return False
-            elif (not engaged or at_range) and action in cfg.MELEE_ATTACK:
+            elif (not engaged or at_range) and action in CAction.MELEE_ACTIONS:
                 return False
             return True

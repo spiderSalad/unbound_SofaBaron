@@ -11,6 +11,7 @@ default state.overtime              = 0
 
 default state.outside_haven         = True
 default state.in_combat             = False
+default state.menu_label_backref    = None
 
 default state.tried_hunt_tonight    = False
 default state.hunted_tonight        = False
@@ -43,6 +44,8 @@ default state.roll_bonus            = 0
 default state.roll_malus            = 0
 default state.blood_surge_enabled   = False
 default state.blood_surge_active    = False
+default state.mended_this_turn      = False
+default state.used_disc_this_turn   = False
 
 default state.resonance_types       = [getattr(cfg, rt) for rt in cfg.__dict__ if str(rt).startswith("RESON_")]
 default state.resonances            = {
@@ -69,7 +72,7 @@ init 1 python in state:
     skill_names = [getattr(cfg, sname) for sname in gdict if str(sname).startswith("SK_")]
     discipline_names = [getattr(cfg, dname) for dname in gdict if str(dname).startswith("DISC_")]
 
-    from store.game import Supply, Weapon, Inventory, Entity
+    from store.game import Item, Weapon, Inventory, Entity
 
     # pc = renpy.store.game.PlayerChar(anames=attr_names, snames=skill_names, dnames=discipline_names)
 
@@ -96,21 +99,37 @@ init 1 python in state:
             return True
         return False
 
-    def pc_holding_ranged_weapon():
-        if not hasattr(pc, "inventory") or not pc.inventory:
+    def weapon_is_ranged(weapon):
+        if not weapon:
             return False
-        held_weapon = pc.inventory.equipped[Inventory.EQ_WEAPON]
-        if not held_weapon:
-            return False
-        if held_weapon.item_type == Supply.IT_FIREARM or held_weapon.throwable:
+        if weapon.item_type == Item.IT_FIREARM:
+            return True
+        if hasattr(weapon, "throwable") and weapon.throwable:
+            return True
+        return False
+
+    def holding_ranged_weapon(who=None, check_alt=False):
+        if who is None:
+            who = pc
+        if hasattr(who, "inventory") and who.inventory:
+            held_weapon = pc.inventory.equipped[Inventory.EQ_WEAPON]
+            alt_weapon = pc.inventory.equipped[Inventory.EQ_WEAPON_ALT]
+            if held_weapon and weapon_is_ranged(held_weapon):
+                return True
+            if check_alt and alt_weapon and weapon_is_ranged(alt_weapon):
+                return True
+        if hasattr(who, "npc_weapon") and who.npc_weapon:
+            if weapon_is_ranged(who.npc_weapon):
+                return True
+        if hasattr(who, "intrinsic_ranged_attack") and who.intrinsic_ranged_attack:
             return True
         return False
 
     def pc_has_ranged_attack_power():
         return False  # TODO: add this
 
-    def pc_has_ranged_attack():
-        return (pc_holding_ranged_weapon() or pc_has_ranged_attack_power())
+    def pc_has_ranged_attack(check_alt=False):
+        return (holding_ranged_weapon(check_alt=check_alt) or pc_has_ranged_attack_power())
 
     def set_hunger(delta, killed=False, innocent=False, ignore_killed=False):
         previous_hunger, hunger_floor = pc.hunger, cfg.HUNGER_MIN_KILL if killed or ignore_killed else cfg.HUNGER_MIN
@@ -133,9 +152,17 @@ init 1 python in state:
         dmg_target = pc if target is None else target
         print("\ndtype = {}, amount = {}, tracker = {}".format(dtype, amount, target))
         if tracker == cfg.TRACK_HP:
-            dmg_target.hp.damage(dtype, amount, source=source)
+            return dmg_target.hp.damage(dtype, amount, source=source)
         else:
-            dmg_target.will.damage(dtype, amount, source=source)
+            return dmg_target.will.damage(dtype, amount, source=source)
+
+    def mend_damage(who, tracker, dtype, amount):
+        if who is None:
+            who = pc
+        if tracker == cfg.TRACK_HP:
+            return who.hp.mend(dtype, amount)
+        else:
+            return who.will.mend(dtype, amount)
 
     def masquerade_breach(base=10):
         global masquerade
@@ -153,7 +180,7 @@ init 1 python in state:
         masquerade += amount
         if masquerade > cfg.VAL_MASQUERADE_MAX:
             overfill = masquerade - cfg.VAL_MASQUERADE_MAX
-            give_item(Supply(Supply.IT_MONEY, name="Masquerade Bucks", quantity=overfill))  # TODO: change this to rep gain later
+            give_item(Item(Item.IT_MONEY, name="Masquerade Bucks", quantity=overfill))  # TODO: change this to rep gain later
 
     def feed_resonance(intensity=None, reso=None, boost: int = 0):
         if not intensity:
@@ -264,25 +291,39 @@ init 1 python in state:
             stack_str += "{}. {}\n".format(i+1, stack_layer)
         return stack_str
 
-    def switch_weapons(play_sound=True):
-        if in_combat and (not arena or arena.get_up_next() is not pc):
-            utils.log("Can only switch weapons in combat if it's your turn.")
-            return
-        temp_weapon = pc.inventory.equipped[Inventory.EQ_WEAPON]
-        pc.inventory.equipped[Inventory.EQ_WEAPON] = pc.inventory.equipped[Inventory.EQ_WEAPON_ALT]
-        pc.inventory.equipped[Inventory.EQ_WEAPON_ALT] = temp_weapon
-        if play_sound and False:
-            renpy.play(renpy.store.audio.gunrack, "sound")  # TODO: this sound doesn't exist; find it.
+    def is_their_turn(who):
+        if not in_combat or not arena:
+            return False
+        return arena.get_up_next() is who
+
+    def switch_weapons(who=None, play_sound=True, reload_menu=False):
+        if who is None:
+            who = pc
+        if in_combat and (not arena or arena.get_up_next() is not who):
+            return utils.log("Can only switch weapons in combat if it's your turn, \"{}\".".format(who.name))
+        if who is not pc and not hasattr(who, "inventory"):\
+            return utils.log("An NPC can only switch weapons if they have a legit inventory.")
+        held_weapon, off_weapon = who.inventory.equipped[Inventory.EQ_WEAPON], who.inventory.equipped[Inventory.EQ_WEAPON_ALT]
+        who.inventory.equipped[Inventory.EQ_WEAPON] = off_weapon
+        who.inventory.equipped[Inventory.EQ_WEAPON_ALT] = held_weapon
+        if play_sound:
+            if off_weapon.item_type == Item.IT_FIREARM:
+                shuffle_sound = renpy.store.audio.get_item_1_gun
+            else:
+                shuffle_sound = renpy.store.audio.get_item_2
+            renpy.play(shuffle_sound, "sound")
+        if reload_menu and who is pc and menu_label_backref:
+            renpy.jump(menu_label_backref)
 
     def give_item(supply, *supplies, copy=True, equip_it=False, gift_sound=True):
         if pc.inventory is None:
             raise ValueError("No valid inventory to add items to.")
         gift = supply.copy() if copy else supply
         pc.inventory.add(gift)
-        if supply.item_type in [Supply.IT_FIREARM, Supply.IT_WEAPON] and equip_it:
+        if supply.item_type in [Item.IT_FIREARM, Item.IT_WEAPON] and equip_it:
             pc.inventory.equip(gift, force=True)
         if gift_sound:
-            if gift.item_type == Supply.IT_FIREARM:
+            if gift.item_type == Item.IT_FIREARM:
                 renpy.play(renpy.store.audio.get_item_1_gun, "sound")
             else:
                 renpy.play(renpy.store.audio.get_item_2, "sound")
@@ -340,7 +381,7 @@ label sun_threat:
             if roll_bonus and roll_bonus > 0:
                 search_pool += "+{}".format(int(roll_bonus))
 
-        call roll_control(search_pool, "diff0", pool_mod=roll_bonus) from sunburn_damage
+        call roll_control(search_pool, "diff0", situational_mod=roll_bonus) from sunburn_damage
 
         python:
             death_save, min_burn = _return.margin, 2 if short_notice else 0
@@ -408,16 +449,24 @@ label mend:
 
     label .superficial:
 
-        "Kindred can recover from almost anything, given enough blood and time."
+        if utils.percent_chance(0.45):
+            "Kindred can recover from almost anything, given enough blood and time."
 
-        "You channel stolen life into your wounds, willing away your injuries."
+            "You channel stolen life into your wounds, willing away your injuries."
+        else:
+            "There's no time to waste, but fortunately you can multitask."
+
+            "Your flesh begins to knit itself back together, bones heave and pop back into place..."
 
         call roll_control.rouse_check(1) from mend_spf_rouse_check
 
+        play sound audio.mending_1
+
         python:
             hungrier = _return
-            spf_hp_mend = 1 # TODO: adjust for Blood Potency
-            store.state.pc.hp.mend(cfg.DMG_SPF, spf_hp_mend)
+            spf_hp_mend = utils.get_bp_mend_value(pc.blood_potency)
+            store.state.mend_damage(None, cfg.TRACK_HP, cfg.DMG_SPF, spf_hp_mend)
+            # store.state.pc.hp.mend(cfg.DMG_SPF, spf_hp_mend)
 
         return
 
@@ -441,7 +490,8 @@ label mend:
                     hungrier = _return
                     state.mended_agg_tonight = True
                     store.state.clock.advance(1)
-                    store.state.pc.hp.mend(cfg.DMG_AGG, 1)
+                    store.state.mend_damage(None, cfg.TRACK_HP, cfg.DMG_AGG, 1)
+                    # store.state.pc.hp.mend(cfg.DMG_AGG, 1)
 
                 "It feels like half an eternity, spent in a limbo of pain and delirium."
 

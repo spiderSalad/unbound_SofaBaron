@@ -37,7 +37,8 @@ label intro:
         cfg, game = renpy.store.cfg, renpy.store.game
         state.pc = game.PlayerChar(anames=state.attr_names, snames=state.skill_names, dnames=state.discipline_names)
         state.pc.inventory = game.Inventory()
-        # state.give_item(game.Supply(game.Supply.IT_MONEY, "Cash", key="Money", tier=0, num=15, desc="Cash on hand."))
+        state.statusfx = state.StatusFX(pc=state.pc)
+        # state.give_item(game.Item(game.Item.IT_MONEY, "Cash", key="Money", tier=0, num=15, desc="Cash on hand."))
         state.give_item(state.get_random_cash())
         state.clock = state.GameClock(1, 9)
         state.diceroller_creation_count = 0

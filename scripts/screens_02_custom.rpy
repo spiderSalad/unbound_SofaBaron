@@ -25,14 +25,14 @@ screen dev_panel(*args):
         yfill False
 
         $ state = renpy.store.state
-        $ stack_string = state.get_call_stack_str()
+        $ stack_string, pc = state.get_call_stack_str(), state.pc
         side "c l":
             viewport id "call_stack_list" draggable True mousewheel True:# scrollbars "vertical":
                 frame padding (7, 0) background None:
                     text "[stack_string]" text_align 0.0 align (0.1, 0.1) size 16
             vbar value YScrollValue("call_stack_list")
 
-    frame id "second_dev_readout" align (0.0, 0.3) xysize (600, 250) background Frame("gui/frame.png"):
+    frame id "second_dev_readout" align (0.0, 0.3) xysize (700, 250) background Frame("gui/frame.png"):
         margin (5, 0)
         padding (7, 5)
         xfill False
@@ -60,12 +60,14 @@ screen dev_panel(*args):
                         status_r = "  (hp: {})   {}".format(ent.hp, eng)
                 return " {0}{1}   {2: <8}{3}".format(key, status_l, ent.name, status_r)
 
+            pc_append = "  (pc={}/{}".format(pc.pronoun_set.PN_SHE_HE_THEY, pc.pronoun_set.PN_HER_HIM_THEM)
+            pc_append += ", scream={})".format(utils.truncate_string(pc.scream, leng=20, reverse=True))
             if not hasattr(state, "arena") or not state.arena:
-                ro_text_main = "Battle engine not initialized."
+                ro_text_main = "Battle engine not initialized.{}".format(pc_append)
             elif state.arena.battle_end:
-                ro_text_main = "Battle engine initialized & g2g."
+                ro_text_main = "Battle engine initialized & g2g.{}".format(pc_append)
             else:
-                ro_text_main = "Ongoing battle: R{}, T{}\n".format(state.arena.round+1, state.arena.ao_index+1)
+                ro_text_main = "Ongoing battle: R{}, T{}{}\n".format(state.arena.round+1, state.arena.ao_index+1, pc_append)
                 ro_text_main += "round order:  " + ",  ".join(state.arena.round_order)
                 ao_r = "act order:\n\n" + "\n".join([ent_format(ent) for ent in state.arena.action_order])
                 pc_team, enemies = state.arena.pc_team, state.arena.enemies
@@ -74,7 +76,7 @@ screen dev_panel(*args):
                 rosters_r += "Enemies:\n" + "\n".join([ent_format(ent, True) for ent in enemies]) + "\n"
                 ro_text_main += "..."
         side "c l":
-            viewport id "battle_readout_list" draggable True mousewheel True:
+            viewport id "battle_readout_list" draggable True mousewheel True yinitial 1.0:
                 frame padding (7, 0) background None:
                     vbox spacing 15:
                         text "[ro_text_main]" text_align 0.0 align (0.1, 0.1) size 16
@@ -87,7 +89,7 @@ screen dev_panel(*args):
 
 
 screen bl_corner_panel(*args):
-    frame id "contextual_action_bar" align (0.0, 0.64) xysize (350, 280) background Frame("gui/frame.png"):
+    frame id "contextual_action_bar" align (0.0, 0.64) xysize (400, 280) background Frame("gui/frame.png"):
         at fadein_basic
         padding (10, 15)
         margin (5, 0)
@@ -96,33 +98,51 @@ screen bl_corner_panel(*args):
             pc, qb_key = state.pc, ""
             equipped = pc.inventory.equipped
             surge_tooltip = "Risk Hunger to transcend the limitations of the human body and mind.\n\n(+2 dice to next roll)"
+            sw_tooltip = "(You can only switch weapons on your turn.)"
             bs_action, surge_prompt = None, "Can't Rouse..."
-            sw_action, item_action = Function(state.switch_weapons), None
-            if not state.blood_surge_active and state.blood_surge_enabled:
+            sw_action, item_action = Function(state.switch_weapons, reload_menu=state.in_combat), None
+            dp_action = None
+            if not state.blood_surge_active and state.blood_surge_enabled and pc.can_rouse():
                 surge_prompt = "Rouse the Blood?"
                 bs_action = Function(state.blood_surge, audio.heartbeat_faster_2)
             elif state.blood_surge_active:
                 surge_prompt = "Blood Roused!"
+            elif pc.hunger >= cfg.HUNGER_MAX:
+                surge_prompt = "Can't. Rouse. Must. Feed."
         side "c l":
-            viewport id "contextual_actions_list" draggable True mousewheel True:# scrollbars "vertical":
+            viewport id "contextual_actions_list" draggable True mousewheel True yinitial 1.0:# scrollbars "vertical":
                 vbox spacing 5 align (0.5, 0.5) yfill False box_reverse True:
                     use hovertext("{}".format(surge_prompt), tooltip=surge_tooltip, _action=bs_action)
-                    $ print("\n\n")
                     for item_slot in equipped:  # Add quickbar later
-                        $ item, qb_key = equipped[item_slot] if equipped[item_slot] else None, ""
-                        $ print("we have item {} at slot {}".format(item.name if item else None, item_slot))
+                        $ item, qb_key, sw_tt = equipped[item_slot] if equipped[item_slot] else None, "", None
+                        # $ print("we have item {} at slot {}".format(item.name if item else None, item_slot))
                         if item and item_slot in [Inventory.EQ_CONSUMABLE_1, Inventory.EQ_CONSUMABLE_2]:
                             $ qb_key = " (x{})".format(equipped[item_slot].quantity)
+                            $ sw_tt = item.desc if state.is_their_turn(pc) else sw_tooltip
                         elif item_slot in [Inventory.EQ_WEAPON, Inventory.EQ_WEAPON_ALT]:
-                            $ item_action = sw_action
-                            $ qb_key = "{b}At hand{/b}: " if item_slot == Inventory.EQ_WEAPON else "At side: "
+                            python:
+                                item_action, item_desc = sw_action, item.desc if item else "(Empty-handed)"
+                                qb_key = "{b}At hand{/b}: " if item_slot == Inventory.EQ_WEAPON else "At side: "
+                                sw_tt = item_desc if state.is_their_turn(pc) else sw_tooltip
                         if item:
-                            use hovertext("{}{}".format(qb_key, item.name), tooltip=item.desc, _action=item_action)
+                            use hovertext("{}{}".format(qb_key, item.name), tooltip=sw_tt, _action=item_action)
                     for disc in pc.disciplines.get_unlocked():
                         for pow_level in pc.disciplines.pc_powers[disc]:
-                            $ power = pc.disciplines.pc_powers[disc][pow_level]
-                            if power and state.context_relevant(power):
-                                use hovertext("{} ({})".format(power, disc), tooltip="da powah", _action=None)
+                            python:
+                                power = pc.disciplines.pc_powers[disc][pow_level]
+                                relevance, active = state.context_relevant(power)
+                                activ_str = " (Active!)" if active else ""
+                            if power and relevance:
+                                python:
+                                    can_use = ((not active or power in cfg.REF_DISC_POWER_TOGGLABLES) and pc.can_rouse())
+                                    dp_action = None if not can_use else Function(state.statusfx.use_disc_power, power)
+                                use hovertext("{} ({}){}".format(power, disc, activ_str), tooltip="da powah", _action=dp_action)
+                            elif power and relevance is not None:
+                                use hovertext("{} ({})".format(power, disc), tooltip="da powah", _action=None, usable=False)  # TODO: change colors
+                            elif power and cfg.DEV_MODE:
+                                $ t_power, t_disc = utils.renpy_tag_wrap(power, "s"), utils.renpy_tag_wrap(disc, "s")
+                                use hovertext("{} ({})".format(t_power, t_disc), tooltip="da powah", _action=None, usable=False)
+
             vbar value YScrollValue("contextual_actions_list")
 
 
@@ -181,7 +201,7 @@ transform fadeout_basic:
 
 
 # Generates textbutton with tooltip, action optional
-screen hovertext(txt, tooltip=None, _style="medium", _xalign=0.0, _action=None):
+screen hovertext(txt, tooltip=None, _style="medium", _xalign=0.0, _action=None, usable=True):
     textbutton "[txt]" xalign _xalign:
         if _style == "medium":
             text_style "codex_hoverable_text"
@@ -189,6 +209,7 @@ screen hovertext(txt, tooltip=None, _style="medium", _xalign=0.0, _action=None):
             text_style "codex_hoverable_text_big"
         else:
             text_style "codex_hoverable_text_small"
+        sensitive usable
         action If(_action is None, true=NullAction(), false=_action) #daction #_action or NullAction()
         hovered ShowTransient("hovertip", None, str(tooltip))
         unhovered Hide("hovertip", None)
@@ -342,7 +363,7 @@ screen codexTopRow():
                 style_prefix "boxtracker"
 
                 vbox spacing 0 align (1.0, 0.5) xfill True yfill True:
-                    frame id "healthTracker" xsize 380 align(1.0, 0.4):
+                    frame id "health_tracker" xsize 380 align(1.0, 0.4):
                         hbox:
                             text "Health" text_align 1.0 align (0.0, 0.5) style style.codex_panel_text
                             frame id "HPBoxes" xsize 280 align (1.0, 0.5):
@@ -351,7 +372,7 @@ screen codexTopRow():
                                 $ clearHealth = (total + bonus) - (spfd + aggd)
                                 use trackerline("Health", total, clearHealth, pc.hp.spf_damage, bonus=bonus, bonus_name="Fort")
 
-                    frame id "willpowerTracker" xsize 380 align(1.0, 0.6):
+                    frame id "willpower_tracker" xsize 380 align(1.0, 0.6):
                         hbox:
                             text "Willpower" text_align 1.0 align (0.0, 0.5) style style.codex_panel_text
                             frame id "WPBoxes" xsize 280 align (1.0, 0.5):
@@ -529,19 +550,19 @@ screen codexCasefilesPage(*args):
                     for count, item in enumerate(state.pc.inventory.items):
                         frame style style.utility_frame:
                             python:
-                                color_str = game.Supply.ITEM_COLOR_KEYS[item.item_type]
+                                color_str = game.Item.ITEM_COLOR_KEYS[item.item_type]
                                 title = item.name
                                 tooltip = item.desc
                                 itype = item.item_type
 
-                                if itype == game.Supply.IT_MONEY:
+                                if itype == game.Item.IT_MONEY:
                                     title = "{}: ${:.2f}".format(item.name, item.quantity)
-                                elif itype == game.Supply.IT_WEAPON or itype == game.Supply.IT_FIREARM:
+                                elif itype == game.Item.IT_WEAPON or itype == game.Item.IT_FIREARM:
                                     if item.concealable:
                                         concealed = "You have your trusty forged CCW permit, just in case."
                                     else:
                                         concealed = "This is an open carry state, right?"
-                                    lethal = " (Lethal)" if itype == game.Supply.IT_FIREARM or item.lethality >= 2 else ""
+                                    lethal = " (Lethal)" if itype == game.Item.IT_FIREARM or item.lethality >= 2 else ""
                                     tooltip = "+{}{}\n\n{}\n\n{}".format(item.dmg_bonus, lethal, concealed, tooltip)
 
                             textbutton str(title) + " {color=[color_str]}(" + str(itype) + "){/color}":
@@ -735,6 +756,7 @@ style codex_hoverable_text:
     size 20
     hover_color "#ffebeb"
     selected_color "#ee3737"
+    insensitive_color "552323"
     color "#ffbbbb"
     text_align 0.5
 
@@ -742,6 +764,7 @@ style codex_hoverable_text_small:
     size 16
     hover_color "#ffebeb"
     selected_color "#ee3737"
+    insensitive_color "552323"
     color "#ffbbbb"
     text_align 0.0
 
@@ -749,5 +772,6 @@ style codex_hoverable_text_big:
     size 24
     hover_color "#ffebeb"
     selected_color "#ee3737"
+    insensitive_color "552323"
     color "#ffbbbb"
     text_align 0.0

@@ -10,9 +10,9 @@
 
 # separate first hunt?
 
-label hunt_confirm(pool_desc_raw, hunt_warning, pool_mod=None):
+label hunt_confirm(pool_desc_raw, hunt_warning, situational_mod=None):
     python:
-        pool_org, pool_tokens = renpy.store.utils.parse_pool_string(pool_desc_raw, pool_mod=pool_mod), []
+        pool_org, pool_tokens = renpy.store.utils.parse_pool_string(pool_desc_raw, situational_mod=situational_mod), []
         for phase in pool_org:
             phase_str = "/".join(phase)
             pool_tokens.append(phase_str)
@@ -243,7 +243,7 @@ label hunt_siren(status):
     label .club:
 
         if state.siren_orientation is None:
-            $ desired = utils.get_random_list_elem([cfg.PN_WOMEN, cfg.PN_MEN, cfg.PN_NONBINARY])[0]
+            $ desired = utils.get_random_list_elem([cfg.PN_WOMAN, cfg.PN_MAN, cfg.PN_NONBINARY_PERSON])[0]
         else:
             $ desired = state.siren_orientation
 
@@ -254,7 +254,7 @@ label hunt_siren(status):
     label .party_maybe:
 
         if state.siren_orientation is None:
-            $ desired = utils.get_random_list_elem([cfg.PN_WOMEN, cfg.PN_MEN, cfg.PN_NONBINARY])[0]
+            $ desired = utils.get_random_list_elem([cfg.PN_WOMAN, cfg.PN_MAN, cfg.PN_NONBINARY_PERSON])[0]
         else:
             $ desired = state.siren_orientation
 
@@ -275,13 +275,13 @@ label generic_hunt_results(scoping_pool, scoping_test, feeding_pool, feeding_tes
     jump expression renpy.store.game.pass_fail(_return, ".scope_win", ".scope_fail", top_label=tll)
 
     label .scope_win:
-        $ state.roll_bonus, state.roll_malus = state.current_roll.margin, 0
+        $ state.roll_bonus, state.roll_malus = state.active_roll.margin, 0
         $ time_spent = max(time_spent - state.roll_bonus, cfg.MIN_ACTIVITY_TIME)
         "> Successfully scoped out target. Hunt duration reduced to [time_spent] hours, +[state.roll_bonus] to feed roll."
         jump generic_hunt_results.feed_roll
 
     label .scope_fail:
-        $ state.roll_malus, state.roll_bonus = abs(state.current_roll.margin), 0
+        $ state.roll_malus, state.roll_bonus = abs(state.active_roll.margin), 0
         $ time_spent = min(time_spent + state.roll_malus, cfg.MAX_HUNT_TIME)
         "> Difficulty scoping out target. Hunt duration increased to [time_spent], -[state.roll_malus] to feed roll."
         jump generic_hunt_results.feed_roll
@@ -295,7 +295,7 @@ label generic_hunt_results(scoping_pool, scoping_test, feeding_pool, feeding_tes
                 fp_mod = -1 * state.roll_malus
 
             final_feeding_pool = feeding_pool
-        call roll_control(final_feeding_pool, feeding_test, pool_mod=fp_mod)
+        call roll_control(final_feeding_pool, feeding_test, situational_mod=fp_mod)
         $ tll = "generic_hunt_results"
         jump expression renpy.store.game.manual_roll_route(_return, ".win", ".fail", mc=".messy", crit=".crit", bfail=".beastfail", top_label=tll)
 
@@ -350,7 +350,7 @@ label generic_hunt_results(scoping_pool, scoping_test, feeding_pool, feeding_tes
 
     label .win:  # successful feeding, hunger slaked depends on margin (1 or 2, 3 or 4 if humanity is low)
         $ state.hunted_tonight = True
-        $ temp_margin, drained = state.current_roll.margin, False
+        $ temp_margin, drained = state.active_roll.margin, False
 
         play sound audio.feed_bite1
         queue sound audio.feed_heartbeat
@@ -429,13 +429,13 @@ label pc_gender_preference:
         beast "So... who are we looking for?"
 
         "Men.":
-            $ state.siren_orientation = cfg.PN_MEN
+            $ state.siren_orientation = cfg.PN_MAN
 
         "Women":
-            $ state.siren_orientation = cfg.PN_WOMEN
+            $ state.siren_orientation = cfg.PN_WOMAN
 
         "Someone beyond those categories.":
-            $ state.siren_orientation = cfg.PN_NONBINARY
+            $ state.siren_orientation = cfg.PN_NONBINARY_PERSON
 
         "Any of the above, as long as they're hot.":
             $ state.siren_orientation = None

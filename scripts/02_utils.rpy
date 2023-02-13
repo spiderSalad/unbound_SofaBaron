@@ -1,27 +1,59 @@
 init 1 python in utils:
     import random
     import json
+    import unicodedata
+    import re
 
-    from math import ceil
+    from math import ceil as math_ceil, floor as math_floor
     from string import ascii_letters
 
     cfg = renpy.store.cfg
 
-    def parse_pool_string(pool_str, pool_mod=None, surge=False):
+    def wrap_dict_in_obj(**kwargs):
+        dict_obj = object()
+        for kwarg in kwargs:
+            if not hasattr(dict_obj, kwarg):
+                setattr(dict_obj, kwarg, kwargs[kwarg])
+        return dict_obj
+
+    def parse_pool_string(pool_str, situational_mod=None, blood_surging=False):
         raw_pool_str = str(pool_str)
         phases, contests = raw_pool_str.split(","), []
         for phase in phases:
             pools, phase_options = phase.split("/"), []
             for pool in pools:
                  pool_params = [str(prm).capitalize() for prm in pool.split("+")]
-                 if pool_mod:  # Should skip if we have an empty string (""), None, or 0
-                     pool_params.append(str(pool_mod))
-                 if surge:
+                 if situational_mod:  # Should skip if we have an empty string (""), None, or 0
+                     pool_params.append(str(situational_mod))
+                 if blood_surging:
                      pool_params.append(cfg.REF_BLOOD_SURGE)
                  pretty_pool_str = " + ".join(pool_params)
                  phase_options.append(pretty_pool_str)
             contests.append(phase_options)
         return contests
+
+    def unparse_pool_object(contests_obj, situational_mod=None, remove_blood_surge=False):
+        if len(contests_obj) != 1:
+            raise ValueError("Should be exactly one phase per RollConfig object, not {}.".format(len(contests_obj)))
+        phase, new_pool_str = contests_obj[0], ""
+        for pool_option in phase:
+            po_string, po_set = "", []
+            if type(pool_option) in (list, tuple):
+                po_operand = pool_option
+            else:
+                po_operand = pool_option.split("+").replace(" ", "")
+            for pool_param in po_operand:
+                include = True
+                if remove_blood_surge:
+                    if caseless_in("blood surge", pool_param) or caseless_in("bloodsurge", pool_param):
+                        include = False
+                if include:
+                    po_set.append(str(pool_param).capitalize())
+            po_string = " + ".join(po_set)
+            if situational_mod:
+                po_string += " + {}".format(str(situational_mod).capitalize())
+            new_pool_str += po_string
+        return new_pool_str
 
     def translate_dice_pool_params(pool_params):
         adjusted_params = []
@@ -37,13 +69,69 @@ init 1 python in utils:
         return " + ".join([str(p) for p in adjusted_params])
 
     def get_bp_surge_bonus(potency):
-        return 1 + ceil(potency / 2)
+        return 1 + math_ceil(potency / 2)
+
+    def get_bp_mend_value(potency):
+        if potency < 6:
+            return 1 + math_floor(potency / 2)
+        return math_floor(potency / 2)
+
+    def get_bp_disc_bonus(potency):
+        return math_floor(potency / 2)
+
+    def get_bp_disc_reroll_level(potency):
+        return math_ceil(potency / 2)
+
+    def get_bane_severity(potency, tb_clan_curse=False):
+        if potency < 1:
+            return 1 if tb_clan_curse else 0
+        return 1 + math_ceil(potency / 2)
+
+    def get_feeding_penalty(potency):
+        pass
 
     def bonus_color(txt):
         return "{color=#23ed23}" + "{}".format(txt) + "{/color}"
 
     def malus_color(txt):
         return "{color=#ed2323}" + "{}".format(txt) + "{/color}"
+
+    def renpy_tag_wrap(txt, *tags):
+        altered_txt = txt
+        for tag in tags:
+            t = str(tag)
+            opening, closing = "{" + t + "}", "{/" + t + "}"
+            altered_txt = opening + altered_txt + closing
+        return altered_txt
+
+    def str_append(txt, append, separator=""):
+        if not txt:
+            return append
+        return "{}{}{}".format(txt, separator, append)
+
+    def unique_append(txt, append, sep=""):
+        if not txt:
+            txt = ""
+        if not caseless_in(append, txt):
+            return str_append(txt, append, separator=sep)
+        return txt
+
+    def caseless_replace(str, caseless_search_term, replacement):
+        caseless_pattern = re.compile(caseless_search_term, re.IGNORECASE)
+        return caseless_pattern.sub(replacement, str)
+
+    def caseless_normalize(str):
+        return unicodedata.normalize("NFKD", str.casefold())
+
+    def caseless_equal(str1, str2):
+        if not str1 or not str2:
+            return False
+        return caseless_normalize(str1) == caseless_normalize(str2)
+
+    def caseless_in(excerpt, str):
+        if not excerpt or not str:
+            return False
+        return caseless_normalize(excerpt) in caseless_normalize(str)
 
     def get_cum_weights(weights):
         enum_weights = enumerate(weights)
@@ -123,9 +211,11 @@ init 1 python in utils:
             return exstr
         return tokens[1].split(end_token)[0]
 
-    def truncate_string(tstring, leng=20):
-        leng = 5 if leng < 5 else leng
-        return tstring[:leng-3] + "..." if len(tstring) > leng else tstring
+    def truncate_string(tstring, leng=20, reverse=False):
+        leng, len_t = 5 if leng < 5 else leng, len(tstring)
+        if reverse:
+            return "..." + tstring[len_t - (leng-3):] if len_t > leng else tstring
+        return tstring[:leng-3] + "..." if len_t > leng else tstring
 
     def open_url(url):  # TODO: implement this
         print("opening url: {}".format(url))

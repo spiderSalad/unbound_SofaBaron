@@ -48,28 +48,45 @@ init 0 python in cfg:
     CT_VAMPIRE = "Kindred"
     CT_LUPINE = "Werewolf"
 
-    REF_MORTALS = [CT_ANIMAL, CT_FAMULUS, CT_HUMAN, CT_GHOUL, CT_LUPINE]
+    REF_MORTALS = [CT_ANIMAL, CT_FAMULUS, CT_HUMAN, CT_GHOUL, CT_LUPINE]  # TODO: revisit this for lupines
     REF_UNDEAD = [CT_VAMPIRE]
 
+    # Pronouns
     PN_SHE_HE_THEY = "pn_subjective"
     PN_HER_HIM_THEM = "pn_objective"
     PN_STRANGER = "pn_stranger"
+    PN_HER_HIS_THEIR = "pn_possessive"
+    PN_SHES_HES_THEYRE = "pn_descriptive"
+    PN_SHELL_HELL_THEYLL = "pn_predictive"
 
-    PN_MEN = {
-        PN_SHE_HE_THEY: "he",
-        PN_HER_HIM_THEM: "him",
-        PN_STRANGER: "man"
-    }
-    PN_WOMEN = {
-        PN_SHE_HE_THEY: "she",
-        PN_HER_HIM_THEM: "her",
-        PN_STRANGER: "woman"
-    }
-    PN_NONBINARY = {
-        PN_SHE_HE_THEY: "they",
-        PN_HER_HIM_THEM: "them",
-        PN_STRANGER: "person"
-    }
+    PN_MAN = object()
+    PN_MAN.PN_SHE_HE_THEY = "he"
+    PN_MAN.PN_HER_HIM_THEM = "him"
+    PN_MAN.PN_STRANGER = "man"
+    PN_MAN.PN_HER_HIS_THEIR = "his"
+    PN_MAN.PN_SHES_HES_THEYRE = "he's"
+    PN_MAN.PN_SHELL_HELL_THEYLL = "he'll"
+
+    PN_WOMAN = object()
+    PN_WOMAN.PN_SHE_HE_THEY = "she"
+    PN_WOMAN.PN_HER_HIM_THEM = "her"
+    PN_WOMAN.PN_STRANGER = "woman"
+    PN_WOMAN.PN_HER_HIS_THEIR = "her"
+    PN_WOMAN.PN_SHES_HES_THEYRE = "she's"
+    PN_WOMAN.PN_SHELL_HELL_THEYLL = "she'll"
+
+    PN_NONBINARY_PERSON = object()
+    PN_NONBINARY_PERSON.PN_SHE_HE_THEY = "they"
+    PN_NONBINARY_PERSON.PN_HER_HIM_THEM = "them"
+    PN_NONBINARY_PERSON.PN_STRANGER = "person"
+    PN_NONBINARY_PERSON.PN_HER_HIS_THEIR = "their"
+    PN_NONBINARY_PERSON.PN_SHES_HES_THEYRE = "they're"
+    PN_NONBINARY_PERSON.PN_SHELL_HELL_THEYLL = "they'll"
+
+    print("\n---\nman:{}\nwoman: {}\nenby: {}".format(PN_MAN, PN_WOMAN, PN_NONBINARY_PERSON))
+    print("\n\npn man:\n{}".format(
+        "\n".join(["{}:  {}".format(key, getattr(PN_MAN, key)) for key in PN_MAN.__dict__])
+    ))
 
     HUNGER_MAX = 5
     HUNGER_MAX_CALM = 2
@@ -168,7 +185,9 @@ init 0 python in cfg:
     DMG_FULL_SPF = "unhalved_superficial_dmg"
     DMG_AGG = "aggravated_dmg"
     DMG_NONE = "clear"
+
     BULLET_DODGE_PENALTY = 2
+    WEAPON_DRAW_PENALTY = 2
 
     REF_ATTRS_ALL = "All Attributes"
     REF_ATTRS = "attrs"
@@ -217,6 +236,7 @@ init 0 python in cfg:
 
     ROLL_TEST = "diff"
     ROLL_CONTEST = "pool"
+    # ROLL_NPC_COMBAT_ACTION = "enemy"  # Special contest in which NPC action gets run through
     REF_ROLL_BONUS_PREFIX = "bonus_"
     REF_ROLL_EVENT_BONUS = "bonus_current_event"
     # REF_ROLL_BLOOD_SURGE_BONUS
@@ -541,9 +561,15 @@ init 0 python in cfg:
         POWER_PROTEAN_REDEYE, POWER_PROTEAN_FLOAT, POWER_PROTEAN_TOOTH_N_CLAW, POWER_PROTEAN_MOLD_SELF
     ]
 
-    REF_DISC_POWERS_SNEAKY = [
-        POWER_OBFUSCATE_FADE, POWER_OBFUSCATE_SILENCE, POWER_OBFUSCATE_STEALTH
-    ]
+    REF_DISC_POWER_SHAPESHIFT = [POWER_PROTEAN_BOO_BLEH, POWER_PROTEAN_DRUID, POWER_PROTEAN_FINALFORM]
+
+    REF_DISC_POWER_MENU_ONLY = [POWER_CELERITY_BLINK, POWER_POTENCE_SUPERJUMP]
+
+    REF_DISC_POWER_TOGGLABLES = [POWER_POTENCE_FATALITY]
+
+    REF_DISC_POWER_FREEBIES = [POWER_POTENCE_FATALITY, POWER_POTENCE_SUPERJUMP]
+
+    REF_DISC_POWERS_SNEAKY = [POWER_OBFUSCATE_FADE, POWER_OBFUSCATE_SILENCE, POWER_OBFUSCATE_STEALTH]
 
     # Actual discipline power relationships
     REF_DISC_POWER_TREES = {
@@ -675,6 +701,10 @@ init 0 python in cfg:
     MERIT_DISPLAY_MAX = 4
     MAX_ITEM_TIER = 7
 
+    REF_CM_ENABLED = "enabled_in_context"
+    REF_CM_DISABLED = "disabled_in_context"
+    REF_CM_HIDDEN = None
+
     COD_SUN = "Sunlight"
     COD_FIRE = "Fire"
     COD_PHYSICAL = "Physical Damage"
@@ -683,6 +713,7 @@ init 0 python in cfg:
     DP_DISCLAIMER = "This game was created as a part of Vampire: The Masquerade game jam. "  # TODO: update this for unbound
     DP_DISCLAIMER += "Events portrayed in this game are not canon within World of Darkness."
 
+    # renpy.music.register_channel("sound_aux", "sfx")
 
 image bg city main_menu         = "gui/main_menu.png"
 image bg haven basic            = "images/bg_haven.jpg"
@@ -698,10 +729,14 @@ define audio.feed_bite1         = "audio/sound/400174__jgriffie919__flesh-bite.m
 define audio.feed_heartbeat     = "audio/sound/608241__newlocknew__heart-beat-calm-rhythm-blood-flows-in-the-veins-6lrs.mp3"
 define audio.body_fall1         = "audio/sound/372226__eflexmusic__bodyfall-3-mixed.mp3"
 define audio.body_fall2         = "audio/sound/502553__kneeling__goblin-fall.mp3"
-define audio.footsteps1         = "audio/sound/318900__robinhood76__05934-heels-walking-on-pavement-looping.mp3"
+define audio.body_fall3_cough   = "audio/sound/222501__qubodup__person-knocked-down.mp3"
+
+# define audio.footsteps1         = "audio/sound/318900__robinhood76__05934-heels-walking-on-pavement-looping.mp3"
 define audio.dice_roll_many     = "audio/sound/220744__dermotte__dice-06.mp3"
 define audio.dice_roll_few      = "audio/sound/353975__nettimato__rolling-dice-1.mp3"
 define audio.fleeing_footsteps1 = "audio/sound/316924__rudmer-rotteveel__footsteps-running-away-fading.mp3"
+define audio.fast_footsteps_2   = "audio/sound/69296__abel_k__stairs-coming-up-ak2.mp3"
+define audio.fluorescent_buzz   = "audio/sound/574540__moulaythami__buzzing-a.mp3"
 define audio.heartbeat_faster   = "audio/sound/181805__klankbeeld__heart-beat-increasing-116642-excerpt02.mp3"
 define audio.beastgrowl2        = "audio/sound/98337__cgeffex__roar.mp3"
 define audio.samurai_blade_warp = "audio/sound/37411__funkymuskrat__chil.mp3"
@@ -713,5 +748,40 @@ define audio.alien_whisper      = "audio/sound/329333__curly123456__monster-185-
 define audio.sun_threat_1       = "audio/sound/484461__nowism__fx-long-meepf.mp3"
 define audio.get_item_1_gun     = "audio/sound/177054__woodmoose__lowerguncock.mp3"
 define audio.get_item_2         = "audio/sound/630021__flem0527__shuffling-backpack.mp3"
+define audio.mending_1          = "audio/sound/659959__legand569__flesh-wound-removing-bulletowi.mp3"
+define audio.flesh_shifting_1   = "audio/sound/505932__pfranzen__shapeshifter-shifting-shapes.ogg"
+define audio.pulled_taut_1      = "audio/sound/460382__dnaudiouk__creaky-cardboard-box.mp3"
 
+define audio.knuckle_crack_1    = "audio/sound/475965__borq1__knuckles-cracking.mp3"
+define audio.throwing_hands_1   = "audio/sound/432278__bhaveshshaha__slapping-beating-human-flesh.mp3"
+define audio.single_shot_1      = "audio/sound/212607__pgi__machine-gun-002-single-shot.mp3"
+define audio.shotgun_fire_1     = "audio/sound/522282__filmmakersmanual__shotgun-firing-1.mp3"
+define audio.rifle_shot_1       = "audio/sound/427596__michorvath__ar15-rifle-shot.mp3"
+define audio.uzi_full_auto      = "audio/sound/162436__ermfilm__uzi-serial-fire_96khz-24bit.mp3"
+define audio.single_cut_1       = "audio/sound/435238__aris621__nasty-knife-stab.mp3"
+define audio.stab_1             = "audio/sound/478145__aris621__nasty-knife-stab-2.mp3"
+define audio.sword_clash        = "audio/sound/440069__ethanchase7744__sword-block-combo.mp3"
+define audio.melee_miss_light_1 = "audio/sound/420668__sypherzent__basic-melee-swing-miss-whoosh.mp3"
+define audio.melee_miss_heavy_1 = "audio/sound/420670__sypherzent__strong-melee-swing.mp3"
+define audio.bullet_impacts_1   = "audio/sound/423301__u1769092__visceralbulletimpacts.mp3"
+define audio.bullet_impact_2    = "audio/sound/528263__magnuswaker__pound-of-flesh-2.mp3"
+define audio.striking_armor_1   = "audio/sound/420675__sypherzent__cut-through-armor-slice-clang.mp3"
+define audio.bashing_1_light    = "audio/sound/319590__hybrid_v__shield-bash-impact.mp3"
+define audio.bashing_2_heavy    = "audio/sound/165196__swimignorantfire__skull-crack-on-porcelain-tub.mp3"
+define audio.brawl_struggle     = "audio/sound/235681__jsburgh__struggle-between-two-people.mp3"
+define audio.toughness_armor    = "audio/sound/129073__harha__hardstyle-kick-01-nustyle-harha.mp3"
+
+define audio.grunt_pain_masc_1  = "audio/sound/497713__miksmusic__punch-grunt-1.mp3"
+define audio.grunt_pain_masc_2  = "audio/sound/85553__maj061785__male-pain-grunt.mp3"
+define audio.grunt_pain_masc_3  = "audio/sound/547206__mrfossy__voice_adultmale_paingrunts_06.mp3"
+define audio.grunt_pain_masc_4  = "audio/sound/416838__tonsil5__grunt2-death-pain.mp3"
+define audio.grunt_pain_femm_1  = "audio/sound/536750__egomassive__gruntf.mp3"
+define audio.grunt_pain_femm_2  = "audio/sound/277562__coral_island_studios__woman-in-pain.mp3"
+define audio.grunt_pain_femm_3  = "audio/sound/242622__reitanna__grunt2.mp3"
+define audio.grunt_pain_femm_4  = "audio/sound/241545__reitanna__painful-growl.mp3"
+
+define audio.shotgun_ricochet   = "audio/sound/423107__ogsoundfx__guns-explosions-album-bullet-impact-14.mp3"
+define audio.pistol_ricochet    = "audio/sound/521370__cetsoundcrew__pistol-shot-ricochet-clean.mp3"
+define audio.rifle_ricochet     = "audio/sound/523403__c-v__22-caliber-with-ricochet.mp3"
+define audio.auto_ricochet      = "audio/sound/523404__c-v__22-caliber-gunfire-with-ricochet.mp3"
 #

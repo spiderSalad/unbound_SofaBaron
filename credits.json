@@ -75,11 +75,12 @@
         "type":"sound_engineer",
         "works":[
             {"name":"Human impression of cat hacking up hairball", "licenseUrl":"https://creativecommons.org/licenses/by/3.0/"}
+            {"name":"Shapeshifter shifting shapes", "licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"}
         ],
         "website":"",
         "socials":[
             {"site":"Steam", "handle":"Cat President - A More Purrfect Union", "url":"http://store.steampowered.com/app/474980/Cat_President_A_More_Purrfect_Union/"},
-            {"site":"freesound.org", "handle":"pfranzen", "url": "https://freesound.org/people/pfranzen/"}
+            {"site":"freesound.org", "handle":"pfranzen", "url": "https://freesound.org/people/pfranzen/"},
         ]
     },
     {
@@ -127,7 +128,7 @@
         ]
     },
     {
-        "name":"Timbre",
+        "name":"Timbre NC LICENSE DONT USE",
         "type":"sound_engineer",
         "works":[
             {"name":"Jobro's Heartbeat (Timbre's variant)", "licenseUrl":"https://creativecommons.org/licenses/by-nc/3.0/"}
@@ -149,7 +150,7 @@
         ]
     },
     {
-        "name":"Robinhood76",
+        "name":"Robinhood76 NC LICENSE DONT USE",
         "type":"sound_engineer",
         "works":[
             {"name":"high heels on pavement", "licenseUrl":"https://creativecommons.org/licenses/by-nc/3.0/"},
@@ -759,7 +760,8 @@
         "name":"magnuswaker",
         "type":"sound_engineer",
         "works":[
-            {"name":"gore rend", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+            {"name":"gore rend", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"},
+            {"name":"pound of flesh 2", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
         ],
         "website":"",
         "socials":[
@@ -985,6 +987,263 @@
         "website":"",
         "socials":[
             {"site":"freesound.org", "handle":"Flem0527", "url":"https://freesound.org/people/Flem0527/"}
+        ]
+    },
+    {
+        "name":"Moulaythami",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Sound FX, Buzzing A", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"Moulaythami", "url":"https://freesound.org/people/Moulaythami/"}
+        ]
+    },
+    {
+        "name":"borq1",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"knuckles cracking", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"borq1", "url":"https://freesound.org/people/borq1/"}
+        ]
+    },
+    {
+        "name":"d.n.audio.uk",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Creaky Cardboard box", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"d.n.audio.uk", "url":"https://freesound.org/people/d.n.audio.uk/"}
+        ]
+    },
+    {
+        "name":"swimignorantfire",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Skull crack on porcelain tub", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"swimignorantfire", "url":"https://freesound.org/people/swimignorantfire/"}
+        ]
+    },
+    {
+        "name":"Hybrid_V",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Shield Bash Impact", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"Hybrid_V", "url":"https://freesound.org/people/Hybrid_V/"}
+        ]
+    },
+    {
+        "name":"FilmmakersManual/",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Shotgun Firing (1)", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"http://www.filmmakersmanual.com/",
+        "socials":[
+            {"site":"freesound.org", "handle":"FilmmakersManual/", "url":"https://freesound.org/people/FilmmakersManual/"}
+        ]
+    },
+    {
+        "name":"michorvath",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"AR15 rifle shot", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"michorvath", "url":"https://freesound.org/people/michorvath/"}
+        ]
+    },
+    {
+        "name":"ermfilm",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Uzi-serial-fire_96kHz-24bit.wav", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"ermfilm", "url":"https://freesound.org/people/ermfilm/"}
+        ]
+    },
+    {
+        "name":"SypherZent",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Basic Melee Swing / Miss / Whoosh", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"},
+            {"name":"Strong Melee Swing", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"SypherZent", "url":"https://freesound.org/people/SypherZent/"}
+        ]
+    },
+    {
+        "name":"Legand569",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Flesh wound removing bullet.OWI.wav", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"Legand569", "url":"https://freesound.org/people/Legand569/"}
+        ]
+    },
+    {
+        "name":"MAJ061785",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"asdfdsdfd", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"MAJ061785", "url":"https://freesound.org/people/MAJ061785/"}
+        ]
+    },
+    {
+        "name":"",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"asdfdsdfd", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"sdfdfd", "url":"https://freesound.org/people/sdfdfd/"}
+        ]
+    },
+    {
+        "name":"MrFossy",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Voice_AdultMale_PainGrunts_06.wav", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"https://mrfossy.com/",
+        "socials":[
+            {"site":"freesound.org", "handle":"MrFossy", "url":"https://freesound.org/people/MrFossy/"}
+        ]
+    },
+    {
+        "name":"tonsil5",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Grunt1 - Death Pain.wav", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"},
+            {"name":"Grunt2 - Death Pain.wav", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"tonsil5", "url":"https://freesound.org/people/tonsil5/"}
+        ]
+    },
+    {
+        "name":"Reitanna Seishin",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"grunt2", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"},
+            {"name":"painful growl.wav", "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"http://www.reitannaseishin.virb.com/",
+        "socials":[
+            {"site":"freesound.org", "handle":"Reitanna", "url":"https://freesound.org/people/Reitanna/"}
+        ]
+    },
+    {
+        "name":"Coral_Island_Studios",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Woman in Pain.mp3", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"Coral_Island_Studios", "url":"https://freesound.org/people/Coral_Island_Studios/"}
+        ]
+    },
+    {
+        "name":"qubodup",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Person Knocked Down", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"qubodup", "url":"https://freesound.org/people/qubodup/"}
+        ]
+    },
+    {
+        "name":"abel_K",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"stairs coming up aK2.wav", "licenseUrl":"http://creativecommons.org/licenses/sampling+/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"abel_K", "url":"https://freesound.org/people/abel_K/"}
+        ]
+    },
+    {
+        "name":"C-V",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"22 caliber with ricochet.wav", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"},
+            {"name":"22 caliber gunfire with ricochet.wav", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"C-V", "url":"https://freesound.org/people/C-V/"}
+        ]
+    },
+    {
+        "name":"cetsoundcrew",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"pistol shot ricochet clean.wav", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"cetsoundcrew", "url":"https://freesound.org/people/cetsoundcrew/"}
+        ]
+    },
+    {
+        "name":"OGsoundFX",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Guns & Explosions Album - Bullet Impact 14.wav", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
+        ],
+        "website":"http://www.ogsoundfx.com/",
+        "socials":[
+            {"site":"freesound.org", "handle":"OGsoundFX", "url":"https://freesound.org/people/OGsoundFX/"}
+        ]
+    },
+    {
+        "name":"",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"asdfdsdfd", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"sdfdfd", "url":"https://freesound.org/people/sdfdfd/"}
+        ]
+    },
+    {
+        "name":"",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"asdfdsdfd", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"sdfdfd", "url":"https://freesound.org/people/sdfdfd/"}
         ]
     }
 ]
