@@ -201,7 +201,7 @@ init 1 python in game:
             if not force_replace and self.scream:
                 return self.scream
             screams = cfg.PAIN_SOUNDS[self.pronoun_set.PN_SHE_HE_THEY]
-            scream = utils.get_random_list_elem(screams)[0]
+            scream = utils.get_random_list_elem(screams) #[0]
             self.scream = scream
             return self.scream
 

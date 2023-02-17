@@ -122,7 +122,8 @@ init 1 python in game:
             if disc is not None:
                 return self.power_unlocked_known_disc(power, disc)
             disciplines = [key for key in cfg.__dict__ if str(key).startswith("DISC_")]
-            for dname in disciplines:
+            for dname_dict_key in disciplines:
+                dname = getattr(cfg, dname_dict_key)
                 if self.power_unlocked_known_disc(power, dname):
                     return True
             return False

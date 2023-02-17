@@ -133,10 +133,6 @@ init 1 python in utils:
             return False
         return caseless_normalize(excerpt) in caseless_normalize(str)
 
-    def get_cum_weights(weights):
-        enum_weights = enumerate(weights)
-        return [(w8 + weights[i-1] if i > 0 else w8) for i, w8 in enum_weights]
-
     def percent_chance(chance_out_of_100):
         threshold = chance_out_of_100 / 100
         return (random.random() < threshold)
@@ -186,7 +182,12 @@ init 1 python in utils:
             return False
 
     def get_random_list_elem(collection, num_elems=1):
-        return random.choices(collection, k=num_elems)
+        elem_set = random.choices(collection, k=num_elems)
+        if not elem_set:
+            return []
+        if num_elems == 1:
+            return elem_set[0]
+        return elem_set
 
     def get_weighted_random_sample(collection, weights=None, cum_weights=None, num_elems=1):
         return random.choices(collection, weights=weights, cum_weights=cum_weights, k=num_elems)
@@ -195,6 +196,10 @@ init 1 python in utils:
         i1, item = get_weighted_random_sample(list(enumerate(collection)), weights=weights, cum_weights=cum_weights)[0]
         i2 = max(0, min(i1 + i_delta, len(collection) - 1))
         return i2, collection[i2]
+
+    def get_cum_weights(*weights):
+        enum_weights = enumerate(weights)
+        return [(w8 + weights[i-1] if i > 0 else w8) for i, w8 in enum_weights]
 
     def generate_random_id_str(leng=6, label: str = None):
         return "{}_{}".format(label if label else "rid", ''.join(random.choices(ascii_letters, k=leng)))
@@ -247,6 +252,15 @@ init 1 python in utils:
 
     def log(*args):
         print(*args)
+
+    def renpy_play(*tracks, at_once=False):
+        for i, track in enumerate(tracks):
+            if i == 0:
+                renpy.play(track, channel="sound")
+            elif at_once:
+                renpy.play(track, channel="audio")
+            else:
+                renpy.music.queue(track, channel="sound")
 
     for key in cfg.CHAR_BACKGROUNDS:
         bg = cfg.CHAR_BACKGROUNDS[key]

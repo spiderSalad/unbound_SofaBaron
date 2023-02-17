@@ -51,6 +51,7 @@ init 1 python in game:
                 stat = str(stat).capitalize()
                 if "Bloodsurge" in stat:
                     stat = "Blood Surge"
+                print("\n\n ======> STAT = {}".format(stat))
                 if str(stat).lower().startswith("pool"):
                     pool_choice.num_dice += int(str(stat)[len("pool"):])
                 elif stat in pc.attrs:
@@ -310,42 +311,52 @@ init python in state:
         else:
             raise AttributeError("Dice Roll moment must have either an opposition pool or flat difficulty!")
 
+        primary_rc.action.lifted_num_successes = active_roll.num_successes
+        secondary_rc.action.lifted_num_successes = response_roll.num_successes
+
         if pc_defending:
             pc_rc, pc_roll = secondary_rc, response_roll
         else:
             pc_rc, pc_roll = primary_rc, active_roll
 
-    def roll_display(rconfig=None, roll=None):
-        if rconfig and roll:
-            temp_rconfig, temp_roll = rconfig, roll
+    def post_roll_routine(rconfig=None, rolled=None):
+        if rconfig and rolled:
+            temp_rconfig, temp_roll = rconfig, rolled
         else:
             temp_rconfig, temp_roll = roll_config, pc_roll
+        readout = roll_display(rconfig=temp_rconfig, rolled=temp_roll)
+        check_for_reroll(rolled=temp_roll)
+        return readout
+
+    def roll_display(rconfig, rolled):
         delim = " "
         global pool_readout
-        plus_min_tmp = str(temp_rconfig.pool_text).replace(" ", "").replace("+-", " - ")
+        plus_min_tmp = str(rconfig.pool_text).replace(" ", "").replace("+-", " - ")
         plus_min_tmp = plus_min_tmp.replace("Bloodsurge", "Blood Surge")
         pool_readout = plus_min_tmp.replace("+", " + ")
-        if temp_rconfig.has_opponent:
-            test_summary = "Versus {}, margin of {}".format(temp_roll.opp_ws, temp_roll.margin)
+        if rconfig.has_opponent:
+            test_summary = "Versus {}, margin of {}".format(rolled.opp_ws, rolled.margin)
         else:
-            test_summary = "Difficulty {}, margin of {}".format(temp_roll.difficulty, temp_roll.margin)
+            test_summary = "Difficulty {}, margin of {}".format(rolled.difficulty, rolled.margin)
         roll_result = "{}! {} success{} from {} di{}. ({})".format(
-            temp_roll.outcome, temp_roll.num_successes, "es" if temp_roll.num_successes != 1 else "",
-            temp_roll.pool, "ce" if temp_roll.pool != 1 else "e", test_summary
+            rolled.outcome, rolled.num_successes, "es" if rolled.num_successes != 1 else "",
+            rolled.pool, "ce" if rolled.pool != 1 else "e", test_summary
         )
-        actual_dice_repr = delim.join(["< {} >".format(dr) for dr in temp_roll.black_results])
+        actual_dice_repr = delim.join(["< {} >".format(dr) for dr in rolled.black_results])
         actual_dice_repr += delim + delim.join([
             ("{color=#ef0404}< " + "{}".format(dr) + " >{/color}")
-            for dr in temp_roll.red_results
+            for dr in rolled.red_results
         ])
+        return '\n\n'.join([roll_result, actual_dice_repr])  # pool_readout excluded and placed in character name
+
+    def check_for_reroll(rolled):
         global can_reroll_to_improve, can_reroll_to_avert_mc
-        if available_pc_will() > 0 and not temp_roll.rerolled:
-            can_reroll_to_improve = temp_roll.can_reroll_to_improve#temp_rconfig.can_reroll_to_improve
-            can_reroll_to_avert_mc = temp_roll.can_reroll_to_avert_mc#temp_rconfig.can_reroll_to_avert_mc
+        if available_pc_will() > 0 and not rolled.rerolled:
+            can_reroll_to_improve = rolled.can_reroll_to_improve  # rconfig.can_reroll_to_improve
+            can_reroll_to_avert_mc = rolled.can_reroll_to_avert_mc  # rconfig.can_reroll_to_avert_mc
         else:
             can_reroll_to_improve = False
             can_reroll_to_avert_mc = False
-        return '\n\n'.join([roll_result, actual_dice_repr])  # pool_readout excluded and placed in character name
 
     def reroll(messy=False):
         if not messy:
@@ -353,7 +364,7 @@ init python in state:
         else:
             diceroller.reroll_messy_crit(pc_roll)
         deal_damage(cfg.TRACK_WILL, cfg.DMG_FULL_SPF, 1)
-        roll_display()
+        post_roll_routine()
         # self.confirm_roll()
 
     def get_pool_readout():
@@ -380,10 +391,11 @@ init python in state:
     def blood_surge(rouse_check_success_sound=None):
         if not renpy.store.state.blood_surge_enabled or not pc.can_rouse():
             return  # TODO: raise exception here?
-        # rouse_check(q_sound=rouse_check_success_sound)
-        renpy.call_in_new_context("roll_control.rouse_check", q_sound=rouse_check_success_sound)
+        hungrier = renpy.call_in_new_context("roll_control.rouse_check", q_sound=rouse_check_success_sound)
         # TODO: additional sound effect here?
         renpy.store.state.blood_surge_active = True
+        if hungrier:
+            refresh_hunger_ui()
 
     def can_sense_unseen(hidden, seer):
         if not seer.always_detector and not seer.get_effect_ttl(Entity.SE_AUSPEX_ESP):
@@ -450,6 +462,7 @@ label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=
         # if response_a:
         #     response_a.num_dice = state.test_rco.num_dice
         state.roll_bones(state.roll_config, secondary_rc=state.test_rco, difficulty=diffic, pc_defending=pc_defending)
+        # state.roll_config
         # TODO: left off here, but have not tested. Also, consider making a roll_config object for both attack and response every time,
         # not just for PC actions. But we still want to the ability to do expedient number-only opposition rolls.
 
@@ -458,13 +471,18 @@ label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=
             $ renpy.block_rollback()
         jump .end_npc_clash
 
+    if active_a.skip_contest or response_a.skip_contest:
+        if not cfg.DEV_MODE:
+            $ renpy.block_rollback()
+        jump .end_npc_clash
+
     label .choices:
 
         python:
             if pc_defending:
-                results_readout = state.roll_display(rconfig=state.test_rco, roll=state.diceroller.current_opp_roll)
+                results_readout = state.post_roll_routine(rconfig=state.test_rco, rolled=state.diceroller.current_opp_roll)
             else:
-                results_readout = state.roll_display(rconfig=state.roll_config, roll=state.active_roll)
+                results_readout = state.post_roll_routine(rconfig=state.roll_config, rolled=state.active_roll)
             dice_pool_desc = state.get_pool_readout()
             renpy.block_rollback()
 
@@ -491,8 +509,9 @@ label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=
         play sound dice_roll_few
 
         $ hungrier, hunger_gained = state.rouse_check(num_checks=num_checks, reroll=reroll, q_sound=q_sound)
+        $ hunger_roll_desc = game.Flavorizer.get_rouse_check_blurb(hungrier)
 
-        show roll_desc "{size=+5}Hunger. Blood.{/size}"
+        show roll_desc "{size=+5}[hunger_roll_desc]{/size}"
 
         if num_checks == 1:
             if not hungrier:

@@ -64,12 +64,12 @@ init 1 python in game:
                 else:
                     low_priority.append(enemy)
             if len(high_priority) > 0:
-                target = utils.get_random_list_elem(high_priority)[0]  # Target chosen randomly from preferred category
+                target = utils.get_random_list_elem(high_priority) #[0]  # Target chosen randomly from preferred category
                 ranked_attacks = FightBrain.get_ranked_usable_combat_skills(attacker, must_be_melee=True)
                 atk_label, atk_pool = ranked_attacks[0]
                 return CAction(CAction.MELEE_ATTACK, target, user=attacker, pool=atk_pool, subtype=atk_label)
             else:
-                target = utils.get_random_list_elem(low_priority)[0]
+                target = utils.get_random_list_elem(low_priority) #[0]
                 atk_label, atk_pool = cfg.NPCAT_PHYS, attacker.physical
                 if cfg.SK_ATHL in attacker.special_skills and attacker.special_skills[cfg.SK_ATHL] >= attacker.physical:
                     atk_label, atk_pool = cfg.SK_ATHL, attacker.special_skills[cfg.SK_ATHL]
@@ -82,12 +82,12 @@ init 1 python in game:
             can_shoot = not attacker.engaged and r_sidearm
             atype = CAction.RANGED_ATTACK if can_shoot else CAction.MELEE_ATTACK
             if can_shoot:
-                target = utils.get_random_list_elem(atk_targets)[0]
+                target = utils.get_random_list_elem(atk_targets) #[0]
             else:
                 melee_targets = [t for t in atk_targets if t.current_pos == attacker.current_pos]
                 if len(melee_targets) < 1:
                     return None  # Shooters do not seek out melee targets like brawlers, but TODO come back to this.
-                target = utils.get_random_list_elem(melee_targets)[0]
+                target = utils.get_random_list_elem(melee_targets) #[0]
             ranked_attacks = FightBrain.get_ranked_usable_combat_skills(attacker, must_be_melee=not can_shoot, must_be_ranged=can_shoot)
             atk_label, atk_pool = ranked_attacks[0]
             return CAction(atype, target, user=attacker, pool=atk_pool, subtype=atk_label, use_sidearm=r_sidearm and not r_held)
@@ -103,7 +103,7 @@ init 1 python in game:
             print("\nWILD 1: ranged_atk_options = {}".format(ranged_atk_options))
             if len(ranged_atk_options) < 1 or not renpy.store.state.holding_ranged_weapon(attacker):
                 return FightBrain.brawler_attack(attacker, action_order, ao_index, atk_targets)
-            target = utils.get_random_list_elem(atk_targets)[0]
+            target = utils.get_random_list_elem(atk_targets) #[0]
             print("\nWILD 2: target = {}, from atk_targets ({})".format(target.name, [t.name for t in atk_targets]))
             use_melee = target.current_pos == attacker.current_pos
             atype = CAction.MELEE_ATTACK if use_melee else CAction.RANGED_ATTACK

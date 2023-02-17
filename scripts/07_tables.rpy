@@ -31,7 +31,7 @@ init 1 python in state:
     def get_random_cash(rack_tier: int = None, boost: int = 0):
         loot_table = loot_tables[Item.IT_MONEY]
         if rack_tier is None:
-            lt_cash_cum_weights = utils.get_cum_weights(lt_cash_weights)
+            lt_cash_cum_weights = utils.get_cum_weights(*lt_cash_weights)
             i, base_rack = utils.get_wrs_adjusted(loot_table.items, boost, cum_weights=lt_cash_cum_weights)
         else:
             base_rack = loot_table.items[rack_tier]
@@ -42,24 +42,24 @@ init 1 python in state:
 
     loot_tables[Item.IT_WEAPON] = Inventory(
         Weapon(
-            Item.IT_WEAPON, "Switchblade", dmg_bonus=1, tier=1,
+            Weapon.MW_KNIFE, "Switchblade", dmg_bonus=1, tier=1,
             desc="You know what they say about knife fights. Good thing you're already dead."
         ),
         Weapon(
-            Item.IT_WEAPON, "Claw Hammer", dmg_bonus=1, tier=1, concealable=True, subtype=Weapon.MW_BLUNT_LIGHT,
+            Weapon.MW_BLUNT_LIGHT, "Claw Hammer", dmg_bonus=1, tier=1, concealable=True,
             desc="You're no Dae-Su, but you think you could make it work."
         ),
-        Weapon(Item.IT_WEAPON, "Wooden Baseball Bat", dmg_bonus=2, tier=2, subtype=Weapon.MW_BLUNT_HEAVY, desc="A true American classic."),
-        Weapon(Item.IT_WEAPON, "Black Blade of the Tal'Mahe'Ra", dmg_bonus=4, tier=7, lethality=4, desc="How did you get this?!")
+        Weapon(Weapon.MW_BLUNT_HEAVY, "Wooden Baseball Bat", dmg_bonus=2, tier=2, desc="A true American classic."),
+        Weapon(Weapon.MW_SWORD, "Black Blade of the Tal'Mahe'Ra", dmg_bonus=4, tier=7, lethality=4, desc="How did you get this?!")
     )
 
 
     loot_tables[Item.IT_FIREARM] = Inventory(
-        Weapon(Item.IT_FIREARM, "Stolen Ruger LCP", key="gun_ruger_1", dmg_bonus=2, desc="Confiscated and then re-confiscated."),
-        Weapon(Item.IT_FIREARM, "Glock 19 \"Compact\" 9mm", tier=2, dmg_bonus=2, desc="The smaller version sold for concealed carry."),
-        Weapon(Item.IT_FIREARM, "S & W Model 500", dmg_bonus=3, tier=3, concealable=False, desc="Do you feel lucky?"),
+        Weapon(Weapon.RW_PISTOL, "Stolen Ruger LCP", key="gun_ruger_1", dmg_bonus=2, desc="Confiscated and then re-confiscated."),
+        Weapon(Weapon.RW_PISTOL, "Glock 19 \"Compact\" 9mm", tier=2, dmg_bonus=2, desc="The smaller version sold for concealed carry."),
+        Weapon(Weapon.RW_PISTOL, "S & W Model 500", dmg_bonus=3, tier=3, concealable=False, desc="Do you feel lucky?"),
         Weapon(
-            Item.IT_FIREARM, "Browning Double Automatic", tier=3, dmg_bonus=4, concealable=False,
+            Weapon.RW_SHOTGUN, "Browning Double Automatic", tier=3, dmg_bonus=4, concealable=False,
             desc="Recoil-operated 12 gauge. Enough to put down any man, living or dead."
         )
     )
@@ -83,7 +83,7 @@ init 1 python in state:
         eligible_items = [item for item in loot_tables[itype] if item.tier == tier]
         if not len(eligible_items) or len(eligible_items) < 1:
             raise ValueError("No items of type {} and tier {} found.".format(itype, tier))
-        loot_item = utils.get_random_list_elem(eligible_items, num_elems=1)[0]
+        loot_item = utils.get_random_list_elem(eligible_items, num_elems=1) #[0]
         return loot_item.copy()
 
 
@@ -97,7 +97,7 @@ init 1 python in cfg:
         Weapon.MW_SWORD: audio.single_cut_1,
         Weapon.MW_BLUNT_LIGHT: audio.bashing_1_light,
         Weapon.MW_BLUNT_HEAVY: audio.bashing_2_heavy,
-        Weapon.W_THROWING: audio.stab_1
+        Weapon.RW_THROWING: audio.stab_1
     }
 
     WHIFF_SOUNDS = {
@@ -108,30 +108,30 @@ init 1 python in cfg:
     }
 
     FIRING_SOUNDS = {
-        Weapon.GUN_PISTOL: audio.single_shot_1,
-        Weapon.GUN_SHOTGUN: audio.shotgun_fire_1,
-        Weapon.GUN_RIFLE: audio.rifle_shot_1,
-        Weapon.GUN_AUTO: audio.uzi_full_auto
+        Weapon.RW_PISTOL: audio.single_shot_1,
+        Weapon.RW_SHOTGUN: audio.shotgun_fire_1,
+        Weapon.RW_RIFLE: audio.rifle_shot_1,
+        Weapon.RW_AUTO: audio.uzi_full_auto
     }
 
     IMPACT_SOUNDS = {
-        Weapon.GUN_PISTOL: audio.bullet_impact_2,
-        Weapon.GUN_SHOTGUN: audio.bullet_impact_2,
-        Weapon.GUN_RIFLE: audio.bullet_impact_2,
-        Weapon.GUN_AUTO: audio.bullet_impacts_1
+        Weapon.RW_PISTOL: audio.bullet_impact_2,
+        Weapon.RW_SHOTGUN: audio.bullet_impact_2,
+        Weapon.RW_RIFLE: audio.bullet_impact_2,
+        Weapon.RW_AUTO: audio.bullet_impacts_1
     }
 
     RICOCHET_SOUNDS = {
-        Weapon.MW_KNIFE: audio.melee_miss_light_1,
+        Weapon.MW_KNIFE: audio.knife_ricochet_1,
         Weapon.MW_SWORD: audio.sword_clash,
-        Weapon.MW_BLUNT_LIGHT: audio.melee_miss_light_1,
-        Weapon.MW_BLUNT_HEAVY: audio.melee_miss_heavy_1,
-        Weapon.W_THROWING: None,
+        Weapon.MW_BLUNT_LIGHT: audio.blunt_ricochet_1,
+        Weapon.MW_BLUNT_HEAVY: audio.blunt_ricochet_1,
+        Weapon.RW_THROWING: None,
 
-        Weapon.GUN_PISTOL: audio.pistol_ricochet,
-        Weapon.GUN_SHOTGUN: audio.shotgun_ricochet,
-        Weapon.GUN_RIFLE: audio.rifle_ricochet,
-        Weapon.GUN_AUTO: audio.auto_ricochet
+        Weapon.RW_PISTOL: audio.pistol_ricochet,
+        Weapon.RW_SHOTGUN: audio.shotgun_ricochet,
+        Weapon.RW_RIFLE: audio.rifle_ricochet,
+        Weapon.RW_AUTO: audio.auto_ricochet
     }
 
     PAIN_SOUNDS = {
@@ -139,13 +139,15 @@ init 1 python in cfg:
             audio.grunt_pain_masc_1,
             audio.grunt_pain_masc_2,
             audio.grunt_pain_masc_3,
-            audio.grunt_pain_masc_4
+            audio.grunt_pain_masc_4,
+            audio.grunt_pain_masc_5
         ],
         PN_WOMAN.PN_SHE_HE_THEY: [
             audio.grunt_pain_femm_1,
             audio.grunt_pain_femm_2,
             audio.grunt_pain_femm_3,
-            audio.grunt_pain_femm_4
+            audio.grunt_pain_femm_4,
+            audio.grunt_pain_femm_5
         ],
         PN_NONBINARY_PERSON.PN_SHE_HE_THEY: [
             audio.grunt_pain_femm_1,
@@ -162,8 +164,28 @@ init 1 python in game:
 
     class Flavorizer:
         WEAPON_TERMS = {
-            Weapon.GUN_AUTO: "semiautomatic"
+            Weapon.RW_AUTO: "semiautomatic"
         }
+
+        CUM_FLAVOR_WEIGHTS = {
+            "rc_success": utils.get_cum_weights(100, 30, 5, 2, 1),
+            "rc_fail": utils.get_cum_weights(120, 40, 10, 5, 2, 1)
+        }
+
+        @staticmethod
+        def get_rouse_check_blurb(hungrier):  # TODO make this more interesting, background-specific
+            rc_success_blurbs = ("", "...", "Lucky you.", "Feel that rush?", "Blood is power.")
+            rc_fail_blurbs = (
+                "Hunger. Blood.", "BLOOD",
+                "...",
+                "Drink them dry. You know you want to.",
+                "Time to pay the piper...",
+                "Them - Blood + Us (You do the math, genius)"
+            )
+            if hungrier:
+                return utils.get_weighted_random_sample(rc_fail_blurbs, cum_weights=Flavorizer.CUM_FLAVOR_WEIGHTS["rc_fail"])[0]
+            return utils.get_weighted_random_sample(rc_success_blurbs, cum_weights=Flavorizer.CUM_FLAVOR_WEIGHTS["rc_success"])[0]
+
 
         @staticmethod
         def prompt_combat_defense(atk_action):
@@ -180,7 +202,7 @@ init 1 python in game:
                     return template.format(attacker.name, pns.PN_HER_HIS_THEIR, pns.PN_SHES_HES_THEYRE, weapon.name)
                 elif weapon.item_type != Item.IT_FIREARM:
                     return "{} is preparing to throw... something, at you.".format(attacker.name)
-                elif wep_term == Weapon.GUN_AUTO:
+                elif wep_term == Weapon.RW_AUTO:
                     template = "{} points a {} in your direction, ready to spray you (and anyone close to you)."
                     return template.format(attacker.name, wep_term)
                 return template.format(attacker.name, pns.PN_HER_HIS_THEIR, weapon.name)
@@ -226,7 +248,7 @@ init 1 python in game:
                         template += "as to mortals. You'd better do something, fast."
                         return template.format(attacker.name, weapon.name)
                     else:
-                        return "{} swings the {} wildly at you, hoping to beat you into the dirt.".format(attacker.name, weapon.name)
+                        return "{} swings a {} wildly at you, hoping to beat you into the dirt.".format(attacker.name, weapon.name)
                 else:
                     template = "You're not exactly sure what is is that {} is swinging at you, but do you really want to find out?"
                     return template.format(attacker.name)

@@ -1172,7 +1172,8 @@
         "name":"qubodup",
         "type":"sound_engineer",
         "works":[
-            {"name":"Person Knocked Down", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+            {"name":"Person Knocked Down", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"},
+            {"name":"Jump Landing [remix MentalSanityOff's jumping 148796]", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
         ],
         "website":"",
         "socials":[
@@ -1222,6 +1223,84 @@
         "website":"http://www.ogsoundfx.com/",
         "socials":[
             {"site":"freesound.org", "handle":"OGsoundFX", "url":"https://freesound.org/people/OGsoundFX/"}
+        ]
+    },
+    {
+        "name":"SoundsForHim",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Knocking three times.MP3", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"SoundsForHim", "url":"https://freesound.org/people/SoundsForHim/"}
+        ]
+    },
+    {
+        "name":"riddzy",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Hit on Toilet 1.wav", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"riddzy", "url":"https://freesound.org/people/riddzy/"}
+        ]
+    },
+    {
+        "name":"Anthousai",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Hit metallic", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"http://twitter.com/GrayMakesWaves",
+        "socials":[
+            {"site":"freesound.org", "handle":"Anthousai", "url":"https://freesound.org/people/Anthousai/"}
+        ]
+    },
+    {
+        "name":"alegemaate",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Human Impact on Ground", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"http://soundcloud.com/allan-legemaate/",
+        "socials":[
+            {"site":"freesound.org", "handle":"alegemaate", "url":"https://freesound.org/people/alegemaate/"}
+        ]
+    },
+    {
+        "name":"KevinDuffy1234",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Sharp_Impact_Man_OS.wav", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"},
+            {"name":"Sharp_Impact_Girl_OS.wav", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"KevinDuffy1234", "url":"https://freesound.org/people/KevinDuffy1234/"}
+        ]
+    },
+    {
+        "name":"nhill2003",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"jump_liftoff.wav", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"nhill2003", "url":"https://freesound.org/people/nhill2003/"}
+        ]
+    },
+    {
+        "name":"alanmcki",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"simple_whoosh_002.wav", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"alanmcki", "url":"https://freesound.org/people/alanmcki/"}
         ]
     },
     {

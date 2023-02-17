@@ -33,14 +33,6 @@ init 0 python in cfg:
     REF_STATE_CHANGE_EXPR = "evex"
     REF_EVAL_TAG = "evex"
 
-    REF_MESSYCRIT = "messycrit"
-    REF_CRIT = "crit"
-    REF_WIN = "win"
-    REF_FAIL = "fail"
-    REF_BEASTFAIL = "beastfail"
-    # REF_ANY_WIN = [REF_WIN, REF_CRIT, REF_MESSYCRIT]
-    # REF_ANY_FAIL = [REF_FAIL, REF_BEASTFAIL]
-
     CT_ANIMAL = "Animal"
     CT_FAMULUS = "Ghoul (Animal)"
     CT_HUMAN = "Human"
@@ -730,6 +722,10 @@ define audio.feed_heartbeat     = "audio/sound/608241__newlocknew__heart-beat-ca
 define audio.body_fall1         = "audio/sound/372226__eflexmusic__bodyfall-3-mixed.mp3"
 define audio.body_fall2         = "audio/sound/502553__kneeling__goblin-fall.mp3"
 define audio.body_fall3_cough   = "audio/sound/222501__qubodup__person-knocked-down.mp3"
+define audio.body_fall4         = "audio/sound/364690__alegemaate__human-impact-on-ground.mp3"
+define audio.jump_liftoff_1     = "audio/sound/572458__nhill2003__jump_liftoff.mp3"
+define audio.jump_landing_1     = "audio/sound/172960__qubodup__jump-landing-remix-mentalsanityoffs-jumping-148796.mp3"
+define audio.whoosh_1           = "audio/sound/461021__alanmcki__simple_whoosh_002.mp3"
 
 # define audio.footsteps1         = "audio/sound/318900__robinhood76__05934-heels-walking-on-pavement-looping.mp3"
 define audio.dice_roll_many     = "audio/sound/220744__dermotte__dice-06.mp3"
@@ -737,6 +733,7 @@ define audio.dice_roll_few      = "audio/sound/353975__nettimato__rolling-dice-1
 define audio.fleeing_footsteps1 = "audio/sound/316924__rudmer-rotteveel__footsteps-running-away-fading.mp3"
 define audio.fast_footsteps_2   = "audio/sound/69296__abel_k__stairs-coming-up-ak2.mp3"
 define audio.fluorescent_buzz   = "audio/sound/574540__moulaythami__buzzing-a.mp3"
+define audio.door_knock_1       = "audio/sound/412858__soundsforhim__knocking-three-times.mp3"
 define audio.heartbeat_faster   = "audio/sound/181805__klankbeeld__heart-beat-increasing-116642-excerpt02.mp3"
 define audio.beastgrowl2        = "audio/sound/98337__cgeffex__roar.mp3"
 define audio.samurai_blade_warp = "audio/sound/37411__funkymuskrat__chil.mp3"
@@ -771,17 +768,22 @@ define audio.bashing_2_heavy    = "audio/sound/165196__swimignorantfire__skull-c
 define audio.brawl_struggle     = "audio/sound/235681__jsburgh__struggle-between-two-people.mp3"
 define audio.toughness_armor    = "audio/sound/129073__harha__hardstyle-kick-01-nustyle-harha.mp3"
 
-define audio.grunt_pain_masc_1  = "audio/sound/497713__miksmusic__punch-grunt-1.mp3"
-define audio.grunt_pain_masc_2  = "audio/sound/85553__maj061785__male-pain-grunt.mp3"
-define audio.grunt_pain_masc_3  = "audio/sound/547206__mrfossy__voice_adultmale_paingrunts_06.mp3"
-define audio.grunt_pain_masc_4  = "audio/sound/416838__tonsil5__grunt2-death-pain.mp3"
-define audio.grunt_pain_femm_1  = "audio/sound/536750__egomassive__gruntf.mp3"
-define audio.grunt_pain_femm_2  = "audio/sound/277562__coral_island_studios__woman-in-pain.mp3"
-define audio.grunt_pain_femm_3  = "audio/sound/242622__reitanna__grunt2.mp3"
-define audio.grunt_pain_femm_4  = "audio/sound/241545__reitanna__painful-growl.mp3"
-
 define audio.shotgun_ricochet   = "audio/sound/423107__ogsoundfx__guns-explosions-album-bullet-impact-14.mp3"
 define audio.pistol_ricochet    = "audio/sound/521370__cetsoundcrew__pistol-shot-ricochet-clean.mp3"
 define audio.rifle_ricochet     = "audio/sound/523403__c-v__22-caliber-with-ricochet.mp3"
 define audio.auto_ricochet      = "audio/sound/523404__c-v__22-caliber-gunfire-with-ricochet.mp3"
+define audio.blunt_ricochet_1   = "audio/sound/234599__riddzy__hit-on-toilet-1.mp3"
+define audio.knife_ricochet_1   = "audio/sound/406557__anthousai__hit-metallic-metal-gate.mp3"
+
+define audio.grunt_pain_masc_1  = "audio/sound/497713__miksmusic__punch-grunt-1.mp3"
+define audio.grunt_pain_masc_2  = "audio/sound/85553__maj061785__male-pain-grunt.mp3"
+define audio.grunt_pain_masc_3  = "audio/sound/547206__mrfossy__voice_adultmale_paingrunts_06.mp3"
+define audio.grunt_pain_masc_4  = "audio/sound/416838__tonsil5__grunt2-death-pain.mp3"
+define audio.grunt_pain_masc_5  = "audio/sound/340283__kevinduffy1234__sharp_impact_man_os.mp3"
+define audio.grunt_pain_femm_1  = "audio/sound/536750__egomassive__gruntf.mp3"
+define audio.grunt_pain_femm_2  = "audio/sound/277562__coral_island_studios__woman-in-pain.mp3"
+define audio.grunt_pain_femm_3  = "audio/sound/242622__reitanna__grunt2.mp3"
+define audio.grunt_pain_femm_4  = "audio/sound/241545__reitanna__painful-growl.mp3"
+define audio.grunt_pain_femm_5  = "audio/sound/340289__kevinduffy1234__sharp_impact_girl_os.mp3"
+
 #

@@ -46,6 +46,7 @@ default state.blood_surge_enabled   = False
 default state.blood_surge_active    = False
 default state.mended_this_turn      = False
 default state.used_disc_this_turn   = False
+default state.fleet_dodge_this_turn = False
 
 default state.resonance_types       = [getattr(cfg, rt) for rt in cfg.__dict__ if str(rt).startswith("RESON_")]
 default state.resonances            = {
@@ -59,7 +60,7 @@ default state.resonances            = {
 
 default state.reson_intensity_table = [cfg.RINT_BALANCED, cfg.RINT_FLEETING, cfg.RINT_INTENSE, cfg.RINT_ACUTE]
 default state.rint_weights          = [1000, 500, 100, 10]
-default state.cum_intensity_weights = store.utils.get_cum_weights(state.rint_weights)
+default state.cum_intensity_weights = store.utils.get_cum_weights(*state.rint_weights)
 # [(rw8 + state.rint_weights[i-1] if i > 0 else rw8) for i, rw8 in enumerate(state.rint_weights)]
 
 
@@ -131,6 +132,12 @@ init 1 python in state:
     def pc_has_ranged_attack(check_alt=False):
         return (holding_ranged_weapon(check_alt=check_alt) or pc_has_ranged_attack_power())
 
+    def refresh_hunger_ui():
+        if pc.hunger > cfg.HUNGER_MAX_CALM:
+            renpy.show_screen(_screen_name="hungerlay", _layer = "hunger_layer", _tag = "hungerlay", _transient = False)
+        else:
+            renpy.hide_screen("hungerlay", "master")
+
     def set_hunger(delta, killed=False, innocent=False, ignore_killed=False):
         previous_hunger, hunger_floor = pc.hunger, cfg.HUNGER_MIN_KILL if killed or ignore_killed else cfg.HUNGER_MIN
         new_hunger = utils.nudge_int_value(pc.hunger, delta, "Hunger", floor=hunger_floor, ceiling=7)
@@ -139,10 +146,8 @@ init 1 python in state:
             renpy.play(renpy.store.audio.beastgrowl1, "sound")
         if killed and innocent:
             set_humanity("-=1")
-        if pc.hunger > cfg.HUNGER_MAX_CALM:
-            renpy.show_screen(_screen_name="hungerlay", _layer = "hunger_layer", _tag = "hungerlay", _transient = False)
-        else:
-            renpy.hide_screen("hungerlay", "master")
+        refresh_hunger_ui()
+
 
     def set_humanity(delta):
         new_humanity = utils.nudge_int_value(pc.humanity, delta, "Humanity", floor=cfg.MIN_HUMANITY, ceiling=cfg.MAX_HUMANITY)
@@ -189,11 +194,11 @@ init 1 python in state:
         if not reso and intensity == cfg.RINT_BALANCED:
             reso = cfg.RESON_VARIED
         elif not reso:
-            reso = utils.get_random_list_elem(resonance_types)[0]
+            reso = utils.get_random_list_elem(resonance_types) #[0]
             if reso == cfg.RESON_ANIMAL:  # Don't give animal resonance unless specified.
                 reso = cfg.RESON_VARIED
         elif type(reso) in (list, tuple):
-            reso = utils.get_random_list_elem(reso)[0]
+            reso = utils.get_random_list_elem(resonance_types) #[0]
 
         if reso == cfg.RESON_VARIED:
             for rpool in resonances:

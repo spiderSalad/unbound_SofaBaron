@@ -58,20 +58,27 @@ init 1 python in game:
         MW_BLUNT_LIGHT = "Baton/Blunt Weapon"
         MW_BLUNT_HEAVY = "Bludgeon/Heavy Blunt Weapon"
 
-        W_THROWING = "Throwing Weapon"
+        MWEPS = (MW_KNIFE, MW_SWORD, MW_AXE, MW_BLUNT_HEAVY, MW_BLUNT_LIGHT)
 
-        GUN_PISTOL = "Pistol/Revolver"
-        GUN_SHOTGUN = "Shotgun"
-        GUN_RIFLE = "Rifle"
-        GUN_AUTO = "(Semi-)Automatic"
+        RW_THROWING = "Throwing Weapon"
+        RW_PISTOL = "Pistol/Revolver"
+        RW_SHOTGUN = "Shotgun"
+        RW_RIFLE = "Rifle"
+        RW_AUTO = "(Semi-)Automatic"
+
+        RWEPS = (RW_PISTOL, RW_SHOTGUN, RW_RIFLE, RW_AUTO, RW_THROWING)
 
         def __init__(self, type, name, subtype=None, key=None, num=1, desc=None, tier=1, dmg_bonus=0, lethality=None, **kwargs):
-            super().__init__(type, name, key=key, num=num, desc=desc, tier=tier, **kwargs)
+            t_type = type
+            if type in Weapon.MWEPS or type == Weapon.RW_THROWING:
+                t_type, subtype = Item.IT_WEAPON, type
+            elif type in Weapon.RWEPS:
+                t_type, subtype = Item.IT_FIREARM, type
+            super().__init__(t_type, name, key=key, num=num, desc=desc, tier=tier, **kwargs)
             self.dmg_bonus = dmg_bonus
-
             self.subtype = subtype
             if subtype is None:
-                self.subtype = Weapon.GUN_PISTOL if self.item_type == Item.IT_FIREARM else Weapon.MW_KNIFE
+                self.subtype = Weapon.RW_PISTOL if self.item_type == Item.IT_FIREARM else Weapon.MW_KNIFE
 
             # Guns are concealable unless stated otherwise and have a default lethality of 2.
             if lethality is not None:
@@ -113,8 +120,12 @@ init 1 python in game:
             if not action.weapon_used:
                 if action.action_type in CAction.OUCH:
                     return audio.throwing_hands_1 if hit else audio.brawl_struggle
-                elif action.action_type == CAction.MELEE_ENGAGE:
-                    return audio.fast_footsteps_2
+                elif action.action_type in (CAction.MELEE_ENGAGE, CAction.DODGE):
+                    if utils.caseless_in(cfg.POWER_POTENCE_SUPERJUMP, action.unarmed_power_used):
+                        return audio.jump_liftoff_1, "<silence 0.3>", audio.jump_landing_1
+                    elif utils.caseless_in(cfg.POWER_CELERITY_BLINK, action.unarmed_power_used):
+                        return audio.whoosh_1
+                    return audio.fast_footsteps_2 if action.action_type == CAction.MELEE_ENGAGE else None
                 return None
             wtype, subtype = action.weapon_used.item_type, action.weapon_used.subtype
             if hit:

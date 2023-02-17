@@ -18,6 +18,8 @@ init 1 python in game:
                 return BuffPipeline.melee_attack(who, action, base_pool)
             if action.action_type == CAction.RANGED_ATTACK:
                 return BuffPipeline.ranged_attack(who, action, base_pool)
+            if action.action_type == CAction.MELEE_ENGAGE:
+                return BuffPipeline.rush(who, action, base_pool)
             if action.action_type == CAction.DODGE:
                 return BuffPipeline.attack_evasion(who, action, base_pool)
             return action, base_pool
@@ -95,6 +97,22 @@ init 1 python in game:
             return action, new_pool
 
         @staticmethod
+        def rush(user, action, base_pool):
+            new_pool = str(base_pool)
+
+            # Blink (rush)
+            blink = cfg.POWER_CELERITY_BLINK
+            if user.has_disc_power(blink, cfg.DISC_CELERITY) and utils.caseless_in(blink, action.unarmed_power_used):
+                action.skip_contest = True
+
+            # Soaring Leap (rush)
+            superjump = cfg.POWER_POTENCE_SUPERJUMP
+            if user.has_disc_power(superjump, cfg.DISC_POTENCE) and utils.caseless_in(superjump, action.unarmed_power_used):
+                new_pool += "+{}".format(cfg.DISC_POTENCE)
+
+            return action, new_pool
+
+        @staticmethod
         def apply_damage_bonus(action, value, db_label=None):
             if not action.dmg_bonus:
                 action.dmg_bonus = value
@@ -114,11 +132,25 @@ init 1 python in game:
             fx = user.status_effects
 
             # Fleetness (dodging)
-            if user.has_disc_power(cfg.POWER_CELERITY_SPEED, cfg.DISC_CELERITY) and Entity.SE_FLEETY in fx:
+            can_flit = Entity.SE_FLEETY in fx and not state.fleet_dodge_this_turn
+            # can_flit = user.has_disc_power(cfg.POWER_CELERITY_SPEED, cfg.DISC_CELERITY)
+            if can_flit and utils.caseless_in(cfg.POWER_CELERITY_SPEED, action.unarmed_power_used):
                 if utils.caseless_in(cfg.AT_DEX, base_pool) and utils.caseless_in(cfg.SK_ATHL, base_pool):
                     new_pool += "+{}".format(cfg.DISC_CELERITY)
-                elif (user.shapeshift_form and caseless_in(cfg.SK_ATHL, base_pool)):
+                    state.fleet_dodge_this_turn = True
+                elif (user.shapeshift_form and utils.caseless_in(cfg.SK_ATHL, base_pool)):
                     new_pool += "+{}".format(cfg.DISC_CELERITY)
+                    state.fleet_dodge_this_turn = True
+
+            # Blink (dodge)
+            blink = cfg.POWER_CELERITY_BLINK
+            if user.has_disc_power(blink, cfg.DISC_CELERITY) and utils.caseless_in(blink, action.unarmed_power_used):
+                action.skip_contest = True
+
+            # Soaring Leap (dodge)
+            superjump = cfg.POWER_POTENCE_SUPERJUMP
+            if user.has_disc_power(superjump, cfg.DISC_POTENCE) and utils.caseless_in(superjump, action.unarmed_power_used):
+                new_pool += "+{}".format(cfg.DISC_POTENCE)
 
             return action, new_pool
 
@@ -225,14 +257,21 @@ init 1 python in state:
             dp_name = str(power_name).lower().replace(' ', '_').replace("'", "")
             if dp_name and hasattr(self, dp_name):
                 num_rouse_checks, reroll = StatusFX.get_num_rouse_checks(power_name)
+                hungrier = False
                 # rouse_check(num_checks=num_rouse_checks, reroll=reroll)
                 if num_rouse_checks > 0 and who.can_rouse():
-                    renpy.call_in_new_context("roll_control.rouse_check", num_checks=num_rouse_checks, reroll=reroll)
+                    hungrier = renpy.call_in_new_context("roll_control.rouse_check", num_checks=num_rouse_checks, reroll=reroll)
+                    if hungrier:
+                        refresh_hunger_ui()
                 elif num_rouse_checks > 0:
-                    return
+                    return  # TODO: check this too as per below.
                 getattr(self, dp_name)(who=who)
                 if not (dp_name in cfg.REF_DISC_POWER_FREEBIES or dp_name in cfg.REF_DISC_POWER_PASSIVES):
                     used_disc_this_turn = True
+                # return hungrier  TODO: figure out why returning values from here causes a "Nonetype not subscriptible" error
+                # in the menus in script_05_battles.rpy. Something about the context?
+                # It's being called from a renpy screen interaction and the error occurs when that interaction is triggered
+                # while on a menu, as if that's returning None as a menu choice selection?
             else:
                 raise ValueError("\"{}\" is not implemented here, at least not yet.".format(dp_name))
 

@@ -69,7 +69,7 @@ init 1 python in game:
             self.target, self.defending = target, defending
             self.user = user
             self.action_label = subtype
-            self.weapon_used = None
+            self.weapon_used, self.skip_contest, self.lost_to_trump_card = None, False, False
             if use_sidearm:
                 self.alt_weapon_penalty = True
                 utils.log("Alt weapon penalty imposed on {} because use_sidearm ({}) set to True.".format(
@@ -273,17 +273,20 @@ init 1 python in game:
             #     print('pc defending in report')
             #     r1, r2, r3, r4, r5 = roll.margin * -1, roll.opp_ws, atk_action.pool, roll.num_successes, roll.pool
             # else:
-            print('not pc defending, report')
             r1, r2, r3, r4, r5 = roll.margin, roll.num_successes, roll.pool, roll.opp_ws, def_action.num_dice  # def_action.pool
             atype = ClashRecord.DEV_LOG_FLAGS[atk_action.action_type]
             dtype = ClashRecord.DEV_LOG_FLAGS[def_action.action_type]
             rep_atk_str, rep_def_str = "", ""
-            if self.attack_record and self.attack_record.log_str:
+            if self.attack_record and self.attack_record.log_str and not atk_action.lost_to_trump_card:
                 rep_atk_str = "atk: {}".format(self.attack_record.log_str)
+            elif def_action.lost_to_trump_card:
+                rep_atk_str = "atk: failed successfully"
             else:
                 rep_atk_str = "atk: failed to connect"
-            if self.defend_record and self.defend_record.log_str:
+            if self.defend_record and self.defend_record.log_str and not def_action.lost_to_trump_card:
                 rep_def_str = "  /  def: {}".format(self.defend_record.log_str)
+            elif atk_action.lost_to_trump_card:
+                rep_def_str = "  /  def: failed, but got away anyway"
             else:
                 rep_def_str = "  /  def: failed to defend"
             atkr_name = "{}[{}]".format(atk_action.user.name, str(atk_action.user.creature_type)[:2])
@@ -377,24 +380,25 @@ init 1 python in game:
                 return None
             return self.action_order[self.ao_index]
 
-        def get_next_contest(self):
+        def get_next_contest(self, preset_atk_action=None):
             if self.round >= self.actual_num_rounds:
                 return self.battle_end_cleanup()
-            up_next = self.get_up_next()
-            if not up_next:
-                return None, None
-            if self.ent_turns <= 0:
-                self.ent_turns = up_next.turns if hasattr(up_next, "turns") else 1
-            enemy_targets = self.pc_team if up_next in self.enemies else self.enemies
-            opps = any([ct for ct in enemy_targets if not ct.dead and not ct.appears_dead])
-            if not opps:
-                return self.battle_end_cleanup()
-            if up_next.is_pc:
-                return None, None
-            if up_next.dead:
-                return None, None
-            all_targets = self.pc_team + self.enemies
-            atk_action = up_next.attack(self.action_order, self.ao_index, enemy_targets, all_targets)
+            if preset_atk_action:
+                atk_action, up_next = preset_atk_action, preset_atk_action.user
+            else:
+                up_next = self.get_up_next()
+                if not up_next:
+                    return None, None
+                if self.ent_turns <= 0:
+                    self.ent_turns = up_next.turns if hasattr(up_next, "turns") else 1
+                enemy_targets = self.pc_team if up_next in self.enemies else self.enemies
+                opps = any([ct for ct in enemy_targets if not ct.dead and not ct.appears_dead])
+                if not opps:
+                    return self.battle_end_cleanup()
+                if up_next.is_pc or up_next.dead:
+                    return None, None
+                all_targets = self.pc_team + self.enemies
+                atk_action = up_next.attack(self.action_order, self.ao_index, enemy_targets, all_targets)
             if not atk_action.target or atk_action.target.is_pc:
                 return atk_action, None
             def_action = atk_action.target.defend(up_next, atk_action)
@@ -416,12 +420,16 @@ init 1 python in game:
                 if def_action.user.is_pc or (atk_action.target.is_pc and not atk_action.user.is_pc):
                     # margin_threshold = 1
                     pass
-            self.handle_clash(roll_result, atk_action, def_action)
+            follow_up_action = self.handle_clash(roll_result, atk_action, def_action)
+            cl_report = self.combat_log.report(roll_result, atk_action, def_action)
             # rep_round, rep_ao_index = self.round + 1, self.ao_index
+            if follow_up_action:
+                return cl_report, follow_up_action
             if just_went.is_pc:
                 state.mended_this_turn, state.used_disc_this_turn = False, False
+                state.fleet_dodge_this_turn = False
             self.increment()
-            return self.combat_log.report(roll_result, atk_action, def_action)
+            return cl_report, None
 
         def increment(self):
             self.ent_turns -= 1
@@ -441,30 +449,50 @@ init 1 python in game:
             print("\n\nAT HANDLE CLASSH MARGIN IS {} with attacker {} and defender {}\n\n".format(
                 roll_result.margin, atk_action.user.name, def_action.user.name
             ))
+            follow_up = None
             if atype == CAction.MELEE_ENGAGE:  # Melee Engage always behaves the same regardless of defense action.
-                self.handle_melee_engage(roll_result, atk_action, def_action)
+                follow_up = self.handle_melee_engage(roll_result, atk_action, def_action)
             elif atype == CAction.RANGED_ATTACK:
-                self.handle_ranged_attack(roll_result, atk_action, def_action)
+                follow_up = self.handle_ranged_attack(roll_result, atk_action, def_action)
             elif atype == CAction.MELEE_ATTACK:
-                self.handle_melee_attack(roll_result, atk_action, def_action)
+                follow_up = self.handle_melee_attack(roll_result, atk_action, def_action)
             elif atype == CAction.SPECIAL_ATTACK:
-                self.handle_special_attack(roll_result, atk_action, def_action)
+                follow_up = self.handle_special_attack(roll_result, atk_action, def_action)
             elif atype in CAction.NO_CONTEST:
                 utils.log("No action! Or at least an action that doesn't invoke a contest.")
-                self.handle_non_contest(roll_result, atk_action)
+                follow_up = self.handle_non_contest(roll_result, atk_action)
             else:
                 raise ValueError("\"{}\" is not a valid action type!".format(atype))
             self.play_clash_audio(roll_result.margin, atk_action, def_action)
             self.combat_log.set_clash_records(roll_result.margin, atk_action, def_action)
+            return follow_up
 
         def handle_melee_engage(self, rolled, atk_action, def_action):
-            # Always move to the target's position and engage self, but only engage them if successful.
+            # Move to the target's position and engage self unless it's a total failure, but only engage target on a win.
             # margin = rolled.margin * (-1 if self.attack_on_pc(atk_action) else 1)
-            margin = rolled.margin
-            atk_action.user.current_pos = atk_action.target.current_pos
-            atk_action.user.engaged.append(atk_action.target)
-            if margin >= 0:
+            margin, fuiwin = rolled.margin, False
+            if rolled.num_successes and rolled.outcome != V5DiceRoll.RESULT_BESTIAL_FAIL:
+                atk_action.user.current_pos = atk_action.target.current_pos
+                atk_action.user.engaged.append(atk_action.target)
+                fuiwin = atk_action.skip_contest
+            fuiwin = fuiwin and (rolled.num_successes or atk_action.user.has_disc_power(cfg.POWER_CELERITY_GRACE, cfg.DISC_CELERITY))
+            # In a blink vs blink contest, the defender wins, i.e. "fuulose" trumps "fuiwin".
+            fuulose = def_action.skip_contest and rolled.outcome not in (V5DiceRoll.RESULT_CRIT, V5DiceRoll.RESULT_MESSY_CRIT)
+            fuulose = fuulose and bool(def_action.lifted_num_successes)
+            if def_action.action_type == CAction.DODGE and fuulose:
+                utils.log("Failed ranged attack against teleporting target.")
+                atk_action.lost_to_trump_card = True
+                return None
+            #
+            if margin >= 0 or fuiwin:
                 atk_action.target.engaged.append(atk_action.user)
+                if rolled.outcome in (V5DiceRoll.RESULT_MESSY_CRIT, V5DiceRoll.RESULT_CRIT) or fuiwin:
+                    # A critical win on a rush (or any successes if using Blink) allows for a free extra melee attack.
+                    # Weapon used is equipped, alt, or fists - in that priority order.
+                    def_action.lost_to_trump_card = True
+                    rush_attack = CAction(CAction.MELEE_ATTACK, atk_action.target, atk_action.user)
+                    rush_attack.pool = "dexterity+combat/strength+combat"
+                    return rush_attack
             elif def_action.action_type in CAction.OUCH:
                 self.damage_step(margin, atk_action, def_action)
             else:
@@ -475,6 +503,14 @@ init 1 python in game:
         def handle_ranged_attack(self, rolled, atk_action, def_action):
             # margin = rolled.margin * (-1 if self.attack_on_pc(atk_action) else 1)
             margin = rolled.margin
+            # Blink dodgers can only be hit with a crit (and you still have to win), or if they totally fail.
+            fuulose = def_action.skip_contest and rolled.outcome not in (V5DiceRoll.RESULT_CRIT, V5DiceRoll.RESULT_MESSY_CRIT)
+            fuulose = fuulose and bool(def_action.lifted_num_successes)
+            if def_action.action_type == CAction.DODGE and fuulose:
+                utils.log("Failed ranged attack against teleporting target.")
+                atk_action.lost_to_trump_card = True
+                return None
+            #
             if margin > 0:  # If a ranged attack lands nothing else matters.
                 self.damage_step(margin, atk_action, def_action)
             else:  # If it fails, it may matter if the response is a ranged attack.
@@ -486,8 +522,7 @@ init 1 python in game:
                     self.damage_step(margin, atk_action, def_action, force_zero=True)
                 else:
                     utils.log("Failed ranged attack with non-damaging response.")
-            # self.play_clash_audio(margin, atk_action, def_action)
-            # self.combat_log.seet_clash_records(margin, atk_action, def_action)
+            return None
 
         def handle_melee_attack(self, rolled, atk_action, def_action):
             # margin = rolled.margin * (-1 if self.attack_on_pc(atk_action) else 1)
@@ -495,6 +530,14 @@ init 1 python in game:
             if atk_action.user.current_pos != atk_action.target.current_pos:
                 utils.log("Melee attack launched against out-of-position target. This shouldn't ever be reached.")
                 return
+            # Blink dodgers can only be hit with a crit (and you still have to win), or if they totally fail.
+            fuulose = def_action.skip_contest and rolled.outcome not in (V5DiceRoll.RESULT_CRIT, V5DiceRoll.RESULT_MESSY_CRIT)
+            fuulose = fuulose and bool(def_action.lifted_num_successes)
+            if def_action.action_type == CAction.DODGE and fuulose:
+                utils.log("Failed melee attack against teleporting target.")
+                atk_action.lost_to_trump_card = True
+                return None
+            #
             atk_action.user.engaged.append(atk_action.target)
             if margin > 0:  # Successful melee attack engages both user and target.
                 atk_action.target.engaged.append(atk_action.user)
@@ -505,26 +548,26 @@ init 1 python in game:
                 self.damage_step(margin, atk_action, def_action)
             else:
                 utils.log("Failed melee attack with non-damaging response.")
-            # self.play_clash_audio(margin, atk_action, def_action)
-            # self.combat_log.seet_clash_records(margin, atk_action, def_action)
+            return None
 
         def handle_special_attack(self, rolled, atk_action, def_action):
             # margin = rolled.margin * (-1 if self.attack_on_pc(atk_action) else 1)
             # margin = rolled.margin
-            pass
+            return None
 
         def handle_non_contest(self, rolled, atk_action):
             user = atk_action.user
             if atk_action.action_type == CAction.FALL_BACK:
                 pos_mod = 1 if user in self.enemies else -1
                 user.current_pos += pos_mod
+            return None
 
         def play_clash_audio(self, margin, atk_action, def_action):
             win_sound, loss_sound, reaction_sound, extra_sound = audio.brawl_struggle, None, None, None
             attacker, defender = atk_action.user, def_action.user # TODO: standardize everywhere (def_action.user vs atk_action.target)
             attacker_scream, defender_scream = attacker.set_scream(), defender.set_scream()
 
-            if margin >= 0:
+            if margin >= 0 and ((not def_action.skip_contest) or atk_action.skip_contest):
                 winning_action, losing_action = atk_action, def_action
                 loser_scream = defender_scream
             else:
@@ -543,20 +586,19 @@ init 1 python in game:
                     win_sound = audio.throwing_hands_1  # if winner uses fisticuffs it's assumed loser was interrupted
                     loss_sound = loser_scream
                 elif winning_action.action_type == CAction.MELEE_ENGAGE:
-                    win_sound = audio.fast_footsteps_2
+                    win_sound = Weapon.get_fight_sound(winning_action, True)
                     loss_sound = Weapon.get_fight_sound(losing_action, False)
                 else:
                     win_sound = Weapon.get_fight_sound(winning_action, True)
                     loss_sound = Weapon.get_fight_sound(losing_action, False)
-            else:  # CLASHES ENDING IN TIE
-                print("margin of zero, no scream")
+            else:  # CLASHES ENDING IN TIE, no scream
                 loser_scream = None
                 if win_weapon:
                     win_sound = Weapon.get_fight_sound(winning_action, None)  # clash for melee, bang for guns
-                elif winning_action.action_type == CAction.MELEE_ENGAGE:
-                    win_sound = audio.fast_footsteps_2
-                else:
-                    win_sound = audio.brawl_struggle  # struggle sound for weaponless attacks (and default)
+                else:  #elif winning_action.action_type == CAction.MELEE_ENGAGE:
+                    win_sound = Weapon.get_fight_sound(winning_action, True)
+                # else:
+                    # win_sound = audio.brawl_struggle  # struggle sound for weaponless attacks (and default)
                 if loss_weapon:
                     loss_sound = Weapon.get_fight_sound(losing_action, None)
                     if loss_weapon.item_type == Item.IT_FIREARM:
@@ -575,7 +617,8 @@ init 1 python in game:
             print("\nCLASH SOUNDS:\nwin: {}\nextra: {}\nloss: {}\nreaction: {}\nloser_scream: {}".format(
                 win_sound, extra_sound, loss_sound, reaction_sound, loser_scream
             ))
-            renpy.play(win_sound, "audio")
+            # renpy.play(win_sound, "audio")
+            utils.renpy_play(win_sound)
             if extra_sound:
                 renpy.play(extra_sound, "audio")
             renpy.play(loss_sound, "audio")
@@ -627,4 +670,5 @@ init 1 python in game:
             state.in_combat = False
             state.blood_surge_active = False
             state.mended_this_turn, state.used_disc_this_turn = False, False
+            state.fleet_dodge_this_turn = False
             return None, None
