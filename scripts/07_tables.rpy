@@ -5,6 +5,13 @@ init 1 python in state:
     loot_tables = {}
 
 
+    def gift_weapon(itype=Item.IT_WEAPON, key=None):
+        return loot_tables[itype].dupe_from(ikey=key, randomly=(key is None))
+
+    def gift_gun(key=None):
+        return gift_weapon(itype=Item.IT_FIREARM, key=key)
+
+
     loot_tables["misc"] = Inventory(
         Item(Item.IT_MONEY, "Money", num=int(12.5 * 1000 * 1000 * 1000), desc="Local city's entire GDP"),
         Item(
@@ -45,25 +52,31 @@ init 1 python in state:
             Weapon.MW_KNIFE, "Switchblade", dmg_bonus=1, tier=1,
             desc="You know what they say about knife fights. Good thing you're already dead."
         ),
+        Weapon(Weapon.MW_KNIFE, "Butterfly Knife", key="butterfly1", tier=1, concealable=True),
+        Weapon(Weapon.MW_KNIFE, "\"Scalpel\"", key="realscalpel", tier=3, dmg_bonus=3, desc="For legitimate medical use only."),
+        Weapon(Weapon.MW_SWORD, "Stained Machete", tier=2, desc="A well-seasoned weapon, good for removing limbs."),
         Weapon(
-            Weapon.MW_BLUNT_LIGHT, "Claw Hammer", dmg_bonus=1, tier=1, concealable=True,
+            Weapon.MW_BLUNT_LIGHT, "Claw Hammer", tier=1, concealable=True,
             desc="You're no Dae-Su, but you think you could make it work."
         ),
-        Weapon(Weapon.MW_BLUNT_HEAVY, "Wooden Baseball Bat", dmg_bonus=2, tier=2, desc="A true American classic."),
+        Weapon(Weapon.MW_BLUNT_HEAVY, "Wooden Baseball Bat", key="woodbat", tier=2, desc="A true American classic."),
+        Weapon(Weapon.MW_AXE, "Fire Axe", tier=3, desc="About as dangerous to licks as its name might imply."),
         Weapon(Weapon.MW_SWORD, "Black Blade of the Tal'Mahe'Ra", dmg_bonus=4, tier=7, lethality=4, desc="How did you get this?!")
     )
 
 
     loot_tables[Item.IT_FIREARM] = Inventory(
-        Weapon(Weapon.RW_PISTOL, "Stolen Ruger LCP", key="gun_ruger_1", dmg_bonus=2, desc="Confiscated and then re-confiscated."),
-        Weapon(Weapon.RW_PISTOL, "Glock 19 \"Compact\" 9mm", tier=2, dmg_bonus=2, desc="The smaller version sold for concealed carry."),
+        Weapon(Weapon.RW_PISTOL, "Stolen Ruger LCP", key="ruger1", dmg_bonus=2, desc="Confiscated and then re-confiscated."),
         Weapon(Weapon.RW_PISTOL, "S & W Model 500", dmg_bonus=3, tier=3, concealable=False, desc="Do you feel lucky?"),
+        Weapon(
+            Weapon.RW_PISTOL, "Glock 19 \"Compact\" 9mm", key="glock19", tier=2, desc="The smaller version sold for concealed carry."
+        ),
         Weapon(
             Weapon.RW_SHOTGUN, "Browning Double Automatic", tier=3, dmg_bonus=4, concealable=False,
             desc="Recoil-operated 12 gauge. Enough to put down any man, living or dead."
-        )
+        ),
+        Weapon(Weapon.RW_RIFLE, "Nosler M21", desc="A hunter's weapon.")
     )
-
 
     loot_tables["tech"] = Inventory(
         Item(Item.IT_EQUIPMENT, "Smartphone", desc="The latest and greatest in rooted burner phones. GPS disabled.")
@@ -77,7 +90,7 @@ init 1 python in state:
 
     def get_random_loot(itype, min_tier=0, max_tier=cfg.MAX_ITEM_TIER, tier_weights=None, tier_cum_weights=None):
         tier_list = list(range(min_tier, max_tier + 1))
-        tier = utils.get_weighted_random_sample(tier_list, weights=tier_weights, cum_weights=tier_cum_weights)
+        tier = utils.get_wrs(tier_list, weights=tier_weights, cum_weights=tier_cum_weights)
         if itype not in loot_tables:
             raise ValueError("No loot table exists for item type {}!".format(itype))
         eligible_items = [item for item in loot_tables[itype] if item.tier == tier]
@@ -94,9 +107,10 @@ init 1 python in cfg:
 
     STRIKE_SOUNDS = {
         Weapon.MW_KNIFE: audio.stab_1,
-        Weapon.MW_SWORD: audio.single_cut_1,
+        Weapon.MW_SWORD: audio.multiple_cuts_2,
         Weapon.MW_BLUNT_LIGHT: audio.bashing_1_light,
         Weapon.MW_BLUNT_HEAVY: audio.bashing_2_heavy,
+        Weapon.MW_AXE: audio.axe_cleave_2,
         Weapon.RW_THROWING: audio.stab_1
     }
 
@@ -104,7 +118,8 @@ init 1 python in cfg:
         Weapon.MW_KNIFE: audio.melee_miss_light_1,
         Weapon.MW_SWORD: audio.melee_miss_heavy_1,
         Weapon.MW_BLUNT_LIGHT: audio.melee_miss_light_1,
-        Weapon.MW_BLUNT_HEAVY: audio.melee_miss_heavy_1
+        Weapon.MW_BLUNT_HEAVY: audio.melee_miss_heavy_1,
+        Weapon.MW_AXE: audio.melee_miss_heavy_1
     }
 
     FIRING_SOUNDS = {
@@ -126,6 +141,7 @@ init 1 python in cfg:
         Weapon.MW_SWORD: audio.sword_clash,
         Weapon.MW_BLUNT_LIGHT: audio.blunt_ricochet_1,
         Weapon.MW_BLUNT_HEAVY: audio.blunt_ricochet_1,
+        Weapon.MW_AXE: audio.blunt_ricochet_1,
         Weapon.RW_THROWING: None,
 
         Weapon.RW_PISTOL: audio.pistol_ricochet,
@@ -149,7 +165,7 @@ init 1 python in cfg:
             audio.grunt_pain_femm_4,
             audio.grunt_pain_femm_5
         ],
-        PN_NONBINARY_PERSON.PN_SHE_HE_THEY: [
+        PN_PERSON.PN_SHE_HE_THEY: [
             audio.grunt_pain_femm_1,
             audio.grunt_pain_femm_2,
             audio.grunt_pain_masc_3,
@@ -183,8 +199,8 @@ init 1 python in game:
                 "Them - Blood + Us (You do the math, genius)"
             )
             if hungrier:
-                return utils.get_weighted_random_sample(rc_fail_blurbs, cum_weights=Flavorizer.CUM_FLAVOR_WEIGHTS["rc_fail"])[0]
-            return utils.get_weighted_random_sample(rc_success_blurbs, cum_weights=Flavorizer.CUM_FLAVOR_WEIGHTS["rc_success"])[0]
+                return utils.get_wrs(rc_fail_blurbs, cum_weights=Flavorizer.CUM_FLAVOR_WEIGHTS["rc_fail"])
+            return utils.get_wrs(rc_success_blurbs, cum_weights=Flavorizer.CUM_FLAVOR_WEIGHTS["rc_success"])
 
 
         @staticmethod
@@ -245,7 +261,7 @@ init 1 python in game:
                         return template.format(attacker.name, pns.PN_HER_HIS_THEIR)
                     elif weapon.subtype == Weapon.MW_AXE:
                         template = "{} steps forward, the {} clutched in both hands. A weapon like that is almost as dangerous to you "
-                        template += "as to mortals. You'd better do something, fast."
+                        template += "as it is to mortals. You'd better do something, fast."
                         return template.format(attacker.name, weapon.name)
                     else:
                         return "{} swings a {} wildly at you, hoping to beat you into the dirt.".format(attacker.name, weapon.name)
@@ -255,14 +271,17 @@ init 1 python in game:
             elif action_type == CAction.MELEE_ENGAGE:
                 template = "{} is sprinting in your direction, closing fast. In a few seconds {} be right on you."
                 return template.format(attacker.name, pns.PN_SHELL_HELL_THEYLL)
+            elif action_type == CAction.DISENGAGE:
+                template = "{} seems to be trying to slink back into the shadows, perhaps to better position {}."
+                return template.format(attacker.name, pns.PN_HERSELF_HIMSELF_THEMSELF)
             else:
-                raise NotImplemented("Flavor is currently only implemented for ranged, melee, and rush actions.")
+                raise NotImplementedError("Flavor is currently only implemented for ranged, melee, and rush actions.")
             # blurb = template.format(attacker.name)
 
         @staticmethod
         def get_pronouns(ent):
             if not hasattr(ent, "pronoun_set") or not ent.pronoun_set:
-                return cfg.PN_NONBINARY_PERSON
+                return cfg.PN_PERSON
             else:
                 return ent.pronoun_set
 

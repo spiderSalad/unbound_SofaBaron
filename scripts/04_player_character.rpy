@@ -204,7 +204,7 @@ init 1 python in game:
     class PlayerChar(Entity):
         def __init__(self, anames, snames, dnames, **kwargs):
             super().__init__(ctype=cfg.CT_VAMPIRE, **kwargs)
-            self.is_pc = True
+            self.is_pc, self.ftype = True, "PC"
             self.nickname = "That lick from around the way"
             self.clan = None
             self.predator_type = None
@@ -279,18 +279,6 @@ init 1 python in game:
         @property
         def backgrounds(self):
             return self._backgrounds
-
-        @property
-        def held(self):
-            if self.inventory:
-                return self.inventory.held
-            return None
-
-        @property
-        def sidearm(self):
-            if self.inventory:
-                return self.inventory.sidearm
-            return None
 
         def reset_charsheet_stats(self):
             for aname in self.anames:

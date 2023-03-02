@@ -62,6 +62,7 @@ screen dev_panel(*args):
 
             pc_append = "  (pc={}/{}".format(pc.pronoun_set.PN_SHE_HE_THEY, pc.pronoun_set.PN_HER_HIM_THEM)
             pc_append += ", scream={})".format(utils.truncate_string(pc.scream, leng=20, reverse=True))
+            pc_append += "\nUsed discipline this turn: {}".format("Yes" if state.used_disc_this_turn else "No")
             if not hasattr(state, "arena") or not state.arena:
                 ro_text_main = "Battle engine not initialized.{}".format(pc_append)
             elif state.arena.battle_end:
@@ -84,8 +85,6 @@ screen dev_panel(*args):
                             text "[rosters_r]" text_align 0.0 yalign 0.0 size 16
                             text "[ao_r]" text_align 0.0 yalign 0.0 size 16
             vbar value YScrollValue("battle_readout_list")
-
-
 
 
 screen bl_corner_panel(*args):
@@ -112,7 +111,7 @@ screen bl_corner_panel(*args):
         side "c l":
             viewport id "contextual_actions_list" draggable True mousewheel True yinitial 1.0:# scrollbars "vertical":
                 vbox spacing 5 align (0.5, 0.5) yfill False box_reverse True:
-                    use hovertext("{}".format(surge_prompt), tooltip=surge_tooltip, _action=bs_action)
+                    use hovertext("{}".format(surge_prompt), tooltip=surge_tooltip, _action=bs_action, activated=state.blood_surge_active)
                     for item_slot in equipped:  # Add quickbar later
                         $ item, qb_key, sw_tt = equipped[item_slot] if equipped[item_slot] else None, "", None
                         # $ print("we have item {} at slot {}".format(item.name if item else None, item_slot))
@@ -129,17 +128,24 @@ screen bl_corner_panel(*args):
                     for disc in pc.disciplines.get_unlocked():
                         for pow_level in pc.disciplines.pc_powers[disc]:
                             python:
-                                power = pc.disciplines.pc_powers[disc][pow_level]
+                                power, used_disc_this_turn = pc.disciplines.pc_powers[disc][pow_level], state.used_disc_this_turn
                                 relevance, active = state.context_relevant(power)
                                 activ_str = " (Active!)" if active else ""
-                            if power and relevance:
+                            if power and (relevance or active):
                                 python:
-                                    can_use = ((not active or power in cfg.REF_DISC_POWER_TOGGLABLES) and pc.can_rouse())
+                                    can_activate = (not active or power in cfg.REF_DISC_POWER_TOGGLABLES)
+                                    is_freebie = power in cfg.REF_DISC_POWER_FREEBIES
+                                    can_pay_blood = pc.can_rouse() or is_freebie
+                                    on_cooldown = used_disc_this_turn and not is_freebie
+                                    can_use = can_activate and can_pay_blood and not on_cooldown
+                                    # print(" |-- {}: can_activate = {}, is_freebie = {}, can_pay_blood = {}, on_cooldown = {}, can_use = {}".format(
+                                    #     power, can_activate, is_freebie, can_pay_blood, on_cooldown, can_use
+                                    # ))
                                     dp_action = None if not can_use else Function(state.statusfx.use_disc_power, power)
-                                use hovertext("{} ({}){}".format(power, disc, activ_str), tooltip="da powah", _action=dp_action)
+                                use hovertext("{} ({}){}".format(power, disc, activ_str), tooltip="da powah", _action=dp_action, usable=can_use, activated=active)
                             elif power and relevance is not None:
                                 use hovertext("{} ({})".format(power, disc), tooltip="da powah", _action=None, usable=False)  # TODO: change colors
-                            elif power and cfg.DEV_MODE:
+                            elif power and cfg.DEV_MODE:  # Powers that are neither relevant nor usable are not displayed.
                                 $ t_power, t_disc = utils.renpy_tag_wrap(power, "s"), utils.renpy_tag_wrap(disc, "s")
                                 use hovertext("{} ({})".format(t_power, t_disc), tooltip="da powah", _action=None, usable=False)
 
@@ -201,7 +207,7 @@ transform fadeout_basic:
 
 
 # Generates textbutton with tooltip, action optional
-screen hovertext(txt, tooltip=None, _style="medium", _xalign=0.0, _action=None, usable=True):
+screen hovertext(txt, tooltip=None, _style="medium", _xalign=0.0, _action=None, usable=True, activated=False):
     textbutton "[txt]" xalign _xalign:
         if _style == "medium":
             text_style "codex_hoverable_text"
@@ -209,7 +215,8 @@ screen hovertext(txt, tooltip=None, _style="medium", _xalign=0.0, _action=None, 
             text_style "codex_hoverable_text_big"
         else:
             text_style "codex_hoverable_text_small"
-        sensitive usable
+        selected activated
+        sensitive usable or activated
         action If(_action is None, true=NullAction(), false=_action) #daction #_action or NullAction()
         hovered ShowTransient("hovertip", None, str(tooltip))
         unhovered Hide("hovertip", None)
@@ -752,26 +759,36 @@ style utility_frame:
     align (0.5, 0.5)
     padding (0, 0)
 
+# NOTE original as of 2023/02/17
+# style codex_hoverable_text:
+#     size 20
+#     hover_color "#ffebeb"
+#     insensitive_color "552323"
+#     selected_color "#ee3737"
+#     color "#ffbbbb"
+#     text_align 0.5
+
 style codex_hoverable_text:
     size 20
     hover_color "#ffebeb"
+    selected_insensitive_color "ff0000" #552323
+    insensitive_color "552323" #552323
     selected_color "#ee3737"
-    insensitive_color "552323"
-    color "#ffbbbb"
+    idle_color "#ffbbbb"
     text_align 0.5
 
 style codex_hoverable_text_small:
     size 16
     hover_color "#ffebeb"
-    selected_color "#ee3737"
     insensitive_color "552323"
+    selected_color "#ee3737"
     color "#ffbbbb"
     text_align 0.0
 
 style codex_hoverable_text_big:
     size 24
     hover_color "#ffebeb"
-    selected_color "#ee3737"
     insensitive_color "552323"
+    selected_color "#ee3737"
     color "#ffbbbb"
     text_align 0.0

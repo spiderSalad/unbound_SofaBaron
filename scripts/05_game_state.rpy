@@ -113,8 +113,8 @@ init 1 python in state:
         if who is None:
             who = pc
         if hasattr(who, "inventory") and who.inventory:
-            held_weapon = pc.inventory.equipped[Inventory.EQ_WEAPON]
-            alt_weapon = pc.inventory.equipped[Inventory.EQ_WEAPON_ALT]
+            held_weapon = who.inventory.equipped[Inventory.EQ_WEAPON]
+            alt_weapon = who.inventory.equipped[Inventory.EQ_WEAPON_ALT]
             if held_weapon and weapon_is_ranged(held_weapon):
                 return True
             if check_alt and alt_weapon and weapon_is_ranged(alt_weapon):
@@ -231,7 +231,7 @@ init 1 python in state:
         next_lvl_xp = cfg.VAL_DISC_XP_REQS[min(pc.disciplines.levels[dname], cfg.MAX_SCORE - 1)]
         if disc_resonance == cfg.RESON_VARIED:
             # TODO: implement
-            raise NotImplemented("This should only apply to Thinblood Alchemy, which is not implemented.")
+            raise NotImplementedError("This should only apply to Thinblood Alchemy, which is not implemented.")
         xp_next = next_lvl_xp * (1 / access_mod)
         if resonances[disc_resonance] >= xp_next:
             tt_addendum = "Like a mosquito ready to lay eggs, our Blood is pregnant with the resonance "
@@ -301,16 +301,21 @@ init 1 python in state:
             return False
         return arena.get_up_next() is who
 
-    def switch_weapons(who=None, play_sound=True, reload_menu=False):
+    def switch_weapons(who=None, play_sound=True, reload_menu=False, as_effect=False):
         if who is None:
             who = pc
-        if in_combat and (not arena or arena.get_up_next() is not who):
+        if in_combat and not as_effect and (not arena or arena.get_up_next() is not who):
             return utils.log("Can only switch weapons in combat if it's your turn, \"{}\".".format(who.name))
-        if who is not pc and not hasattr(who, "inventory"):\
-            return utils.log("An NPC can only switch weapons if they have a legit inventory.")
-        held_weapon, off_weapon = who.inventory.equipped[Inventory.EQ_WEAPON], who.inventory.equipped[Inventory.EQ_WEAPON_ALT]
-        who.inventory.equipped[Inventory.EQ_WEAPON] = off_weapon
-        who.inventory.equipped[Inventory.EQ_WEAPON_ALT] = held_weapon
+        if hasattr(who, "inventory") and type(who.inventory) is Inventory:
+            held_weapon, off_weapon = who.inventory.equipped[Inventory.EQ_WEAPON], who.inventory.equipped[Inventory.EQ_WEAPON_ALT]
+            who.inventory.equipped[Inventory.EQ_WEAPON] = off_weapon
+            who.inventory.equipped[Inventory.EQ_WEAPON_ALT] = held_weapon
+        elif hasattr(who, "npc_weapon") and hasattr(who, "npc_weapon"):
+            held_weapon, off_weapon = who.npc_weapon, who.npc_weapon_alt
+            who.npc_weapon = off_weapon
+            who.npc_weapon_alt = held_weapon
+        else:
+            return utils.log("An NPC can only switch weapons if they have an Inventory or the npc_weapon/alt attributes.")
         if play_sound:
             if off_weapon.item_type == Item.IT_FIREARM:
                 shuffle_sound = renpy.store.audio.get_item_1_gun

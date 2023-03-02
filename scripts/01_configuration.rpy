@@ -4,6 +4,11 @@ init 0 python in cfg:
     # NOTE: this persists between game load/cycles, as it's run when Ren'py starts - NOT when the game starts.
     DEV_MODE = True
     DEV_MUTE_MUSIC = False
+    DEV_FREE_DISCIPLINES = False
+    DEV_FREE_BLINK = False
+    DEV_COMBAT_AUTO_PASS = True
+    DEV_FACETANK = True
+
     KEY_INPUT_ENABLED = False
     KEY_INPUT_WATCH = ascii_letters + digits
     SAVE_FILE_PREFIX = "Sofa_Baron_Save#"
@@ -50,6 +55,7 @@ init 0 python in cfg:
     PN_HER_HIS_THEIR = "pn_possessive"
     PN_SHES_HES_THEYRE = "pn_descriptive"
     PN_SHELL_HELL_THEYLL = "pn_predictive"
+    PN_HERSELF_HIMSELF_THEMSELF = "pn_reflexive"
 
     PN_MAN = object()
     PN_MAN.PN_SHE_HE_THEY = "he"
@@ -58,6 +64,7 @@ init 0 python in cfg:
     PN_MAN.PN_HER_HIS_THEIR = "his"
     PN_MAN.PN_SHES_HES_THEYRE = "he's"
     PN_MAN.PN_SHELL_HELL_THEYLL = "he'll"
+    PN_MAN.PN_HERSELF_HIMSELF_THEMSELF = "himself"
 
     PN_WOMAN = object()
     PN_WOMAN.PN_SHE_HE_THEY = "she"
@@ -66,16 +73,18 @@ init 0 python in cfg:
     PN_WOMAN.PN_HER_HIS_THEIR = "her"
     PN_WOMAN.PN_SHES_HES_THEYRE = "she's"
     PN_WOMAN.PN_SHELL_HELL_THEYLL = "she'll"
+    PN_WOMAN.PN_HERSELF_HIMSELF_THEMSELF = "herself"
 
-    PN_NONBINARY_PERSON = object()
-    PN_NONBINARY_PERSON.PN_SHE_HE_THEY = "they"
-    PN_NONBINARY_PERSON.PN_HER_HIM_THEM = "them"
-    PN_NONBINARY_PERSON.PN_STRANGER = "person"
-    PN_NONBINARY_PERSON.PN_HER_HIS_THEIR = "their"
-    PN_NONBINARY_PERSON.PN_SHES_HES_THEYRE = "they're"
-    PN_NONBINARY_PERSON.PN_SHELL_HELL_THEYLL = "they'll"
+    PN_PERSON = object()
+    PN_PERSON.PN_SHE_HE_THEY = "they"
+    PN_PERSON.PN_HER_HIM_THEM = "them"
+    PN_PERSON.PN_STRANGER = "person"
+    PN_PERSON.PN_HER_HIS_THEIR = "their"
+    PN_PERSON.PN_SHES_HES_THEYRE = "they're"
+    PN_PERSON.PN_SHELL_HELL_THEYLL = "they'll"
+    PN_PERSON.PN_HERSELF_HIMSELF_THEMSELF = "themself"
 
-    print("\n---\nman:{}\nwoman: {}\nenby: {}".format(PN_MAN, PN_WOMAN, PN_NONBINARY_PERSON))
+    print("\n---\nman:{}\nwoman: {}\nenby: {}".format(PN_MAN, PN_WOMAN, PN_PERSON))
     print("\n\npn man:\n{}".format(
         "\n".join(["{}:  {}".format(key, getattr(PN_MAN, key)) for key in PN_MAN.__dict__])
     ))
@@ -313,6 +322,10 @@ init 0 python in cfg:
     DISC_THINBLOOD_ALCHEMY = "Thinblood Alchemy"
 
     REF_BG_DISC_PRIORITY = "discipline_priority"
+    REF_DISC_IN_GAME = [
+        DISC_ANIMALISM, DISC_CELERITY, DISC_DOMINATE, DISC_FORTITUDE, DISC_OBFUSCATE,
+        DISC_POTENCE, DISC_PRESENCE, DISC_PROTEAN
+    ]
     REF_DISC_NOT_YET = [DISC_AUSPEX, DISC_OBLIVION, DISC_BLOOD_SORCERY, DISC_THINBLOOD_ALCHEMY]
 
     CHAR_BACKGROUNDS = {
@@ -537,7 +550,7 @@ init 0 python in cfg:
     POWER_PROTEAN_FINALFORM = "Horrid Form"
 
     REF_DISC_POWER_PASSIVES = [
-        POWER_CELERITY_GRACE,
+        POWER_CELERITY_GRACE, POWER_CELERITY_TWITCH,
         POWER_DOMINATE_DEVOTION,
         POWER_FORTITUDE_HP, POWER_FORTITUDE_WILL,
         POWER_OBFUSCATE_LAUGHINGMAN,
@@ -738,6 +751,7 @@ define audio.heartbeat_faster   = "audio/sound/181805__klankbeeld__heart-beat-in
 define audio.beastgrowl2        = "audio/sound/98337__cgeffex__roar.mp3"
 define audio.samurai_blade_warp = "audio/sound/37411__funkymuskrat__chil.mp3"
 define audio.mutation_jingle    = "audio/sound/342336__division4884__simple-mutate-monster.mp3"
+define audio.toughness_frost    = "audio/sound/550266__eminyildirim__ice-frost-spell-skill.mp3"
 define audio.heartbeat_faster_2 = "audio/sound/181805__klankbeeld__heart-beat-increasing-116642_EXCERPT-edit-a02.mp3"
 define audio.oncoming_frenzy_2  = "audio/sound/37192__volivieri__funky-static.mp3"
 define audio.flanging_clang_1   = "audio/sound/39377__shimsewn__quaver-pokes.mp3"
@@ -746,8 +760,10 @@ define audio.sun_threat_1       = "audio/sound/484461__nowism__fx-long-meepf.mp3
 define audio.get_item_1_gun     = "audio/sound/177054__woodmoose__lowerguncock.mp3"
 define audio.get_item_2         = "audio/sound/630021__flem0527__shuffling-backpack.mp3"
 define audio.mending_1          = "audio/sound/659959__legand569__flesh-wound-removing-bulletowi.mp3"
+define audio.rending_1          = "sound/sound/563491__magnuswaker__gore-rend.mp3"
 define audio.flesh_shifting_1   = "audio/sound/505932__pfranzen__shapeshifter-shifting-shapes.ogg"
 define audio.pulled_taut_1      = "audio/sound/460382__dnaudiouk__creaky-cardboard-box.mp3"
+define audio.decapitation_1     = "audio/sound/580233__silverillusionist__decapitation-earlier-blood-spurt.mp3"
 
 define audio.knuckle_crack_1    = "audio/sound/475965__borq1__knuckles-cracking.mp3"
 define audio.throwing_hands_1   = "audio/sound/432278__bhaveshshaha__slapping-beating-human-flesh.mp3"
@@ -756,12 +772,15 @@ define audio.shotgun_fire_1     = "audio/sound/522282__filmmakersmanual__shotgun
 define audio.rifle_shot_1       = "audio/sound/427596__michorvath__ar15-rifle-shot.mp3"
 define audio.uzi_full_auto      = "audio/sound/162436__ermfilm__uzi-serial-fire_96khz-24bit.mp3"
 define audio.single_cut_1       = "audio/sound/435238__aris621__nasty-knife-stab.mp3"
+define audio.multiple_cuts_2    = "audio/sound/512785__nekoninja__samurai-slash2.mp3"
 define audio.stab_1             = "audio/sound/478145__aris621__nasty-knife-stab-2.mp3"
 define audio.sword_clash        = "audio/sound/440069__ethanchase7744__sword-block-combo.mp3"
 define audio.melee_miss_light_1 = "audio/sound/420668__sypherzent__basic-melee-swing-miss-whoosh.mp3"
 define audio.melee_miss_heavy_1 = "audio/sound/420670__sypherzent__strong-melee-swing.mp3"
 define audio.bullet_impacts_1   = "audio/sound/423301__u1769092__visceralbulletimpacts.mp3"
 define audio.bullet_impact_2    = "audio/sound/528263__magnuswaker__pound-of-flesh-2.mp3"
+define audio.axe_cleave_1_heavy = "audio/sound/641040__magnuswaker__gross-impact.mp3"
+define audio.axe_cleave_2       = "audio/sound/581092__magnuswaker__burst-flesh.mp3"
 define audio.striking_armor_1   = "audio/sound/420675__sypherzent__cut-through-armor-slice-clang.mp3"
 define audio.bashing_1_light    = "audio/sound/319590__hybrid_v__shield-bash-impact.mp3"
 define audio.bashing_2_heavy    = "audio/sound/165196__swimignorantfire__skull-crack-on-porcelain-tub.mp3"

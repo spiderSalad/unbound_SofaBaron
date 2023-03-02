@@ -16,7 +16,7 @@ label start:
         stop music
 
     if cfg.DEV_MODE:
-        jump intro
+        jump init_setup
 
     stop music fadeout 1.0
 
@@ -28,20 +28,12 @@ label start:
 
     "..."
 
-    jump intro
+    jump init_setup
 
 
 label intro:
 
-    python:
-        cfg, game = renpy.store.cfg, renpy.store.game
-        state.pc = game.PlayerChar(anames=state.attr_names, snames=state.skill_names, dnames=state.discipline_names)
-        state.pc.inventory = game.Inventory()
-        state.statusfx = state.StatusFX(pc=state.pc)
-        # state.give_item(game.Item(game.Item.IT_MONEY, "Cash", key="Money", tier=0, num=15, desc="Cash on hand."))
-        state.give_item(state.get_random_cash())
-        state.clock = state.GameClock(1, 9)
-        state.diceroller_creation_count = 0
+    $ cfg, utils, state, game = renpy.store.cfg, renpy.store.utils, renpy.store.state, renpy.store.game
 
     # Show a background. This uses a placeholder by default, but you can
     # add a file (named either "bg room.png" or "bg room.jpg") to the
@@ -55,14 +47,8 @@ label intro:
 
     # show eileen happy
 
-    if cfg.DEV_MODE:
-        $ state.blood_surge_enabled = True
-        show screen bl_corner_panel
-        jump devtests.dt_combat_a1
-
-    # start at hunger 3
+    # You start at hunger 3.
     $ state.set_hunger(3)
-    # play sound audio.beastgrowl1
 
     "You awaken the moment the sun goes down, and find yourself lying in a pile of garbage."
 

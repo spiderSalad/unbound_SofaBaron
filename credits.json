@@ -661,7 +661,8 @@
         "name":"EminYILDIRIM",
         "type":"sound_engineer",
         "works":[
-            {"name":"Blood Squish", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+            {"name":"Blood Squish", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"},
+            {"name":"Ice Frost Spell Skill", "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"}
         ],
         "website":"",
         "socials":[
@@ -761,7 +762,9 @@
         "type":"sound_engineer",
         "works":[
             {"name":"gore rend", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"},
-            {"name":"pound of flesh 2", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+            {"name":"pound of flesh 2", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"},
+            {"name":"GROSS IMPACT", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"},
+            {"name":"Burst Flesh", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
         ],
         "website":"",
         "socials":[
@@ -1301,6 +1304,29 @@
         "website":"",
         "socials":[
             {"site":"freesound.org", "handle":"alanmcki", "url":"https://freesound.org/people/alanmcki/"}
+        ]
+    },
+    {
+        "name":"Dylan Kelk",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Decapitation (earlier blood spurt).wav", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"youtube.com", "handle":"Dylan Kelk", "url":"https://www.youtube.com/channel/UCth-P4xx8Eruw0JnbSUZkHg"},
+            {"site":"freesound.org", "handle":"SilverIllusionist", "url":"https://freesound.org/people/SilverIllusionist/"}
+        ]
+    },
+    {
+        "name":"nekoninja",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Samurai Slash2", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"http://deathmofumofu.sakura.ne.jp/",
+        "socials":[
+            {"site":"freesound.org", "handle":"nekoninja", "url":"https://freesound.org/people/nekoninja/"}
         ]
     },
     {

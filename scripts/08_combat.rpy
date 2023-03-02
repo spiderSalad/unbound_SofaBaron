@@ -11,10 +11,15 @@ init 1 python in game:
         RANGED_ATTACK = "ranged_attack"
         DODGE = "dodge"
         SPECIAL_ATTACK = "special_attack"
+        DISENGAGE = "back_dafuq_up"
         ESCAPE_ATTEMPT = "tryna_escape"
 
         # Not necessarily attacks, but abilities that can be actively used in combat, not including
         # passive abilities that can affect combat.
+        BASIC_MELEE = [cfg.SK_COMB]
+        BASIC_RANGED = [cfg.SK_FIRE]
+        BASIC_SPACING = [cfg.SK_ATHL]
+
         RANGED_ACTIONS = [  # Ranged only, cannot use if engaged
             cfg.SK_FIRE,
             cfg.POWER_ANIMALISM_SPEAK,
@@ -32,7 +37,8 @@ init 1 python in game:
         ]
 
         ANYWHERE_ACTIONS = [  # Usable at any distance, whether engaged or not
-            cfg.SK_ATHL,
+            # cfg.SK_ATHL,
+            cfg.NPCAT_PHYS,
             cfg.POWER_CELERITY_SPEED, cfg.POWER_CELERITY_BLINK,
             cfg.POWER_DOMINATE_COMPEL,
             cfg.POWER_FORTITUDE_TOUGH, cfg.POWER_FORTITUDE_BANE,
@@ -43,6 +49,8 @@ init 1 python in game:
         ]
 
         DODGE_VARIANTS = [cfg.SK_ATHL, cfg.POWER_CELERITY_SPEED, cfg.POWER_OBFUSCATE_ILLUSION]
+
+        RUSH_VARIANTS = [cfg.SK_ATHL, cfg.POWER_CELERITY_SPEED, cfg.POWER_CELERITY_BLINK, cfg.POWER_POTENCE_SUPERJUMP]
 
         SNEAK_VARIANTS = [cfg.SK_CLAN, cfg.DISC_OBFUSCATE] + cfg.REF_DISC_POWERS_SNEAKY
 
@@ -58,21 +66,23 @@ init 1 python in game:
         NPC_COMBAT_DISC_POWERS = RANGED_ACTIONS + MELEE_ACTIONS + ANYWHERE_ACTIONS + DODGE_VARIANTS + ESCAPE_VARIANTS
         NPC_COMBAT_DISC_POWERS = [p for p in NPC_COMBAT_DISC_POWERS if not str(p).startswith("SK_")]
 
-        OUCH = [MELEE_ATTACK, RANGED_ATTACK, SPECIAL_ATTACK]
-        NO_CONTEST = [NO_ACTION, FALL_BACK]
+        OUCH = (MELEE_ATTACK, RANGED_ATTACK, SPECIAL_ATTACK)
+        NONVIOLENT = (DODGE, MELEE_ENGAGE, DISENGAGE, NO_ACTION, FALL_BACK)
+        NO_CONTEST = (NO_ACTION, FALL_BACK)
 
         def __init__(
             self, action_type, target:Entity, user=None, defending=False, pool=None, subtype=None, use_sidearm=False, lethality=None
         ):
             self.action_type = action_type  # Should be one of above types; subtype should be a discipline power or similar or None.
-            self.pool, self.num_dice, self.alt_weapon_penalty = pool, None, None
+            self.pool, self.num_dice, self.using_sidearm = pool, None, None
             self.target, self.defending = target, defending
             self.user = user
             self.action_label = subtype
             self.weapon_used, self.skip_contest, self.lost_to_trump_card = None, False, False
-            if use_sidearm:
-                self.alt_weapon_penalty = True
-                utils.log("Alt weapon penalty imposed on {} because use_sidearm ({}) set to True.".format(
+            self.use_sidearm = use_sidearm
+            if self.user and self.use_sidearm:
+                self.using_sidearm = True
+                utils.log("Off-hand weapon penalty imposed on {} because use_sidearm ({}) set to True.".format(
                     self.user.name, self.user.sidearm if self.user and self.user.sidearm else "None?"
                 ))
             self.unarmed_power_used, self.power_used = None, None
@@ -84,20 +94,20 @@ init 1 python in game:
             self.dmg_bonus, self.lethality = 0, 1
             self.dmg_bonus_labels = {}
             weapon, weapon_alt = None, None
-            if self.user.is_pc:
-                weapon, weapon_alt = self.user.held, self.user.sidearm
-            else:
+            if self.user:
                 if hasattr(self.user, "npc_weapon"):
                     weapon = self.user.npc_weapon
                 if hasattr(self.user, "npc_weapon_alt"):
-                    weapon_alt = self.user.npc_weapon
+                    weapon_alt = self.user.npc_weapon_alt
+                if self.user.is_pc or hasattr(self.user, "inventory"):
+                    weapon, weapon_alt = self.user.held, self.user.sidearm
 
             if CAction.attack_weapon_match(weapon, self):
                 self.weapon_used = weapon
             elif CAction.attack_weapon_match(weapon_alt, self):
                 self.weapon_used = weapon_alt
-                self.alt_weapon_penalty = True
-                utils.log("Alt weapon penalty applied to attack type {} by {}, who has {} at hand and {} at side".format(
+                self.using_sidearm = True
+                utils.log("Off-hand weapon penalty applied to attack type {} by {}, who has {} at hand and {} at side".format(
                     self.action_type, self.user.name, weapon.name, weapon_alt.name
                 ))
             else:
@@ -105,15 +115,16 @@ init 1 python in game:
 
             self.dmg_bonus = 0
             self.armor_piercing = 0
-            if hasattr(self.user, "npc_dmg_bonus") and self.user.npc_dmg_bonus:
-                self.dmg_bonus, self.lethality = self.user.npc_dmg_bonus, self.user.npc_atk_lethality
-            elif self.weapon_used:
-                self.dmg_bonus, self.lethality = self.weapon_used.dmg_bonus, self.weapon_used.lethality
+            if self.user:
+                if hasattr(self.user, "npc_dmg_bonus") and self.user.npc_dmg_bonus:
+                    self.dmg_bonus, self.lethality = self.user.npc_dmg_bonus, self.user.npc_atk_lethality
+                elif self.weapon_used:
+                    self.dmg_bonus, self.lethality = self.weapon_used.dmg_bonus, self.weapon_used.lethality
             # TODO: add checks for active buffs e.g. Fist of Caine.
             if lethality is not None:  # If lethality value is passed it overrides other sources.
                 self.lethality = lethality
             # ---
-            if self.action_type in [CAction.DODGE, CAction.MELEE_ENGAGE, CAction.NO_ACTION, CAction.FALL_BACK] or not self.target:
+            if not self.target or self.action_type in CAction.NONVIOLENT:
                 self.dmg_type = cfg.DMG_NONE
             else:
                 self.dmg_type = Weapon.get_damage_type(self.lethality, target.creature_type)
@@ -122,7 +133,6 @@ init 1 python in game:
             return "< {} action, label {} >".format(self.action_type, self.action_label)
 
         def evaluate_type(self):
-            print("\n\n\n EVALUATE TYPE CALLED IN ACTION\n\n\n")
             if self.defending and self.action_label in CAction.DODGE_VARIANTS:
                 return CAction.DODGE
             elif self.action_label in CAction.RANGED_ACTIONS:
@@ -135,13 +145,6 @@ init 1 python in game:
                 if self.target.current_pos == self.user.current_pos:
                     return CAction.MELEE_ATTACK
                 return CAction.RANGED_ATTACK
-            print(
-                "\n-- self.user = {}, self.user.current_pos = {}, self.defending = {},\n".format(
-                    self.user.name, self.user.current_pos, self.defending
-                ) + "-- self.action_label = {}, self.target = {}, self.target.current_pos = {}".format(
-                    self.action_label, self.target.name, self.target.current_pos
-                )
-            )
             return CAction.NO_ACTION
 
         @staticmethod
@@ -172,6 +175,7 @@ init 1 python in game:
             CAction.ESCAPE_ATTEMPT: "Flee",
             CAction.SPECIAL_ATTACK: "Special",
             CAction.FALL_BACK: "Slink Back",
+            CAction.DISENGAGE: "Withdraw",
             CAction.NO_ACTION: "No Action",
 
             cfg.DMG_SPF: "superf dmg",
@@ -180,39 +184,36 @@ init 1 python in game:
             cfg.DMG_NONE: "(no damage)"
         }
 
-        def __init__(self, pov_margin=None, dmg_type=None, dmg_bonus=None, target=None):
+        def __init__(self, user, battle_id=None, record_id=None, pov_margin=None, dmg_type=None, dmg_bonus=None, target=None):
+            self.user, self.battle_id = user, battle_id
+            self.record_id = "{:03d}".format(int(record_id)) if record_id and utils.is_number(record_id) else "???"
             self.pov_margin, self.target = pov_margin, target
             self.dmg_type, self.dmg_bonus = dmg_type, dmg_bonus
             self.log_str = ""
             self.actual_dmg_tup = None
 
+        def __repr__(self):
+            targ = " ==> {}".format(self.target.name) if self.target else ""
+            return "{} #{} | {}{} :: {}".format(self.battle_id, self.record_id, self.user, target, self.log_str)
+
+        def __str__(self):
+            return self.__repr__()
+
 
     class CombatLog:
         def __init__(self, dfa=None, dfd=None, dbfa=None, dbfd=None, dtfa=None, dtfd=None):
             self.history = []
-            self.attack_record = ClashRecord(pov_margin=dfa, dmg_bonus=dbfa, dmg_type=dtfa)
-            self.defend_record = ClashRecord(pov_margin=dfd, dmg_bonus=dbfd, dmg_type=dtfd)
+            self.attack_record = ClashRecord(None, pov_margin=dfa, dmg_bonus=dbfa, dmg_type=dtfa)
+            self.defend_record = ClashRecord(None, pov_margin=dfd, dmg_bonus=dbfd, dmg_type=dtfd)
 
         def reset(self):
             del self.attack_record, self.defend_record
             self.attack_record, self.defend_record = None, None
 
-        def set_clash_records(self, margin, atk_action, def_action, reset=False):  # Called after damage_step().
-            if reset:
-                self.reset()
-            # if state.arena.attack_on_pc(atk_action):
-            #     margin = margin * -1
-            if margin >= 0:
-                if not self.attack_record:
-                    self.attack_record = ClashRecord()
-                CombatLog.set_damage_flags(self.attack_record, margin, atk_action)
-            if margin <= 0:
-                if not self.defend_record:
-                    self.defend_record = ClashRecord()
-                CombatLog.set_damage_flags(self.defend_record, margin, def_action)
-
         @staticmethod
-        def set_damage_flags(record: ClashRecord, margin, action):
+        def set_action_params(record: ClashRecord, margin, action):
+            if not action:
+                return record
             record.target = action.target
             record.dmg_bonus, record.dmg_type = action.dmg_bonus, action.dmg_type
             record.pov_margin = (abs(margin) if margin != 0 else 1) + record.dmg_bonus
@@ -226,7 +227,10 @@ init 1 python in game:
             if not damaging_attack:
                 record.log_str = "non-damaging action"
             elif prevented_dmg > 0:
-                record.log_str = "{} (-{}) {}".format(actual_dealt_dmg, prevented_dmg, ClashRecord.DEV_LOG_FLAGS[record.dmg_type])
+                # record.log_str = "{} (-{}) {}".format(actual_dealt_dmg, prevented_dmg, ClashRecord.DEV_LOG_FLAGS[record.dmg_type])
+                record.log_str = "{} ({} blocked) => {} {}".format(
+                    unhalved_dmg + prevented_dmg, prevented_dmg, unhalved_dmg, ClashRecord.DEV_LOG_FLAGS[record.dmg_type]
+                )
             elif mitigated_dmg > 0:
                 record.log_str = "{} {}//{} {}".format(
                     actual_dealt_dmg - mitigated_dmg, ClashRecord.DEV_LOG_FLAGS[cfg.DMG_AGG],
@@ -260,19 +264,26 @@ init 1 python in game:
 
             return record
 
-        def report(self, roll, atk_action, def_action):
+        def report(self, roll, atk_action, def_action, reset=False):
+            if reset:
+                self.reset()
+            if roll.margin >= 0:
+                if not self.attack_record:
+                    self.attack_record = ClashRecord(atk_action.user)
+                CombatLog.set_action_params(self.attack_record, roll.margin, atk_action)
+            if roll.margin <= 0:
+                if not self.defend_record:
+                    self.defend_record = ClashRecord(def_action.user if def_action else None)
+                CombatLog.set_action_params(self.defend_record, roll.margin, def_action)
+            #
             if atk_action.action_type in CAction.NO_CONTEST:
                 rpt_template, pass_str = "{} takes no overt action, {}.", "passing the turn"
                 if atk_action.action_type == CAction.FALL_BACK:
                     pass_str = "slinking back into the shadows"
-                rpt_str = rpt_template.format(atk_action.user, pass_str)
-                return rpt_str
-            rpt_template = "{} ({}) => {} ({}) | margin of {} ({}/{} vs {}/{})\n{}{}"
+                report_str = rpt_template.format(atk_action.user, pass_str)
+                return report_str
+            rpt_template = "{} ({}) => {} ({})\n - Margin of {} ({}/{} vs {}/{})\n{}{}"
             pc_defending = state.arena.attack_on_pc(atk_action)
-            # if pc_defending:
-            #     print('pc defending in report')
-            #     r1, r2, r3, r4, r5 = roll.margin * -1, roll.opp_ws, atk_action.pool, roll.num_successes, roll.pool
-            # else:
             r1, r2, r3, r4, r5 = roll.margin, roll.num_successes, roll.pool, roll.opp_ws, def_action.num_dice  # def_action.pool
             atype = ClashRecord.DEV_LOG_FLAGS[atk_action.action_type]
             dtype = ClashRecord.DEV_LOG_FLAGS[def_action.action_type]
@@ -282,25 +293,34 @@ init 1 python in game:
             elif def_action.lost_to_trump_card:
                 rep_atk_str = "atk: failed successfully"
             else:
-                rep_atk_str = "atk: failed to connect"
+                fail_weap = atk_action.weapon_used.name if atk_action.weapon_used else "unarmed"
+                rep_atk_str = "atk: ({}) failed to connect".format(fail_weap)
             if self.defend_record and self.defend_record.log_str and not def_action.lost_to_trump_card:
-                rep_def_str = "  /  def: {}".format(self.defend_record.log_str)
+                rep_def_str = "\n  /  def: {}".format(self.defend_record.log_str)
             elif atk_action.lost_to_trump_card:
-                rep_def_str = "  /  def: failed, but got away anyway"
+                rep_def_str = "\n  /  def: failed, but got away anyway"
             else:
-                rep_def_str = "  /  def: failed to defend"
-            atkr_name = "{}[{}]".format(atk_action.user.name, str(atk_action.user.creature_type)[:2])
-            defr_name = "{}[{}]".format(atk_action.target.name, str(atk_action.target.creature_type)[:2])
-            rpt_str = rpt_template.format(atkr_name, atype, defr_name, dtype, r1, r2, r3, r4, r5, rep_atk_str, rep_def_str)
-            self.history.append(rpt_str + '\n')
-            # utils.log(rpt_str)
-            return rpt_str
+                fail_weap = def_action.weapon_used.name if def_action.weapon_used else "unarmed"
+                rep_def_str = "\n  /  def: ({}) failed to defend".format(fail_weap)
+            atkr_name = "{}[{}-{}]".format(
+                atk_action.user.name, str(atk_action.user.creature_type)[:2], str(atk_action.user.ftype)[:4]
+            )
+            defender = atk_action.target if atk_action.target else (def_action.user if def_action.user else None)
+            defr_name = "{}[{}-{}]".format(
+                defender.name if defender else "-???-", str(defender.creature_type)[:2] if defender else "--",
+                str(defender.ftype)[:4] if defender else "x"
+            )
+            report_str = rpt_template.format(atkr_name, atype, defr_name, dtype, r1, r2, r3, r4, r5, rep_atk_str, rep_def_str)
+            history_log_str = "#{:03d} | {}".format(len(self.history) + 1, report_str)
+            self.history.append(history_log_str)
+            return report_str
 
 
     class BattleArena:
         NUM_TURNS = 3
         PC_TEAM = "pc_team"
         ENEMY_TEAM = "enemies"
+        POSITION_LIMIT = 2
 
         def __init__(self, ambush=None, initiative_margin=0, **kwargs):
             self.battle_end = True
@@ -395,11 +415,19 @@ init 1 python in game:
                 opps = any([ct for ct in enemy_targets if not ct.dead and not ct.appears_dead])
                 if not opps:
                     return self.battle_end_cleanup()
-                if up_next.is_pc or up_next.dead:
+                if up_next.dead:
+                    return None, None
+                if up_next.is_pc:
+                    state.mended_this_turn, state.used_disc_this_turn = False, False
+                    state.fleet_dodge_this_turn = False
                     return None, None
                 all_targets = self.pc_team + self.enemies
+                print("- 1 up_next = {}".format(up_next.name))
                 atk_action = up_next.attack(self.action_order, self.ao_index, enemy_targets, all_targets)
+                print("- 2 atk_action = {}".format(atk_action))
+            print("- 3 atk_action = {}".format(atk_action))
             if not atk_action.target or atk_action.target.is_pc:
+            # if atk_action.target and atk_action.target.is_pc:
                 return atk_action, None
             def_action = atk_action.target.defend(up_next, atk_action)
             return atk_action, def_action
@@ -413,21 +441,22 @@ init 1 python in game:
                     return "{} is dead.".format(just_went.name)
                 elif atk_action.action_type in CAction.NO_CONTEST:
                     self.increment()
-                    return "..."
+                    if just_went.is_pc:
+                        return "..."
+                    pns = just_went.pronoun_set
+                    if just_went.engaged:
+                        return "{} is unable to act while {} cornered by {} attackers.".format(
+                            just_went.name, pns.PN_SHES_HES_THEYRE, pns.PN_HER_HIS_THEIR
+                        )
+                    else:
+                        return "{} seems to be biding {} time...".format(just_went.name, pns.PN_HER_HIS_THEIR)
                 raise ValueError("This should never be reached unless acting combatant is dead, and they don't seem to be.")
 
-            if atk_action.action_type not in CAction.NO_CONTEST:
-                if def_action.user.is_pc or (atk_action.target.is_pc and not atk_action.user.is_pc):
-                    # margin_threshold = 1
-                    pass
             follow_up_action = self.handle_clash(roll_result, atk_action, def_action)
             cl_report = self.combat_log.report(roll_result, atk_action, def_action)
-            # rep_round, rep_ao_index = self.round + 1, self.ao_index
+            self.handle_post_clash(atk_action, def_action)
             if follow_up_action:
                 return cl_report, follow_up_action
-            if just_went.is_pc:
-                state.mended_this_turn, state.used_disc_this_turn = False, False
-                state.fleet_dodge_this_turn = False
             self.increment()
             return cl_report, None
 
@@ -445,10 +474,6 @@ init 1 python in game:
             atype, dtype = atk_action.action_type, def_action.action_type if def_action else None
             self.combat_log.reset()
             # track = cfg.TRACK_HP  # TODO: add conditions for mental attacks dealing willpower damage here
-
-            print("\n\nAT HANDLE CLASSH MARGIN IS {} with attacker {} and defender {}\n\n".format(
-                roll_result.margin, atk_action.user.name, def_action.user.name
-            ))
             follow_up = None
             if atype == CAction.MELEE_ENGAGE:  # Melee Engage always behaves the same regardless of defense action.
                 follow_up = self.handle_melee_engage(roll_result, atk_action, def_action)
@@ -458,13 +483,14 @@ init 1 python in game:
                 follow_up = self.handle_melee_attack(roll_result, atk_action, def_action)
             elif atype == CAction.SPECIAL_ATTACK:
                 follow_up = self.handle_special_attack(roll_result, atk_action, def_action)
+            elif atype == CAction.DISENGAGE:
+                follow_up = self.handle_disengage_attempt(roll_result, atk_action, def_action)
             elif atype in CAction.NO_CONTEST:
                 utils.log("No action! Or at least an action that doesn't invoke a contest.")
                 follow_up = self.handle_non_contest(roll_result, atk_action)
             else:
                 raise ValueError("\"{}\" is not a valid action type!".format(atype))
             self.play_clash_audio(roll_result.margin, atk_action, def_action)
-            self.combat_log.set_clash_records(roll_result.margin, atk_action, def_action)
             return follow_up
 
         def handle_melee_engage(self, rolled, atk_action, def_action):
@@ -491,7 +517,11 @@ init 1 python in game:
                     # Weapon used is equipped, alt, or fists - in that priority order.
                     def_action.lost_to_trump_card = True
                     rush_attack = CAction(CAction.MELEE_ATTACK, atk_action.target, atk_action.user)
-                    rush_attack.pool = "dexterity+combat/strength+combat"
+                    if atk_action.user.is_pc:
+                        rush_attack.pool = "dexterity+combat/strength+combat"
+                    else:
+                        ranked_attacks = FightBrain.grucs_v2(atk_action.user, CAction.MELEE_ATTACK)
+                        rush_attack.action_label, rush_attack.pool = ranked_attacks[0]
                     return rush_attack
             elif def_action.action_type in CAction.OUCH:
                 self.damage_step(margin, atk_action, def_action)
@@ -555,6 +585,29 @@ init 1 python in game:
             # margin = rolled.margin
             return None
 
+        def handle_disengage_attempt(self, rolled, atk_action, def_action):
+            user = atk_action.user
+            if not def_action and rolled.num_successes:
+                utils.log("{} disengages and retreats, uncontested.".format(user))
+                user.current_pos += (1 if user in self.enemies else -1)
+                return None
+            elif not def_action:
+                utils.log("{} unilaterally fails to disengage and retreat. How embarrassing for {}.".format(
+                    user, user.pronoun_set.PN_HER_HIM_THEM
+                ))
+                return None
+            fuiwin = atk_action.skip_contest
+            fuiwin = fuiwin and (rolled.num_successes or user.has_disc_power(cfg.POWER_CELERITY_GRACE, cfg.DISC_CELERITY))
+            if rolled.margin >= 0 or fuiwin:
+                user.engaged = []
+                def_action.lost_to_trump_card = fuiwin
+                user.current_pos += (1 if user in self.enemies else -1)
+            elif def_action.action_type in CAction.OUCH:
+                self.damage_step(rolled.margin, atk_action, def_action)
+            else:
+                utils.log("Failed disengage against non-damaging attack.")
+            return None
+
         def handle_non_contest(self, rolled, atk_action):
             user = atk_action.user
             if atk_action.action_type == CAction.FALL_BACK:
@@ -562,18 +615,42 @@ init 1 python in game:
                 user.current_pos += pos_mod
             return None
 
-        def play_clash_audio(self, margin, atk_action, def_action):
-            win_sound, loss_sound, reaction_sound, extra_sound = audio.brawl_struggle, None, None, None
-            attacker, defender = atk_action.user, def_action.user # TODO: standardize everywhere (def_action.user vs atk_action.target)
-            attacker_scream, defender_scream = attacker.set_scream(), defender.set_scream()
+        def handle_post_clash(self, atk_action, def_action):
+            # Disengage check
+            for ent in (self.pc_team + self.enemies):
+                for i in range(len(ent.engaged) - 1, -1, -1):
+                    opp = ent.engaged[i]
+                    if opp.current_pos != ent.current_pos or opp.dead or opp.crippled or opp.shocked:
+                        utils.log("Disengaging {} from {}.".format(ent.name, opp.name))
+                        ent.engaged.remove(opp)
+            # Other regular housekeeping
+            for action in (atk_action, def_action):  # If an off-hand weapon was used for an attack, it's now the main held weapon.
+                if action.using_sidearm:
+                    state.switch_weapons(who=action.user, reload_menu=action.user.is_pc, as_effect=True)
+            #
 
-            if margin >= 0 and ((not def_action.skip_contest) or atk_action.skip_contest):
+        def play_clash_audio(self, margin, atk_action, def_action):
+            # There should always be an atk_action, but there isn't always a def_action.
+            win_sound, loss_sound, reaction_sound, extra_sound = audio.brawl_struggle, None, None, None
+            attacker, defender = atk_action.user, (def_action.user if def_action else None)
+            # TODO: standardize everywhere (def_action.user vs atk_action.target)
+            attacker_scream, defender_scream = attacker.set_scream(), None
+            if defender:
+                defender_scream = defender.set_scream()
+
+            if margin >= 0 and (not def_action or not def_action.skip_contest or atk_action.skip_contest):
+                print("----- A margin = ", margin)
                 winning_action, losing_action = atk_action, def_action
                 loser_scream = defender_scream
             else:
+                print("----- B maring = ", margin)
                 winning_action, losing_action = def_action, atk_action
                 loser_scream = attacker_scream
-            win_weapon, loss_weapon = winning_action.weapon_used, losing_action.weapon_used
+            print("winning_action = {}, losing_action = {}".format(winning_action, losing_action))
+            if winning_action is None:
+                winning_action = losing_action
+                losing_action = None
+            win_weapon, loss_weapon = winning_action.weapon_used, (losing_action.weapon_used if losing_action else None)
             print("SCREAMS -> attacker: {}, defender: {}, loser: {}".format(attacker_scream, defender_scream, loser_scream))
 
             if margin != 0:  # CLEAR WIN/LOSS
@@ -582,10 +659,10 @@ init 1 python in game:
                     extra_sound = Weapon.get_fight_sound(winning_action, None)  # gun reports always go off if winner uses gun
                     if loss_weapon and loss_weapon.item_type == Item.IT_FIREARM:
                         loss_sound = Weapon.get_fight_sound(losing_action, False)
-                elif not win_weapon and winning_action.action_type in CAction.OUCH:
+                elif not win_weapon and winning_action and winning_action.action_type in CAction.OUCH:
                     win_sound = audio.throwing_hands_1  # if winner uses fisticuffs it's assumed loser was interrupted
                     loss_sound = loser_scream
-                elif winning_action.action_type == CAction.MELEE_ENGAGE:
+                elif winning_action and winning_action.action_type == CAction.MELEE_ENGAGE:
                     win_sound = Weapon.get_fight_sound(winning_action, True)
                     loss_sound = Weapon.get_fight_sound(losing_action, False)
                 else:
@@ -626,22 +703,34 @@ init 1 python in game:
                 renpy.play(reaction_sound, "audio")  # was sound_aux
 
         def attack_on_pc(self, atk_action):
-            return atk_action.target.is_pc and not atk_action.user.is_pc
+            if not atk_action:
+                raise ValueError("Tried to determine if an attack action is targeting the PC, but action is invalid or missing.")
+            if not atk_action.target:
+                return False
+            return atk_action.target.is_pc and (not atk_action.user or not atk_action.user.is_pc)
+
+        def is_cornered(self, ent):
+            if not ent or ent not in (self.pc_team + self.enemies):
+                return False
+            if ent in self.pc_team and ent.current_pos <= -1 * abs(BattleArena.POSITION_LIMIT):
+                return True
+            if ent in self.enemies and ent.current_pos >= abs(BattleArena.POSITION_LIMIT):
+                return True
+            return False
 
         def damage_step(self, margin, atk_action, def_action, track=cfg.TRACK_HP, force_zero=False):
             self.combat_log.reset()
-            self.combat_log.attack_record, self.combat_log.defend_record = ClashRecord(), ClashRecord()
+            self.combat_log.attack_record = ClashRecord(atk_action.user)
+            self.combat_log.defend_record =  ClashRecord(def_action.user if def_action else None)
             if margin >= 0 and atk_action.action_type in CAction.OUCH:# and attack:
                 damage_val = margin if margin != 0 or force_zero else 1
                 damage_val += atk_action.dmg_bonus
-                print("\nATTACK DAMAGE (m={}, dv={}, action bonus={})\n".format(margin, damage_val, atk_action.dmg_bonus))
                 self.combat_log.attack_record.actual_dmg_tup = state.deal_damage(
                     track, atk_action.dmg_type, damage_val, source="Combat", target=atk_action.target
                 )
             if margin <= 0 and def_action.action_type in CAction.OUCH:# and defend:
                 damage_val = abs(margin) if margin != 0 else 1
                 damage_val += def_action.dmg_bonus
-                print("\nDEFENSE DAMAGE (m={}, dv={}, action bonus={})\n".format(margin, damage_val, def_action.dmg_bonus))
                 self.combat_log.defend_record.actual_dmg_tup = state.deal_damage(
                     track, def_action.dmg_type, damage_val, source="Combat", target=def_action.target
                 )
@@ -672,3 +761,6 @@ init 1 python in game:
             state.mended_this_turn, state.used_disc_this_turn = False, False
             state.fleet_dodge_this_turn = False
             return None, None
+
+
+#

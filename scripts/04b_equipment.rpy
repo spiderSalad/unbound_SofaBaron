@@ -21,16 +21,18 @@ init 1 python in game:
             IT_AMMO: "#60686D", IT_CONSUMABLE: "#dcdced"
         }
 
-        def __init__(self, type, name, key=None, num=1, desc=None, tier=1, **kwargs):
+        def __init__(self, type, name, key=None, subtype=None, num=1, desc=None, tier=1, **kwargs):
             self.item_type = type
             self.quantity = num
             self.tier = tier
             if self.item_type == Item.IT_JUNK:
                 self.tier = 0
+            self.subtype = subtype
             self.color_key = Item.ITEM_COLOR_KEYS[self.item_type]
             self.key = key
             if self.key is None:
-                self.key = utils.generate_random_id_str(label="supply#{}".format(self.item_type))
+                label_suffix = self.subtype if self.subtype else self.item_type
+                self.key = utils.generate_random_id_str(label="supply#{}".format(label_suffix))
             self.name = name
             if desc:
                 self.desc = desc
@@ -38,6 +40,13 @@ init 1 python in game:
                 self.desc = "({})".format(self.item_type)
             for kwarg in kwargs:
                 setattr(self, kwarg, kwargs[kwarg])
+
+        def __repr__(self):
+            t_label = self.subtype if self.subtype else self.item_type
+            return "<{} #{}>".format(self.name, utils.truncate_string(self.key[7:], leng=len(t_label) + 5))
+
+        def __str__(self):
+            return "<{}>".format(self.name)
 
         def copy(self, item_base=None):
             if item_base is None:
@@ -68,24 +77,29 @@ init 1 python in game:
 
         RWEPS = (RW_PISTOL, RW_SHOTGUN, RW_RIFLE, RW_AUTO, RW_THROWING)
 
-        def __init__(self, type, name, subtype=None, key=None, num=1, desc=None, tier=1, dmg_bonus=0, lethality=None, **kwargs):
+        def __init__(self, type, name, subtype=None, key=None, num=1, desc=None, tier=1, dmg_bonus=None, lethality=None, **kwargs):
             t_type = type
             if type in Weapon.MWEPS or type == Weapon.RW_THROWING:
                 t_type, subtype = Item.IT_WEAPON, type
             elif type in Weapon.RWEPS:
                 t_type, subtype = Item.IT_FIREARM, type
-            super().__init__(t_type, name, key=key, num=num, desc=desc, tier=tier, **kwargs)
-            self.dmg_bonus = dmg_bonus
-            self.subtype = subtype
-            if subtype is None:
+            super().__init__(t_type, name, key=key, subtype=subtype, num=num, desc=desc, tier=tier, **kwargs)
+            if self.subtype is None:
                 self.subtype = Weapon.RW_PISTOL if self.item_type == Item.IT_FIREARM else Weapon.MW_KNIFE
+            self.dmg_bonus = dmg_bonus
+            if dmg_bonus is None:
+                self.dmg_bonus = 2 if self.item_type == Item.IT_FIREARM else 1
+                if self.subtype in (Weapon.RW_RIFLE, Weapon.RW_SHOTGUN, Weapon.MW_AXE):
+                    self.dmg_bonus = 3
+                elif self.subtype in (Weapon.MW_SWORD, Weapon.MW_BLUNT_HEAVY):
+                    self.dmg_bonus = 2
 
             # Guns are concealable unless stated otherwise and have a default lethality of 2.
             if lethality is not None:
                 self.lethality = lethality
             elif self.item_type == Item.IT_FIREARM:
                 self.lethality = 2
-            elif self.subtype in (Weapon.MW_KNIFE, Weapon.MW_SWORD, Weapon.MW_BLUNT_HEAVY):
+            elif self.subtype in (Weapon.MW_KNIFE, Weapon.MW_SWORD, Weapon.MW_BLUNT_HEAVY, Weapon.MW_AXE):
                 self.lethality = 2
             else:
                 self.lethality = 1
@@ -117,6 +131,8 @@ init 1 python in game:
 
         @staticmethod
         def get_fight_sound(action, hit=False):  # True = hit/success, False = miss/failure, None = inconclusive/always
+            if not action:
+                return None
             if not action.weapon_used:
                 if action.action_type in CAction.OUCH:
                     return audio.throwing_hands_1 if hit else audio.brawl_struggle
@@ -151,7 +167,7 @@ init 1 python in game:
 
 
     class Inventory:
-        ITEM_TYPES = [it for it in Item.__dict__ if str(it).startswith("IT_")]
+        ITEM_TYPES = [getattr(Item, it) for it in Item.__dict__ if str(it).startswith("IT_")]
         EQ_WEAPON = "weapon"
         EQ_WEAPON_ALT = "sidearm"
         EQ_TOOL_1 = "tool_slot_1"
@@ -159,18 +175,25 @@ init 1 python in game:
         EQ_CONSUMABLE_1 = "consumable_slot_1"
         EQ_CONSUMABLE_2 = "consumable_slot_2"
 
-        def __init__(self, *items: Item, auto_equip=True, **kwargs):
+        def __init__(self, *items: Item, auto_equip=True, owner_name=None, **kwargs):
             self._items = []
             self._items += items
+            self.owner_name = owner_name
             self._equipped = {
                 Inventory.EQ_WEAPON: None, Inventory.EQ_WEAPON_ALT: None, Inventory.EQ_TOOL_1: None,
                 Inventory.EQ_TOOL_2: None, Inventory.EQ_CONSUMABLE_1: None, Inventory.EQ_CONSUMABLE_2: None
             }
             if auto_equip:
                 if Item.IT_FIREARM in self:
-                    self.equip(next(itm for itm in self.items if item.item_type == Item.IT_FIREARM))
+                    self.equip(next(itm for itm in self.items if itm.item_type == Item.IT_FIREARM))
                 if Item.IT_WEAPON in self:
-                    self.equip(next(itm for itm in self.items if item.item_type == Item.IT_WEAPON))
+                    self.equip(next(itm for itm in self.items if itm.item_type == Item.IT_WEAPON))
+                utils.log("Post auto-equip for {}: held weapon is {}; sidearm is {}.".format(
+                    self.owner_name, self.held, self.sidearm
+                ))
+
+        def __str__(self):
+            return '\n'.join([itm.name for itm in self.items])
 
         @property
         def items(self):
@@ -184,14 +207,18 @@ init 1 python in game:
             return len(self.items)
 
         def __contains__(self, key):
+            key_comp = None
             if key in Inventory.ITEM_TYPES:
-                for item in self.items:
-                    if item.item_type == key:
-                        return True
+                key_comp = "item_type"
+            elif key in (Weapon.MWEPS + Weapon.RWEPS):
+                key_comp = "subtype"
             else:
-                for item in self.items:
-                    if item.key == key:
-                        return True
+                key_comp = "key"
+            if not key_comp:
+                return False
+            for item in self.items:
+                if getattr(item, key_comp) == key:
+                    return True
             return False
 
         @property
@@ -214,17 +241,35 @@ init 1 python in game:
             else:
                 self._items.append(new_item)
 
-        def lose(self, ikey=None, itype=None, cash_amount=None, intended=False):
+        # TODO: this is shit; fix it.
+        def lose(self, remove=True, ikey=None, itype=None, cash_amount=None, intended=False, randomly=False):
+            if randomly:
+                random_item = utils.get_random_list_elem(self.items)
+                if remove:
+                    self._items = [it for it in self.items if it is not random_item]
+                return random_item
             if ikey:
-                self._items = [item for item in self.items if item.key != ikey]
+                lost_items, remaining_items = [], []
+                for item in self.items:
+                    if item.key != ikey:
+                        remaining_items.append(item)
+                    else:
+                        lost_items.append(item)
+                if remove:
+                    self._items = remaining_items
+                return lost_items if len(lost_items) != 1 else lost_items[0]
             elif itype:
-                raise NotImplemented("Hey bub, grip these!")
+                raise NotImplementedError("Hey bub, grip these!")
             elif cash_amount:
                 cash = next((it for it in self.items if it.item_type == Item.IT_MONEY), None)
                 if cash:
                     cash.quantity -= cash_amount
                     if cash.quantity < 0:
                         cash.quantity = 0
+                return Item(IT_MONEY, "taken_cash", num=cash_amount)
+
+        def dupe_from(self, ikey=None, itype=None, cash_amount=None, randomly=False):
+            return self.lose(remove=False, ikey=ikey, itype=itype, cash_amount=cash_amount, randomly=randomly)
 
         def slot_is_free(self, slot):
             if slot not in self.equipped:

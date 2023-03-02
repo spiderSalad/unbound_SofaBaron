@@ -17,6 +17,11 @@ init 1 python in utils:
         return dict_obj
 
     def parse_pool_string(pool_str, situational_mod=None, blood_surging=False):
+        log("Parsing pool string \"{}\". {}, {}".format(
+            pool_str,
+            "Situational mod = {}".format(situational_mod) if situational_mod else "No situational modifier",
+            "Blood Surge ACTIVE." if blood_surging else "no Blood Surge."
+        ))
         raw_pool_str = str(pool_str)
         phases, contests = raw_pool_str.split(","), []
         for phase in phases:
@@ -181,6 +186,13 @@ init 1 python in utils:
             e.__repr__()
             return False
 
+    def oneify_list(collection, num_elems):
+        if not collection:
+            return []
+        if num_elems == 1:
+            return collection[0]
+        return collection
+
     def get_random_list_elem(collection, num_elems=1):
         elem_set = random.choices(collection, k=num_elems)
         if not elem_set:
@@ -190,16 +202,35 @@ init 1 python in utils:
         return elem_set
 
     def get_weighted_random_sample(collection, weights=None, cum_weights=None, num_elems=1):
-        return random.choices(collection, weights=weights, cum_weights=cum_weights, k=num_elems)
+        wr_sample = random.choices(collection, weights=weights, cum_weights=cum_weights, k=num_elems)
+        print("\nstart")
+        print(" - initial collection = ", collection)
+        print(" - cum_weights = ", cum_weights)
+        print(" - wr_sample = ", wr_sample)
+        print("\nend\n")
+        if not wr_sample:
+            return []
+        if num_elems == 1:
+            return wr_sample[0]
+        return wr_sample
+
+    def get_wrs(collection, weights=None, cum_weights=None, num_elems=1):
+        return get_weighted_random_sample(collection, weights=weights, cum_weights=cum_weights, num_elems=num_elems)
 
     def get_wrs_adjusted(collection, i_delta, weights=None, cum_weights=None):
-        i1, item = get_weighted_random_sample(list(enumerate(collection)), weights=weights, cum_weights=cum_weights)[0]
+        i1, item = get_wrs(list(enumerate(collection)), weights=weights, cum_weights=cum_weights)
         i2 = max(0, min(i1 + i_delta, len(collection) - 1))
         return i2, collection[i2]
 
     def get_cum_weights(*weights):
-        enum_weights = enumerate(weights)
-        return [(w8 + weights[i-1] if i > 0 else w8) for i, w8 in enum_weights]
+        cum_weights = []
+        for i, w8 in enumerate(weights):
+            if i != 0:
+                cum_weights.append(cum_weights[i-1] + w8)
+            else:
+                cum_weights.append(w8)
+        return cum_weights
+
 
     def generate_random_id_str(leng=6, label: str = None):
         return "{}_{}".format(label if label else "rid", ''.join(random.choices(ascii_letters, k=leng)))

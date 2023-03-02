@@ -2,7 +2,7 @@ init 1 python in game:
 
     from math import ceil as math_ceil
 
-    cfg, utils = renpy.store.cfg, renpy.store.utils
+    cfg, utils, state = renpy.store.cfg, renpy.store.utils, renpy.store.state
 
     class V5Tracker:
         def __init__(self, char, boxes: int, tracker_type: str, armor: int = 0, bonus: int = 0):
@@ -11,7 +11,7 @@ init 1 python in game:
             self._boxes = boxes
             self._armor = armor
             self._deathsave = 0
-            self.armor_active = False
+            self._armor_active = False
             self.deathsave_active = False
             self._bonus = bonus
             self.spf_damage = 0
@@ -39,6 +39,16 @@ init 1 python in game:
         @armor.setter
         def armor(self, new_armor_val):
             self._armor = new_armor_val
+
+        @property
+        def armor_active(self):
+            if state.StatusFX.has_any_buff(self.char, Entity.SE_TOUGHNESS):
+                return True
+            return self._armor_active
+
+        @armor_active.setter
+        def armor_active(self, new_aa_val):
+            self._armor_active = new_aa_val
 
         @property
         def deathsave(self):
@@ -90,29 +100,32 @@ init 1 python in game:
 
             for point in range(int(true_amount)):
                 clear_boxes = total_boxes - (self.spf_damage + self.agg_damage)
-                if clear_boxes > 0:  # clear spaces get filled first
+                if clear_boxes > 0:  # Clear spaces get filled first.
                     self.char.impair(False, self.tracker_type)
                     if dtype in [cfg.DMG_SPF, cfg.DMG_FULL_SPF]:
                         self.spf_damage += 1
+                        pt_symbol = "|/|"
                     elif temp_deathsave > 0:
                         self.spf_damage += 1
                         temp_deathsave -= 1
                         mitigated_dmg += 1
                         if temp_deathsave <= 0:
                             self.deathsave_active = False
+                        pt_symbol = "|/|"
                     else:
                         self.agg_damage += 1
-                    utils.log("====> damage " + str(point) + ": filling a clear space")
-                elif self.spf_damage > 0:  # if there are no clear boxes, tracker is filled with mix of damage types
+                        pt_symbol = "|X|"
+                    utils.log("  |_| > {} :: Damage point #{}, filling a clear space.".format(pt_symbol, point+1))
+                elif self.spf_damage > 0:  # If there are no clear boxes, tracker is filled with mix of damage types.
                     self.char.impair(True, self.tracker_type)
                     self.spf_damage -= 1
-                    self.agg_damage += 1  # if there's any superficial damage left, turn it into an aggravated
-                    utils.log("====> damage " + str(point) + ": removing a superficial and replacing with aggravated")
+                    self.agg_damage += 1  # If there's any Superficial damage left, turn it into a Aggravated.
+                    utils.log("  |/| > |X| :: Damage point #{}, replacing a Superficial with Aggravated.".format(point+1))
                 if self.agg_damage >= total_boxes:
-                    # A tracker completely filled with aggravated damage = game over:
-                    # torpor, death, or a total loss of faculties, face and status
+                    # A tracker completely filled with Aggravated damage = game over, i.e.
+                    # torpor, death, or a total loss of faculties, face and status.
                     self.char.handle_demise(self.tracker_type, self.last_damage_source)
-                    utils.log("====> damage " + str(point) + ": oh shit you dead")
+                    utils.log("  RIP :: Damage point #{}, the final point.".format(point+1))
 
                 actual_dmg += 1
                 injured = True
@@ -194,6 +207,22 @@ init 1 python in game:
         def status_effects(self):
             return self._status_effects
 
+        @property
+        def held(self):
+            if hasattr(self, "inventory") and self.inventory and hasattr(self.inventory, "held"):
+                return self.inventory.held
+            elif hasattr(self, "npc_weapon") and self.npc_weapon:
+                return self.npc_weapon
+            return None
+
+        @property
+        def sidearm(self):
+            if hasattr(self, "inventory") and self.inventory and hasattr(self.inventory, "sidearm"):
+                return self.inventory.sidearm
+            elif hasattr(self, "npc_weapon_alt") and self.npc_weapon_alt:
+                return self.npc_weapon_alt
+            return None
+
         def set_scream(self, force_replace=False):
             if not self.pronoun_set:
                 print("no pronouns!")
@@ -243,7 +272,7 @@ init 1 python in game:
                 if utils.percent_chance(50):
                     return cfg.PN_WOMAN
                 return cfg.PN_MAN
-            return cfg.PN_NONBINARY_PERSON
+            return cfg.PN_PERSON
 
         def can_rouse(self):
             if self.creature_type != cfg.CT_VAMPIRE:
@@ -268,11 +297,11 @@ init 1 python in game:
 
 
     class NPCFighter(Entity):
-        FT_BRAWLER = "brawler"  # If someone's in melee range, attacks. If not, tries to close.
-        FT_SHOOTER = "shooter"  # Shoots until someone gets close and engages, then fights in melee.
-        FT_WILDCARD = "wildcard"  # Randomly chooses target and attack type from what's available.
-        FT_ESCORT = "escort"  # Tries to avoid enemies. May use special abilities, but does not normally attack.
-        FT_FTPC = "pc_hunter"  # Always tries to attack PC, and acts like wildcard if that's not possible.
+        FT_BRAWLER = "Brawler"  # If someone's in melee range, attacks. If not, tries to close.
+        FT_SHOOTER = "Shooter"  # Shoots until someone gets close and engages, then fights in melee.
+        FT_WILDCARD = "Wildcard"  # Randomly chooses target and attack type from what's available.
+        FT_ESCORT = "Escort"  # Tries to avoid enemies. May use special abilities, but does not normally attack.
+        FT_FTPC = "Assassin"  # Always tries to attack PC, and acts like wildcard if that's not possible.
 
         def __init__(self, physical=4, social=4, mental=4, name="", ftype=None, ctype=cfg.CT_HUMAN, bcs=None, **kwargs):
             super().__init__(ctype=ctype, **kwargs)
@@ -293,7 +322,9 @@ init 1 python in game:
             self.npc_weapon = None
             self.ranged_attacks_use_gun = True  # Always true unless specifically turned off.
             for kwarg in kwargs:
-                if kwarg in cfg.REF_SKILL_ORDER or kwarg in disc_powers:
+                if kwarg in cfg.REF_DISC_POWER_PASSIVES:
+                    self._passive_powers.append(kwarg)
+                elif kwarg in cfg.REF_SKILL_ORDER or kwarg in cfg.REF_DISC_IN_GAME or kwarg in disc_powers:
                     self._special_skills[kwarg] = kwargs[kwarg]
                 elif not hasattr(self, kwarg):
                     setattr(self, kwarg, kwargs[kwarg])

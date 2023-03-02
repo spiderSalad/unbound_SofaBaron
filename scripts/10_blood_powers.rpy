@@ -48,8 +48,11 @@ init 1 python in game:
             target, weapon_used = action.target, action.weapon_used
             new_pool = str(base_pool)
 
-            if action.alt_weapon_penalty is not None:
-                new_pool += "+-{}".format(cfg.WEAPON_DRAW_PENALTY)
+            if action.using_sidearm is not None:
+                if user.has_disc_power(cfg.POWER_CELERITY_TWITCH, cfg.DISC_CELERITY):
+                    utils.log("Quick-draw! Weapon switch penalty waived for {}.".format(user.name))
+                else:
+                    new_pool += "+-{}".format(cfg.WEAPON_DRAW_PENALTY)
 
             # Lethal Body
             if not weapon_used and user.has_disc_power(cfg.POWER_POTENCE_FATALITY, cfg.DISC_POTENCE):
@@ -91,8 +94,11 @@ init 1 python in game:
         @staticmethod
         def ranged_attack(user, action, base_pool):
             new_pool = str(base_pool)
-            if action.alt_weapon_penalty is not None:
-                new_pool += "+-{}".format(cfg.WEAPON_DRAW_PENALTY)
+            if action.using_sidearm is not None:
+                if user.has_disc_power(cfg.POWER_CELERITY_TWITCH, cfg.DISC_CELERITY):
+                    utils.log("Quick-draw! Weapon switch penalty waived for {}.".format(user.name))
+                else:
+                    new_pool += "+-{}".format(cfg.WEAPON_DRAW_PENALTY)
 
             return action, new_pool
 
@@ -200,10 +206,12 @@ init 1 python in state:
             return True
 
         @staticmethod
-        def has_any_buff(who, buff, *buffs):
-            for bf in ((buff,) + buffs):
+        def has_any_buff(who, *buffs):
+            for bf in buffs:
                 if StatusFX.has_buff(who, bf):
                     return True
+                else:
+                    print("do not have {}".format(bf))
             return False
 
         @staticmethod
@@ -238,7 +246,7 @@ init 1 python in state:
                 disc = cfg.REF_DISC_POWER_TREES[dname]
                 for level, d_tier in enumerate(disc):
                     if power_name in d_tier:
-                        return dname, level
+                        return dname, 1+level
             return None, None
 
         @staticmethod
@@ -258,15 +266,20 @@ init 1 python in state:
             if dp_name and hasattr(self, dp_name):
                 num_rouse_checks, reroll = StatusFX.get_num_rouse_checks(power_name)
                 hungrier = False
+                print("\n\nUSING DISCIPLINE POWER: {}\nRouse checks: {}\nReroll: {}".format(
+                    dp_name, num_rouse_checks, reroll
+                ))
                 # rouse_check(num_checks=num_rouse_checks, reroll=reroll)
                 if num_rouse_checks > 0 and who.can_rouse():
-                    hungrier = renpy.call_in_new_context("roll_control.rouse_check", num_checks=num_rouse_checks, reroll=reroll)
+                    if not cfg.DEV_MODE or not cfg.DEV_FREE_DISCIPLINES:
+                        hungrier = renpy.call_in_new_context("roll_control.rouse_check", num_checks=num_rouse_checks, reroll=reroll)
                     if hungrier:
                         refresh_hunger_ui()
                 elif num_rouse_checks > 0:
                     return  # TODO: check this too as per below.
                 getattr(self, dp_name)(who=who)
-                if not (dp_name in cfg.REF_DISC_POWER_FREEBIES or dp_name in cfg.REF_DISC_POWER_PASSIVES):
+                if power_name not in (cfg.REF_DISC_POWER_FREEBIES + cfg.REF_DISC_POWER_PASSIVES):
+                    global used_disc_this_turn
                     used_disc_this_turn = True
                 # return hungrier  TODO: figure out why returning values from here causes a "Nonetype not subscriptible" error
                 # in the menus in script_05_battles.rpy. Something about the context?
@@ -287,9 +300,9 @@ init 1 python in state:
         def toughness(self, who=None):
             if who.has_disc_power(cfg.POWER_FORTITUDE_TOUGH, cfg.DISC_FORTITUDE):
                 self.apply_buff(who, Entity.SE_TOUGHNESS, 9)
-                if hasattr(who, "armor_active"):
-                    who.armor_active = True
-                renpy.play(audio.toughness_armor, "sound")
+                # if hasattr(who, "hp"):
+                #     who.hp.armor_active = True
+                renpy.play(audio.toughness_frost, "sound")
 
         def defy_bane(self, who=None):
             if who.has_disc_power(cfg.POWER_FORTITUDE_BANE, cfg.DISC_FORTITUDE):
@@ -321,7 +334,7 @@ init 1 python in state:
             return None, None  # This doesn't include powers that are switched on/off at will, like Lethal Body.
         if ability in cfg.REF_DISC_POWER_MENU_ONLY:
             return None, None
-        can_use_disc = not used_disc_this_turn
+        can_use_disc = not used_disc_this_turn or ability in cfg.REF_DISC_POWER_FREEBIES
         if in_combat and ability in cfg.REF_DISC_POWERS_SNEAKY:
             usable = False if pc.current_pos > -2 else can_use_disc  # Only usable in the back rank.
             return usable, StatusFX.power_is_active(pc, ability)

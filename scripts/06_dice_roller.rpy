@@ -17,7 +17,7 @@ init 1 python in game:
             self.surge = surge
             self.action = action
             self.contests = utils.parse_pool_string(pool_text, situational_mod=sitmod, blood_surging=self.surge)
-            utils.log("\n--- Contests ---\n{}".format(self.contests))
+            utils.log("\n--- {} ---\n{}".format("CONTESTS" if self.has_opponent else "TESTS", self.contests))
             if len(self.contests) != 1:
                 raise ValueError("Should be exactly one phase per RollConfig object, not {}.".format(len(self.contests)))
             self.pool_options = self.contests[0]
@@ -32,6 +32,7 @@ init 1 python in game:
 
         def evaluate(self, pool_option):
             required_stats, optional_stats = [], [] # TODO: what was I doing here?
+            buffed_pool_option = pool_option
             if self.action:
                 self.action, buffed_pool_option = BuffPipeline.process_pool(
                     self.action.user, pool_option, action=self.action
@@ -51,7 +52,7 @@ init 1 python in game:
                 stat = str(stat).capitalize()
                 if "Bloodsurge" in stat:
                     stat = "Blood Surge"
-                print("\n\n ======> STAT = {}".format(stat))
+                utils.log("RollConfig parameter: {}".format(stat))
                 if str(stat).lower().startswith("pool"):
                     pool_choice.num_dice += int(str(stat)[len("pool"):])
                 elif stat in pc.attrs:
@@ -311,8 +312,10 @@ init python in state:
         else:
             raise AttributeError("Dice Roll moment must have either an opposition pool or flat difficulty!")
 
-        primary_rc.action.lifted_num_successes = active_roll.num_successes
-        secondary_rc.action.lifted_num_successes = response_roll.num_successes
+        if primary_rc and primary_rc.action:
+            primary_rc.action.lifted_num_successes = active_roll.num_successes
+        if secondary_rc and secondary_rc.action:
+            secondary_rc.action.lifted_num_successes = response_roll.num_successes
 
         if pc_defending:
             pc_rc, pc_roll = secondary_rc, response_roll
@@ -414,7 +417,7 @@ init python in state:
         return sense_roll.margin > 0# -1
 
 
-label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=None, response_a=None, pc_defending=False):
+label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=None, response_a=None):
 
     python:
         if not state.diceroller:
@@ -428,50 +431,51 @@ label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=
     "Rolling..."
 
     python:
-        diffic, opp_pool = None, None
-        if pc_defending or response_a or cfg.ROLL_CONTEST in test_or_contest:
+        diffic, opp_pool, pc_defending = None, None, None
+        if not active_a or active_a.user.is_pc:
+            pc_defending = False
+        elif response_a.user.is_pc:
+            pc_defending = True
+        contesting_response = response_a and response_a.action_type not in game.CAction.NO_CONTEST
+        if pc_defending or contesting_response or (test_or_contest and cfg.ROLL_CONTEST in test_or_contest):
             is_contest, primary_pool, opp_pool = True, active_pool, test_or_contest
-        elif cfg.ROLL_TEST in test_or_contest:
-            is_contest, primary_pool, diff = False, active_pool, str(test_or_contest).split(cfg.ROLL_TEST)[1]
+        elif test_or_contest is None or cfg.ROLL_TEST in test_or_contest:
+            is_contest, primary_pool = False, active_pool
+            diffic = str(test_or_contest).split(cfg.ROLL_TEST)[1] if test_or_contest else 1
         else:
             raise ValueError("All calls to roll_control should 1) have a response action, 2) be a contest, or 3) be a test.")
 
-        if (active_a or response_a) and not is_contest:
-            raise ValueError("Action arguments passed to roll control implies combat, which implies a contest.")
+        # if (active_a or response_a) and not is_contest:
+        #     raise ValueError("Action arguments passed to roll control implies combat, which implies a contest.")
         if (pc_defending and (not active_a or not response_a)):
             raise ValueError("If player is defending, that implies combat which means there should be two actions passed.")
         if is_contest and not opp_pool:
             raise ValueError("Contests should always have an opp pool.")
 
-        # if active_a:
-        #     active_a, primary_pool = game.BuffPipeline.process_pool(active_a.user, primary_pool, action=active_a)
-        # if response_a:
-        #     response_a, opp_pool = game.BuffPipeline.process_pool(response_a.user, opp_pool, action=response_a)
-            # TODO: left off HERE (feb 9 23), move BuffPipeline processing to rollconfig so bonuses are applied to all pool options
+        active_user_pc = active_a and active_a.user and active_a.user.is_pc
         state.roll_config = game.RollConfig(
-            primary_pool, has_opp=is_contest, sitmod=situational_mod if active_a.user.is_pc else None,
-            surge=state.blood_surge_active if active_a.user.is_pc else False, action=active_a
+            primary_pool, has_opp=is_contest,
+            sitmod=situational_mod if active_user_pc else None,
+            surge=state.blood_surge_active if active_user_pc else False,
+            action=active_a
         )
+        state.test_rco = None
         if opp_pool:
+            response_user_pc = response_a and response_a.user and response_a.user.is_pc
             state.test_rco = game.RollConfig(
-                opp_pool, has_opp=is_contest, sitmod=situational_mod if active_a.user.is_pc else None,
-                surge=state.blood_surge_active if response_a.user.is_pc else False, action=response_a
+                opp_pool, has_opp=is_contest,
+                sitmod=situational_mod if response_user_pc else None,
+                surge=state.blood_surge_active if response_user_pc else False,
+                action=response_a
             )
-        # if active_a:
-        #     active_a.num_dice = state.roll_config.num_dice
-        # if response_a:
-        #     response_a.num_dice = state.test_rco.num_dice
         state.roll_bones(state.roll_config, secondary_rc=state.test_rco, difficulty=diffic, pc_defending=pc_defending)
-        # state.roll_config
-        # TODO: left off here, but have not tested. Also, consider making a roll_config object for both attack and response every time,
-        # not just for PC actions. But we still want to the ability to do expedient number-only opposition rolls.
 
     if pc_defending is None:  # None == NPC on NPC attack.
         if not cfg.DEV_MODE:
             $ renpy.block_rollback()
         jump .end_npc_clash
 
-    if active_a.skip_contest or response_a.skip_contest:
+    if (active_a and active_a.skip_contest) or (response_a and response_a.skip_contest):
         if not cfg.DEV_MODE:
             $ renpy.block_rollback()
         jump .end_npc_clash
