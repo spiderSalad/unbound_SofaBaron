@@ -186,33 +186,20 @@ init 1 python in utils:
             e.__repr__()
             return False
 
-    def oneify_list(collection, num_elems):
+    def oneify_list(collection):
         if not collection:
             return []
-        if num_elems == 1:
+        if len(collection) == 1:
             return collection[0]
         return collection
 
     def get_random_list_elem(collection, num_elems=1):
         elem_set = random.choices(collection, k=num_elems)
-        if not elem_set:
-            return []
-        if num_elems == 1:
-            return elem_set[0]
-        return elem_set
+        return oneify_list(elem_set)
 
     def get_weighted_random_sample(collection, weights=None, cum_weights=None, num_elems=1):
         wr_sample = random.choices(collection, weights=weights, cum_weights=cum_weights, k=num_elems)
-        print("\nstart")
-        print(" - initial collection = ", collection)
-        print(" - cum_weights = ", cum_weights)
-        print(" - wr_sample = ", wr_sample)
-        print("\nend\n")
-        if not wr_sample:
-            return []
-        if num_elems == 1:
-            return wr_sample[0]
-        return wr_sample
+        return oneify_list(wr_sample)
 
     def get_wrs(collection, weights=None, cum_weights=None, num_elems=1):
         return get_weighted_random_sample(collection, weights=weights, cum_weights=cum_weights, num_elems=num_elems)
@@ -230,7 +217,6 @@ init 1 python in utils:
             else:
                 cum_weights.append(w8)
         return cum_weights
-
 
     def generate_random_id_str(leng=6, label: str = None):
         return "{}_{}".format(label if label else "rid", ''.join(random.choices(ascii_letters, k=leng)))
