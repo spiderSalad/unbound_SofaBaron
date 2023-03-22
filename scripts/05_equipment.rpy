@@ -77,6 +77,8 @@ init 1 python in game:
 
         RWEPS = (RW_PISTOL, RW_SHOTGUN, RW_RIFLE, RW_AUTO, RW_THROWING)
 
+        NO_WEAPON = "Unarmed"
+
         def __init__(self, type, name, subtype=None, key=None, num=1, desc=None, tier=1, dmg_bonus=None, lethality=None, **kwargs):
             t_type = type
             if type in Weapon.MWEPS or type == Weapon.RW_THROWING:

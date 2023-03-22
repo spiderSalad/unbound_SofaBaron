@@ -5,7 +5,7 @@ init 1 python in utils:
     import re
 
     from math import ceil as math_ceil, floor as math_floor
-    from string import ascii_letters
+    from string import ascii_letters, Formatter
 
     cfg = renpy.store.cfg
 
@@ -108,6 +108,15 @@ init 1 python in utils:
             opening, closing = "{" + t + "}", "{/" + t + "}"
             altered_txt = opening + altered_txt + closing
         return altered_txt
+
+    def get_all_matches_between(start, end, operand_str, lazy=True, inclusive=True):
+        # TODO implement inclusive
+        regexpr = "\\{s}([^{e}]*{lz})\\{e}".format(s=start, e=end, lz='?' if lazy else '')
+        return re.findall(regexpr, operand_str)
+
+    def get_str_format_tokens(template_str, include_unused=False):
+        return [seg[1] for seg in Formatter().parse(template_str) if include_unused or seg[1] is not None]
+        # TODO: look up why Formatter had to be instantiated for parse to work.
 
     def str_append(txt, append, separator=""):
         if not txt:
@@ -269,6 +278,9 @@ init 1 python in utils:
 
     def log(*args):
         print(*args)
+
+    def renpy_say(who, what, **kwargs):
+        who(what, **kwargs)
 
     def renpy_play(*tracks, at_once=False):
         for i, track in enumerate(tracks):

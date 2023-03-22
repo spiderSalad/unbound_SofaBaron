@@ -1,6 +1,6 @@
 init 1 python in game:
 
-    cfg, utils = renpy.store.cfg, renpy.store.utils
+    cfg, utils, state = renpy.store.cfg, renpy.store.utils, renpy.store.state
     # NOTE: this persists between game load/cycles, as it's run when Ren'py starts - NOT when the game starts.
 
 
@@ -439,6 +439,8 @@ init 1 python in game:
             self.apply_background(cfg.CHAR_PT_STATBLOCKS[pt], bg_key=pt)
             self.predator_type = pt
             self.recalculate_stats()
+            # TODO: check this
+            # state.predator_type_choice_post_setup(self.predator_type)
 
         def unlock_discipline(self, disc, access):
             self.disciplines.unlock(disc, access)

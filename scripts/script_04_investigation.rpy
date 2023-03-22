@@ -2,13 +2,16 @@ label investigation_menu:
 
     beast "Knowledge is power. Wouldn't it be nice if you had some?"
 
-    "But where to begin? Most of your old contacts are either missing or confirmed dead, including the other licks you ran with."
+    "But where to begin? Most of your old contacts are either MIA or confirmed dead, including the other licks you ran with."
 
     # TODO: show these backgrounds once and then lower the chance drastically, e.g. 20%
 
     "Your coterie, in Camarilla parlance. Or what passed for one. Each of them their own unique combination of unreliable, unsavory, and unhinged."
 
-    "But they were all you had, and now they're gone."
+    if pc.clan == cfg.CLAN_NOSFERATU:
+        "But they were your coterie, and now they're gone."
+    else:
+        "But they were all you had, and now they're gone."
 
     beast "They were trash. Mangy ticks, the lot of them. Not that you're any better."
 
@@ -22,17 +25,27 @@ label investigation_menu:
 
         "Unsurprisingly, your clan survived the purge mostly intact. Clan Nosferatu has plently of experience dealing with purges, and plenty of infrastructure and contingencies in place."
 
-        "You're not the most well-integrated [nossie] in the city, but you're still family and you know you'll be welcome."
+        "You're not the most well-integrated [nossie] in the city, but you're still kin and you know you'll be welcome, more or less."
 
-        "That might be your first and best option, but the more you rely on your kin the more contributions they'll expect from you in turn."
+        "That might be your first and best option, but the more you rely on your Clan the more contributions they'll expect from you in turn."
 
     "A lot of the Barons bit it too. The chaotic scramble for their old territory is still ongoing. The Tower's stayed out of the fray, most of the turf up for grabs being well below their standards."
 
     "No doubt they have their own post-apocalyptic problems to deal with as well. ...But that might be an angle you can work."
 
-    "You'd never be welcome in Elysium, of course. But you were on speaking terms with a few members of the Tower back in the day. Maybe something could be arranged."
+    $ blurb_ventrue_nepotism = ""
+    if pc.clan == cfg.CLAN_VENTRUE:
+        $ blurb_ventrue_nepotism = "Ventrue nepotism doesn't go that far, even if you {i}were{/i} a legitimate childe. "
+    "You'd never be welcome in Elysium, of course. [blurb_ventrue_nepotism]But you were on speaking terms with a few members of the Tower back in the day."
 
-    "You'll {i}definitely{/i} have to put your best foot forward, and whatever you get will be costly. But the Tower has resources and contacts that no one else can match."
+    "Maybe something could be arranged."
+
+    "You'll {i}definitely{/i} have to put your best foot forward, and whatever you get will be costly."
+
+    if pc.clan == cfg.CLAN_NOSFERATU:
+        "But the more presentable Camarilla Kindred can move freely throughout polite society and have their own kind of influence few Nosferatu can match."
+    else:
+        "But the Tower has resources and contacts that no one else can match."
 
     "You could hit up some of the Anarch Movement's finest, of course. You don't have any particular pull, especially with your squad presumed ash."
 
@@ -41,7 +54,7 @@ label investigation_menu:
     if pc.clan != cfg.CLAN_NOSFERATU:
         $ nos_info_choice = "the local Nosferatu"
 
-        "You could always head down into the swers. Clan Nosferatu is known the world over for their trade in secrets, gossip, and intel of all kinds. The local Sewer Rats are no exception, and they'll sell to anyone."
+        "You could always head down into the sewers. Clan Nosferatu is known among Kindred the world over for their trade in secrets, gossip, and intel of all kinds. The local Sewer Rats are no exception, and they'll sell to anyone."
 
         "Assuming you can pay whatever price they're asking."
 
@@ -52,7 +65,7 @@ label investigation_menu:
     if pc.hunger > cfg.HUNGER_MAX_CALM:
         $ info_search_menu_msg = "Or we could forget all that nonsense and feed. That seems like a better idea."
     else:
-        $ info_search_menu_msg = "Wake me up if you need me."
+        $ info_search_menu_msg = "Wake me up when you're doing something interesting."
 
     menu:
         beast "[info_search_menu_msg]"

@@ -50,6 +50,8 @@ label haven:
             must_shelter = True if state.clock.hours < 2 else False
             can_hunt = (can_hunt and not must_shelter)
             other_activities = not must_hunt and not must_shelter
+            can_improve = other_activities# and state.self_help_unlocked
+            can_sortie = other_activities and state.sorties_unlocked
             if must_shelter and must_hunt:
                 relax_menu_text = "I'm so hungry I can barely think, but it's almost sunrise. Going out now is certain death."
             elif must_shelter and pc.hunger > cfg.HUNGER_MAX_CALM:
@@ -69,7 +71,9 @@ label haven:
 
                 call expression "hunt_" + str(pc.predator_type).replace(" ", "_").lower() pass (None) from main_hub_hunt
 
-            "Stagnation and complacency are deadly enemies for a Kindred. What can I do to improve my situation?" if other_activities:
+                # testing code was here
+
+            "Stagnation and complacency are deadly enemies for a Kindred. What can I do to improve my situation?" if can_improve:
                 $ state.outside_haven = True
 
                 scene bg domain basic
@@ -77,7 +81,7 @@ label haven:
                 call haven.submenu_work from main_hub_work
                 # call pass_time(1) from training_test1
 
-            "Enemies closing in. Need to counterattack before I'm cornered." if other_activities:
+            "Enemies closing in. Need to counterattack before I'm cornered." if can_sortie:
                 "sortie"
 
                 call haven.submenu_sorties from main_hub_sortie
@@ -103,7 +107,7 @@ label haven:
 
     label .submenu_work:
 
-        "For a vampire, there's no such thing as safety. There's always another enemy, always another threat."
+        "For a vampire, there's no such thing as safety. There's always another threat, always another struggle, always another hunt."
 
         if pc.clan == cfg.CLAN_RAVNOS:
             "The survivors of your clan understand this better than most Kindred. Death is always just a few steps behind."
@@ -122,7 +126,7 @@ label haven:
 
         menu:
 
-            "But you have to act carefully. Sloppy mistakes will get you dusted just as quickly."
+            "But you have to act carefully. Sloppy mistakes will get you dusted just as surely as inaction."
 
             "I can't afford to fall out of touch. I need to know what's going on outside my little hovel.":
                 "gather information --> random events"
@@ -136,6 +140,10 @@ label haven:
             "Maybe flying solo isn't the way to go. Maybe I need allies.":
                 "ghoul/coterie/factions"
                 call pass_time(4) from seek_allies_test_1
+
+            "I need to step up my game on a personal level. It's about time for some self-improvement." if state.self_help_unlocked:
+                "gettin swole (here we have a submenu for improving attributes, skills, and disciplines)"
+                call pass_time(None) from self_help_test_1
 
             "Is there any chance I could expand?":
                 "domain"

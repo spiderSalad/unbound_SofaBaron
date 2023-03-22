@@ -48,7 +48,8 @@ label intro:
     # show eileen happy
 
     # You start at hunger 3.
-    $ state.set_hunger(3)
+    $ starting_hunger = 3
+    $ state.set_hunger(starting_hunger)
 
     "You awaken the moment the sun goes down, and find yourself lying in a pile of garbage."
 
@@ -62,7 +63,7 @@ label intro:
 
     "How you ended up in this dirty back alley is a question for later. For now, there's the matter of this man who saw you - and apparently spent some time around you - while you were compromised."
 
-    "You're not bound by the Tower or its rules, but like every other tick in this city you have a {i}visceral{/i} understanding of what happens when enough idiots violate the First of their \"Traditions\"."
+    "You're not bound by the Tower or its rules, but like every other tick in this city you have a {i}visceral{/i} understanding of what happens when enough idiots violate the First of their so-called \"Traditions\"."
 
     "The Masquerade."
 
@@ -82,7 +83,7 @@ label intro:
             james "H-hey hold on, now-"
 
             call roll_control("dexterity+athletics+2", "pool3") from drain_james
-            jump expression renpy.store.game.pass_fail(_return, "intro.man_drained", "intro.man_escapes_drain")
+            jump expression renpy.store.game.rollrouting_pass_fail(_return, "intro.man_drained", "intro.man_escapes_drain")
 
         "Let him go. He only saw me \"passed out\" on the street. And who would believe a homeless drunk anyway?":
             jump intro.man_spared
@@ -97,7 +98,7 @@ label intro:
             james "Someone musta took your phone, huh? It's abou-"
 
             call roll_control("manipulation+intrigue+looks+1", "diff2") from sip_james
-            jump expression renpy.store.game.pass_fail(_return, "intro.man_sipped", "intro.man_escapes_sip")
+            jump expression renpy.store.game.rollrouting_pass_fail(_return, "intro.man_sipped", "intro.man_escapes_sip")
 
     label .man_drained:
 
@@ -192,6 +193,8 @@ label backstory:
 
     if state.intro_man_drank and state.intro_man_killed:
         $ blurb_having = "Having slaked your Hunger and eaten the only witness (you doubt anyone will find the body in time for it to seem unusual), "
+    elif state.intro_man_drank and state.hunger_b4_last_feeding > starting_hunger:
+        $ blurb_having = "Unfortunately you seem to have made yourself hungrier in the process of grabbing your snack. So it's a wash. Having broke even, "
     elif state.intro_man_drank:
         $ blurb_having = "Having temporarily brought your endless Hunger under control, "
     elif state.intro_man_killed:
@@ -324,7 +327,7 @@ label clan_choice:
 
     "That can make things difficult, but over those first few horrifying months you learned to adapt, drawing on skills and experiences from your mortal life."
 
-    beast "We are all inexorably shaped by our pasts. Even the Blood resonates with it."
+    beast "We are all inexorably shaped by our pasts. The Blood ever resonates with the echoes of eternity."
 
     # call pick_first_powers from intro_discipline_choice_v1
     "(You can choose from available discipline powers by clicking on a discipline's name on the Powers panel.)"
@@ -339,9 +342,11 @@ label clan_choice:
             call predator_type_subsets.alley_cat from intro_pt_choice_alley_cat
 
         "I didn't hunt my own food when I was alive. Why start now? I just drink the bagged stuff. Less dangerous." if state.pc_can_drink_swill():
-            "Realistically it's just a different kind of danger. Blood is a commodity even among mortals, and it tends to be closely watched."
+            "Realistically it's just a different kind of danger. Blood is a scarce commodity even among mortals, and it tends to be closely watched."
 
-            "Statistical abnormalities or a careless lick caught on the wrong camera feed can draw the attention of law enforcement and hunters alike. But that's a less direct kind of danger, the kind you're much better at managing."
+            "Statistical abnormalities, discrepancies in recordkeeping, or a careless lick caught on the wrong camera feed can draw the attention of law enforcement and hunters alike."
+
+            "But that's a less direct kind of danger, the kind you're much better at managing."
             call predator_type_subsets.bagger from intro_pt_choice_bagger
 
         "I feed on animals, usually. City's chock full of animals if you know where to look." if state.pc_can_drink_swill():

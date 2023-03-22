@@ -100,10 +100,174 @@ init 1 python in state:
         return loot_item.copy()
 
 
-init 1 python in cfg:
+init 1 python in game:
 
-    audio = renpy.store.audio
-    Weapon = renpy.store.game.Weapon
+    class CAction:
+        NO_ACTION = "null_action"
+        FALL_BACK = "fall_back"
+        MELEE_ENGAGE = "melee_engage"
+        MELEE_ATTACK = "melee_attack"
+        RANGED_ATTACK = "ranged_attack"
+        DODGE = "dodge"
+        SPECIAL_ATTACK = "special_attack"
+        DISENGAGE = "back_dafuq_up"
+        ESCAPE_ATTEMPT = "tryna_escape"
+
+        # Not necessarily attacks, but abilities that can be actively used in combat, not including
+        # passive abilities that can affect combat.
+        BASIC_MELEE = [cfg.SK_COMB]
+        BASIC_RANGED = [cfg.SK_FIRE]
+        BASIC_SPACING = [cfg.SK_ATHL]
+
+        RANGED_ACTIONS = [  # Ranged only, cannot use if engaged
+            cfg.SK_FIRE,
+            cfg.POWER_ANIMALISM_SPEAK,
+            cfg.POWER_OBFUSCATE_ILLUSION, cfg.POWER_OBFUSCATE_HALLUCINATION,
+            cfg.POWER_POTENCE_RAGE,
+            cfg.POWER_PROTEAN_DIRTNAP, cfg.POWER_PROTEAN_BOO_BLEH, cfg.POWER_PROTEAN_DRUID, cfg.POWER_PROTEAN_FINALFORM
+        ]
+
+        MELEE_ACTIONS = [  # Melee only, must be engaged to use
+            cfg.SK_COMB,
+            cfg.POWER_ANIMALISM_QUELL,
+            cfg.POWER_DOMINATE_MESMERIZE,
+            cfg.POWER_POTENCE_PROWESS, cfg.POWER_POTENCE_MEGASUCK,
+            cfg.POWER_PROTEAN_REDEYE
+        ]
+
+        ANYWHERE_ACTIONS = [  # Usable at any distance, whether engaged or not
+            cfg.NPCAT_PHYS,
+            cfg.POWER_CELERITY_SPEED, cfg.POWER_CELERITY_BLINK,
+            cfg.POWER_DOMINATE_COMPEL,
+            cfg.POWER_FORTITUDE_TOUGH, cfg.POWER_FORTITUDE_BANE,
+            cfg.POWER_OBFUSCATE_VANISH,
+            cfg.POWER_POTENCE_SUPERJUMP,
+            cfg.POWER_PRESENCE_SCARYFACE,
+            cfg.POWER_PROTEAN_TOOTH_N_CLAW, cfg.POWER_PROTEAN_MOLD_SELF
+        ]
+
+        DODGE_VARIANTS = [cfg.SK_ATHL, cfg.POWER_CELERITY_SPEED, cfg.POWER_OBFUSCATE_ILLUSION]
+
+        RUSH_VARIANTS = [cfg.SK_ATHL, cfg.POWER_CELERITY_SPEED, cfg.POWER_CELERITY_BLINK, cfg.POWER_POTENCE_SUPERJUMP]
+
+        SNEAK_VARIANTS = [cfg.SK_CLAN, cfg.DISC_OBFUSCATE] + cfg.REF_DISC_POWERS_SNEAKY
+
+        DETECTION_VARIANTS = [cfg.POWER_AUSPEX_ESP]
+
+        ESCAPE_VARIANTS = [
+            cfg.SK_ATHL,
+            cfg.POWER_CELERITY_SPEED, cfg.POWER_CELERITY_BLINK,
+            cfg.POWER_OBFUSCATE_VANISH, cfg.POWER_OBFUSCATE_HALLUCINATION
+        ]
+
+        # For now, NPC combat discipline powers consist of all active combat discipline powers
+        NPC_COMBAT_DISC_POWERS = RANGED_ACTIONS + MELEE_ACTIONS + ANYWHERE_ACTIONS + DODGE_VARIANTS + ESCAPE_VARIANTS
+        NPC_COMBAT_DISC_POWERS = [p for p in NPC_COMBAT_DISC_POWERS if not str(p).startswith("SK_")]
+
+        OUCH = (MELEE_ATTACK, RANGED_ATTACK, SPECIAL_ATTACK)
+        NONVIOLENT = (DODGE, MELEE_ENGAGE, DISENGAGE, NO_ACTION, FALL_BACK)
+        NO_CONTEST = (NO_ACTION, FALL_BACK)
+
+        def __init__(
+            self, action_type, target:Entity, user=None, defending=False, pool=None, subtype=None, use_sidearm=False, lethality=None
+        ):
+            self.action_type = action_type  # Should be one of above types; subtype should be a discipline power or similar or None.
+            self.pool, self.num_dice, self.using_sidearm = pool, None, None
+            self.target, self.defending = target, defending
+            self.user = user
+            self.action_label = subtype
+            self.weapon_used, self.skip_contest, self.lost_to_trump_card = None, False, False
+            self.use_sidearm = use_sidearm
+            if self.user and self.use_sidearm:
+                self.using_sidearm = True
+                utils.log("Off-hand weapon penalty imposed on {} because use_sidearm ({}) set to True.".format(
+                    self.user.name, self.user.sidearm if self.user and self.user.sidearm else "None?"
+                ))
+            self.unarmed_power_used, self.power_used = None, None
+            if self.action_type is None and self.action_label is None:
+                raise ValueError("At least one of 'action_type' and 'action_label' must be defined; they can't both be empty!")
+            elif self.action_type is None:
+                self.action_type = self.evaluate_type()
+            # ---
+            self.dmg_bonus, self.lethality = 0, 1
+            self.dmg_bonus_labels = {}
+            weapon, weapon_alt = None, None
+            if self.user:
+                if hasattr(self.user, "npc_weapon"):
+                    weapon = self.user.npc_weapon
+                if hasattr(self.user, "npc_weapon_alt"):
+                    weapon_alt = self.user.npc_weapon_alt
+                if self.user.is_pc or hasattr(self.user, "inventory"):
+                    weapon, weapon_alt = self.user.held, self.user.sidearm
+
+            if CAction.attack_weapon_match(weapon, self):
+                self.weapon_used = weapon
+            elif CAction.attack_weapon_match(weapon_alt, self):
+                self.weapon_used = weapon_alt
+                self.using_sidearm = True
+                utils.log("Off-hand weapon penalty applied to attack type {} by {}, who has {} at hand and {} at side".format(
+                    self.action_type, self.user.name, weapon.name, weapon_alt.name
+                ))
+            else:
+                self.weapon_used = None
+
+            self.dmg_bonus = 0
+            self.armor_piercing = 0
+            if self.user:
+                if hasattr(self.user, "npc_dmg_bonus") and self.user.npc_dmg_bonus:
+                    self.dmg_bonus, self.lethality = self.user.npc_dmg_bonus, self.user.npc_atk_lethality
+                elif self.weapon_used:
+                    self.dmg_bonus, self.lethality = self.weapon_used.dmg_bonus, self.weapon_used.lethality
+            if lethality is not None:  # If lethality value is passed it overrides other sources.
+                self.lethality = lethality
+            # ---
+            if not self.target or self.action_type in CAction.NONVIOLENT:
+                self.dmg_type = cfg.DMG_NONE
+            else:
+                self.dmg_type = Weapon.get_damage_type(self.lethality, target.creature_type)
+
+        def __repr__(self):
+            return "< {} action, label {} >".format(self.action_type, self.action_label)
+
+        def evaluate_type(self):
+            if self.defending and self.action_label in CAction.DODGE_VARIANTS:
+                return CAction.DODGE
+            elif self.action_label in CAction.RANGED_ACTIONS:
+                return CAction.RANGED_ATTACK
+            elif self.action_label in CAction.MELEE_ACTIONS:
+                return CAction.MELEE_ATTACK
+            elif self.action_label in CAction.ANYWHERE_ACTIONS:
+                if self.target is None:
+                    return CAction.ESCAPE_ATTEMPT if self.defending else CAction.SPECIAL_ATTACK
+                if self.target.current_pos == self.user.current_pos:
+                    return CAction.MELEE_ATTACK
+                return CAction.RANGED_ATTACK
+            return CAction.NO_ACTION
+
+        @staticmethod
+        def attack_weapon_match(weapon, action):
+            if not weapon or not action:
+                return False
+            if weapon.item_type == Item.IT_FIREARM:
+                return action.action_type == CAction.RANGED_ATTACK
+            if weapon.item_type == Item.IT_WEAPON:
+                return action.action_type == CAction.MELEE_ATTACK or weapon.throwable
+            return False
+
+        @staticmethod
+        def attack_is_gunshot(attacker, atk_action):
+            if atk_action.action_type != CAction.RANGED_ATTACK:
+                return False
+            if attacker.ranged_attacks_use_gun or utils.caseless_in(cfg.SK_FIRE, atk_action.action_label):
+                return True
+            return False
+
+
+init 1 python in flavor:
+
+    cfg, utils, state = renpy.store.cfg, renpy.store.utils, renpy.store.state
+    audio, game = renpy.store.audio, renpy.store.game
+    Person, CAction, Item, Weapon = game.Person, game.CAction, game.Item, game.Weapon
 
     STRIKE_SOUNDS = {
         Weapon.MW_KNIFE: audio.stab_1,
@@ -151,21 +315,21 @@ init 1 python in cfg:
     }
 
     PAIN_SOUNDS = {
-        PN_MAN.PN_SHE_HE_THEY: [
+        cfg.PN_MAN.PN_SHE_HE_THEY: [
             audio.grunt_pain_masc_1,
             audio.grunt_pain_masc_2,
             audio.grunt_pain_masc_3,
             audio.grunt_pain_masc_4,
             audio.grunt_pain_masc_5
         ],
-        PN_WOMAN.PN_SHE_HE_THEY: [
+        cfg.PN_WOMAN.PN_SHE_HE_THEY: [
             audio.grunt_pain_femm_1,
             audio.grunt_pain_femm_2,
             audio.grunt_pain_femm_3,
             audio.grunt_pain_femm_4,
             audio.grunt_pain_femm_5
         ],
-        PN_PERSON.PN_SHE_HE_THEY: [
+        cfg.PN_PERSON.PN_SHE_HE_THEY: [
             audio.grunt_pain_femm_1,
             audio.grunt_pain_femm_2,
             audio.grunt_pain_masc_3,
@@ -174,129 +338,206 @@ init 1 python in cfg:
     }
 
 
-init 1 python in game:
-
-    cfg, utils, state = renpy.store.cfg, renpy.store.utils, renpy.store.state
-
-    class Flavorizer:
-        WEAPON_TERMS = {
-            Weapon.RW_AUTO: "semiautomatic"
-        }
-
-        CUM_FLAVOR_WEIGHTS = {
-            "rc_success": utils.get_cum_weights(100, 30, 5, 2, 1),
-            "rc_fail": utils.get_cum_weights(120, 40, 10, 5, 2, 1)
-        }
-
-        @staticmethod
-        def get_rouse_check_blurb(hungrier):  # TODO make this more interesting, background-specific
-            rc_success_blurbs = ("", "...", "Lucky you.", "Feel that rush?", "Blood is power.")
-            rc_fail_blurbs = (
-                "Hunger. Blood.", "BLOOD",
-                "...",
-                "Drink them dry. You know you want to.",
-                "Time to pay the piper...",
-                "Them - Blood + Us (You do the math, genius)"
-            )
-            if hungrier:
-                return utils.get_wrs(rc_fail_blurbs, cum_weights=Flavorizer.CUM_FLAVOR_WEIGHTS["rc_fail"])
-            return utils.get_wrs(rc_success_blurbs, cum_weights=Flavorizer.CUM_FLAVOR_WEIGHTS["rc_success"])
+    def flavor_format(template_str, subject=None):
+        # token_dict, tokens = {}, utils.get_all_matches_between('{', '}', template_str, lazy=True)
+        token_dict, tokens = {}, utils.get_str_format_tokens(template_str)
+        for token in tokens:
+            token = str(token)
+            if subject and token.startswith("PN_"):
+                token_dict[token] = getattr(subject.pronoun_set, token)
+            elif subject and token == "NPC_NAME":
+                token_dict[token] = subject.name
+            elif token == "FLOOR":
+                token_dict[token] = "floor" if (state.indoors or not state.outside_haven) else "ground"
+            elif token == "HUNGER_DESC":
+                token_dict[token] = utils.get_random_list_elem(BLURBS_BLEEDING) if state.pc.hunger > cfg.HUNGER_MAX_CALM else ""
+            else:
+                token_val = getattr(renpy.store.flavor, token)
+                if type(token_val) in (list, tuple):
+                    token_val = utils.get_random_list_elem(token_val)
+                token_dict[token] = token_val
+        return template_str.format(**token_dict) if token_dict else template_str
 
 
-        @staticmethod
-        def prompt_combat_defense(atk_action):
-            attacker, action_type, weapon = atk_action.user, atk_action.action_type, atk_action.weapon_used
-            template, wep_term, pns = "", Flavorizer.get_weapon_term(weapon), Flavorizer.get_pronouns(attacker)
+    CFW_BLURBS_RC_WIN = utils.get_cum_weights(100, 30, 5, 2, 1)
+    CFW_BLURBS_RC_FAIL = utils.get_cum_weights(120, 40, 10, 5, 2, 1)
 
-            if action_type == CAction.RANGED_ATTACK:
-                template = "{} aims {} {} squarely in your direction."
-                if not weapon:
-                    template = "{} is attacking you at range without a weapon, somehow. Maybe {} psychic?"
-                    return template.format(attacker.name, pns.PN_SHES_HES_THEYRE)
-                elif weapon.item_type != Item.IT_FIREARM and weapon.throwable:
-                    template = "{} eyes you, and you can tell by {} stance {} aiming to plant a {} somewhere painful on you."
-                    return template.format(attacker.name, pns.PN_HER_HIS_THEIR, pns.PN_SHES_HES_THEYRE, weapon.name)
-                elif weapon.item_type != Item.IT_FIREARM:
-                    return "{} is preparing to throw... something, at you.".format(attacker.name)
-                elif wep_term == Weapon.RW_AUTO:
-                    template = "{} points a {} in your direction, ready to spray you (and anyone close to you)."
-                    return template.format(attacker.name, wep_term)
-                return template.format(attacker.name, pns.PN_HER_HIS_THEIR, weapon.name)
-            elif action_type == CAction.MELEE_ATTACK:
-                template = "{} takes a step toward you, the {} in {} hand."
-                if not weapon and attacker.creature_type in cfg.REF_MORTALS:
-                    template = "In a flash {} is on you, swinging. Apparently this mortal is either foolish "
-                    template += "or desperate enough to try beating down a Kindred with {} bare fists."
-                    return template.format(attacker.name, pns.PN_HER_HIS_THEIR)
-                elif not weapon and atk_action.unarmed_power_used:
-                    template = "In a flash {} is on you, "
-                    if utils.caseless_in(cfg.POWER_PROTEAN_TOOTH_N_CLAW, atk_action.unarmed_power_used):
-                        if utils.caseless_in(cfg.POWER_PROTEAN_MOLD_SELF, atk_action.unarmed_power_used):
-                            template += "bearing a twisted, questing, barbed appendage where {} forearm was."
-                        else:
-                            template += "wicked black talons sprouting from {} fingers."
-                        return template.format(attacker.name, pns.PN_HER_HIS_THEIR)
-                    elif utils.caseless_in(cfg.POWER_PROTEAN_MOLD_SELF, atk_action.unarmed_power_used):
-                        template += "brandishing a grotesque appendage in the rough shape of a morning star."
-                        return template.format(attacker.name)
+    BLURBS_BLEEDING = [", {{i}}tantalizing{{/i}}", ", lovely little", ", {{i}}intoxicating{{/i}}"]
+
+    BLURBS_RC_SUCCESS = ("", "...", "Lucky you.", "Feel that rush?", "Blood is power.")
+    BLURBS_RC_FAILURE = (
+        "Hunger. Blood.", "BLOOD",
+        "...",
+        "Drink them dry. You know you want to.",
+        "Time to pay the piper...",
+        "Them - Blood + Us (You do the math, genius)"
+    )
+
+    def get_rouse_check_blurb(hungrier):  # TODO make this more interesting, background-specific
+        if hungrier:
+            return utils.get_wrs(BLURBS_RC_FAILURE, cum_weights=CFW_BLURBS_RC_FAIL)
+        return utils.get_wrs(BLURBS_RC_SUCCESS, cum_weights=CFW_BLURBS_RC_WIN)
+
+    VERBS_TFW = ("frowning", "chuckling", "smiling", "grimacing", "staring in horror")
+    VERBS_CONVO_1 = ("talking to", "shouting at", "glaring at", "chatting with")
+
+    PREY_ACTIVITIES = {}
+    PREY_ACTIVITIES[cfg.REF_PT_AGNOSTIC] = [
+        "admiring {PN_HERSELF_HIMSELF_THEMSELF} by way of a nearby window",
+        "reading something on {PN_HER_HIS_THEIR} phone and {VERBS_TFW}",
+        "absently humming a tune you can't place"
+    ]
+
+    def what_they_were_doing(pred_type=None, prey=None, pronoun_set=None):
+        if prey is None:
+            prey = state.prey
+        pt = pred_type if pred_type and pred_type in PREY_ACTIVITIES else cfg.REF_PT_AGNOSTIC
+        pns = prey.pronoun_set if prey else pronoun_set
+        if not pns:
+            pns = Person.random_pronouns()
+        prey_activity_tmpl = utils.get_random_list_elem(PREY_ACTIVITIES[pt])
+        return flavor_format(prey_activity_tmpl, subject=prey)
+
+    @property
+    def whaddup_prey(self):
+        return self.what_they_were_doing()
+
+    # TODO: fix/refactor below, they're from the old Flavor class
+
+    ## -- Defense prompt blurbs for the player in response to an incoming attack --
+
+    C_ATK_BLURBS = {}
+    C_ATK_BLURBS[CAction.RANGED_ATTACK] = CAB_RNG = {
+        cfg.REF_DEFAULT: ["{NPC_NAME} aims {PN_HER_HIS_THEIR} {WEAPON_NAME} squarely in your direction."],
+        Weapon.NO_WEAPON: [
+            "{NPC_NAME} is attacking you at range without a weapon, somehow. Maybe {PN_SHES_HES_THEYRE} psychic?"
+        ],
+        Weapon.RW_THROWING: {
+            cfg.REF_DEFAULT: [
+                ("{NPC_NAME} eyes you, and you can tell by {PN_HER_HIS_THEIR} stance {PN_SHES_HES_THEYRE}"
+                " aiming to plant that {WEAPON_NAME} somewhere painful on you.")
+            ],
+            Weapon.NO_WEAPON: ["{NPC_NAME} is preparing to throw... something, at you."]
+        },
+        Weapon.RW_AUTO: ["{NPC_NAME} points a {WEAPON_NAME} in your direction, ready to spray you (and anyone close to you)."]
+    }
+    C_ATK_BLURBS[CAction.MELEE_ATTACK] = CAB_MEL = {
+        cfg.REF_DEFAULT: ["{NPC_WEAPON} takes a step toward you, the {WEAPON_NAME} in {PN_HER_HIS_THEIR} hand."],
+        Weapon.NO_WEAPON: {
+            cfg.CT_HUMAN: [
+                ("In a flash {NPC_NAME} is on you, swinging. Apparently this mortal is either foolish "
+                "or desperate enough to try beating down a Kindred with {PN_HER_HIS_THEIR} bare fists.")
+            ],
+            cfg.CT_VAMPIRE: [
+                "In a flash {NPC_NAME} is on you, apparently intending to pummel you with {PN_HER_HIS_THEIR} bare fists."
+            ]
+        },
+        cfg.POWER_PROTEAN_TOOTH_N_CLAW: {
+            cfg.REF_DEFAULT: ["wicked black talons sprouting from {PN_HER_HIS_THEIR} fingers."],
+            cfg.POWER_PROTEAN_MOLD_SELF: ["bearing a twisted, questing, barbed appendage where {PN_HER_HIS_THEIR} forearm was."],
+            Weapon.NO_WEAPON: [
+                "and while you don't recognize the power in {PN_HER_HIS_THEIR} raised fists, you know you don't want any part of it."
+            ]
+        },
+        cfg.POWER_PROTEAN_MOLD_SELF: ["brandishing a grotesque appendage in the rough shape of a morning star."],
+        Item.IT_FIREARM: [" Looks like you're in for a pistol-whipping if you don't move."],
+        Weapon.MW_KNIFE: [" {PN_SHES_HES_THEYRE} trying to get inside your guard so {PN_SHE_HE_THEY} can shank you."],
+        Weapon.MW_SWORD: ["{NPC_NAME} rushes you, {PN_HER_HIS_THEIR} wicked-looking blade whistling through the air toward you."],
+        Weapon.MW_AXE: [
+            ("{NPC_NAME} steps forward, {PN_HER_HIS_THEIR} {WEAPON_NAME} clutched in both hands."
+            " A weapon like that is almost as dangerous to you as it is to mortals. You'd better do something, fast.")
+        ],
+        Weapon.MW_BLUNT_HEAVY: [
+            "{NPC_NAME} swings a {WEAPON_NAME} wildly at you, hoping to beat you into the dirt."
+        ]
+    }
+    CAB_MEL[Weapon.MW_BLUNT_LIGHT] = CAB_MEL[Weapon.MW_BLUNT_HEAVY]
+    C_ATK_BLURBS[CAction.MELEE_ENGAGE] = {
+        cfg.REF_DEFAULT: [
+            "{NPC_NAME} is sprinting in your direction, closing fast. In a few seconds {PN_SHELL_HELL_THEYLL} be right on top of you."
+        ]
+    }
+    C_ATK_BLURBS[CAction.DISENGAGE] = {
+        cfg.REF_DEFAULT: [
+            "{NPC_NAME} seems to be trying to slink back into the shadows, perhaps to better position {PN_HERSELF_HIMSELF_THEMSELF}."
+        ]
+    }
+
+    def prompt_combat_defense(atk_action):
+        attacker, action_type, weapon = atk_action.user, atk_action.action_type, atk_action.weapon_used
+        weap_type = get_weapon_term(weapon)
+
+        base_blurbs = C_ATK_BLURBS[action_type]
+        if action_type == CAction.RANGED_ATTACK:
+            if not weapon or weap_type in (Weapon.RW_AUTO,):
+                return flavor_format(base_blurbs[weap_type], subject=attacker)
+            elif weapon.item_type != Item.IT_FIREARM and weapon.throwable:
+                return flavor_format(base_blurbs[Weapon.RW_THROWING][cfg.REF_DEFAULT], subject=attacker)
+            elif weapon.item_type != Item.IT_FIREARM:
+                return flavor_format(base_blurbs[Weapon.RW_THROWING][Weapon.NO_WEAPON], subject=attacker)
+            return flavor_format(base_blurbs[cfg.REF_DEFAULT])
+        elif action_type == CAction.MELEE_ATTACK:
+            if not weapon and not atk_action.unarmed_power_used:
+                mortality_desig = cfg.CT_HUMAN if attacker.creature_type in cfg.REF_MORTALS else cfg.CT_VAMPIRE
+                return flavor_format(base_blurbs[Weapon.NO_WEAPON][mortality_desig])
+            elif atk_action.unarmed_power_used:
+                ua_power, tmpl_prefix = atk_action.unarmed_power_used, "In a flash {NPC_NAME} is on you, "
+                atk_blurb_key_1, atk_blurb_key_2 = None, None
+                if utils.caseless_in(cfg.POWER_PROTEAN_TOOTH_N_CLAW, ua_power):
+                    atk_blurb_key_1 = cfg.POWER_PROTEAN_TOOTH_N_CLAW
+                    if utils.caseless_in(cfg.POWER_PROTEAN_MOLD_SELF, ua_power):
+                        atk_blurb_key_2 = cfg.POWER_PROTEAN_MOLD_SELF
                     else:
-                        template += "and while you don't recognize the power in {} raised fists, "
-                        template += "you know you don't want any part of it."
-                        return template.format(attacker.name, pns.PN_HER_HIS_THEIR)
-                elif not weapon:
-                    template = "In a flash {} is on you, apparently intending to pummel you with {} bare fists."
-                    return template.format(attacker.name, pns.PN_HER_HIS_THEIR)
-                elif weapon.item_type == Item.IT_FIREARM:
-                    template += " Looks like you're in for a pistol-whipping if you don't move."
-                    return template.format(attacker.name, weapon.name, pns.PN_HER_HIS_THEIR)
-                elif weapon.subtype:
-                    if weapon.subtype == Weapon.MW_KNIFE:
-                        template += " {} trying to get inside your guard so {} can shank you."
-                        return template.format(
-                            attacker.name, weapon.name, pns.PN_HER_HIS_THEIR, str(pns.PN_SHES_HES_THEYRE).capitalize(),
-                            pns.PN_SHE_HE_THEY
-                        )
-                    elif weapon.subtype == Weapon.MW_SWORD:
-                        template = "{} rushes you, {} wicked-looking blade whistling through the air toward you."
-                        return template.format(attacker.name, pns.PN_HER_HIS_THEIR)
-                    elif weapon.subtype == Weapon.MW_AXE:
-                        template = "{} steps forward, the {} clutched in both hands. A weapon like that is almost as dangerous to you "
-                        template += "as it is to mortals. You'd better do something, fast."
-                        return template.format(attacker.name, weapon.name)
-                    else:
-                        return "{} swings a {} wildly at you, hoping to beat you into the dirt.".format(attacker.name, weapon.name)
+                        atk_blurb_key_2 = cfg.REF_DEFAULT
+                elif vicussy:
+                    atk_blurb_key_1 = cfg.POWER_PROTEAN_MOLD_SELF
                 else:
-                    template = "You're not exactly sure what is is that {} is swinging at you, but do you really want to find out?"
-                    return template.format(attacker.name)
-            elif action_type == CAction.MELEE_ENGAGE:
-                template = "{} is sprinting in your direction, closing fast. In a few seconds {} be right on you."
-                return template.format(attacker.name, pns.PN_SHELL_HELL_THEYLL)
-            elif action_type == CAction.DISENGAGE:
-                template = "{} seems to be trying to slink back into the shadows, perhaps to better position {}."
-                return template.format(attacker.name, pns.PN_HERSELF_HIMSELF_THEMSELF)
+                    atk_blurb_key_1 = cfg.POWER_PROTEAN_TOOTH_N_CLAW
+                tmpl_body = base_blurbs[atk_blurb_key_1][atk_blurb_key_2] if atk_blurb_key_2 else base_blurbs[atk_blurb_key_1]
+                return flavor_format(tmpl_prefix + tmpl_body, subject=attacker)
+            elif weapon:
+                return flavor_format(base_blurbs[cfg.REF_DEFAULT] + base_blurbs[weap_type], subject=attacker)
             else:
-                raise NotImplementedError("Flavor is currently only implemented for ranged, melee, and rush actions.")
-            # blurb = template.format(attacker.name)
+                return flavor_format(
+                    "You're not exactly sure what it is that {NPC_NAME} is swinging at you, but do you really want to find out?",
+                    subject=attacker
+                )
+        elif action_type == CAction.MELEE_ENGAGE:  # TODO: later, adjust these to have unique text for blink/soaring leap
+            return flavor_format(base_blurbs[cfg.REF_DEFAULT], subject=attacker)
+        elif action_type == CAction.DISENGAGE:
+            return flavor_format(base_blurbs[cfg.REF_DEFAULT], subject=attacker)
+        else:
+            raise NotImplementedError("Blurbs are currently only implemented for ranged/melee attacks and rush/disengage actions.")
 
-        @staticmethod
-        def get_pronouns(ent):
-            if not hasattr(ent, "pronoun_set") or not ent.pronoun_set:
-                return cfg.PN_PERSON
-            else:
-                return ent.pronoun_set
+    C_DEATH_BLURBS = {}
+    C_DEATH_BLURBS[cfg.CT_HUMAN] = {
+        cfg.REF_DEFAULT: ["{NPC_NAME} collapses to the {FLOOR}, bleeding out in a growing{HUNGER_DESC} crimson pool."],
+    }
+    C_DEATH_BLURBS[cfg.CT_VAMPIRE] = {
+        cfg.REF_DEFAULT: ["{NPC_NAME} crumples to the {FLOOR} in a heap of rigor mortis."]
+    }
 
-        @staticmethod
-        def get_weapon_term(weapon):
-            if weapon is None:
-                return ""
-            if hasattr(weapon, "subtype"):
-                weapon_id = weapon.subtype
-            elif hasattr(weapon, "item_type"):
-                weapon_id = weapon.item_type
-            else:
-                raise ValueError("Every weapon should have an item_type or subtype, preferably both.")
-            if weapon_id in Flavorizer.WEAPON_TERMS:
-                return Flavorizer.WEAPON_TERMS[weapon_id]
-            else:
-                return str(weapon_id).split("/")[0].lower()
+    def prompt_combat_death(fallen, indoors=None, cause_of_death=None, pc_hunger=1):
+        # TODO: expand on this
+        return flavor_format(C_DEATH_BLURBS[mortality_desig][cfg.REF_DEFAULT], subject=fallen, indoors=indoors)
+
+    WEAPON_TERMS = {
+        Weapon.RW_AUTO: "semiautomatic"
+    }
+
+    def get_weapon_term(weapon):
+        if weapon is None:
+            return Weapon.NO_WEAPON
+        if hasattr(weapon, "subtype"):
+            weapon_id = weapon.subtype
+        elif hasattr(weapon, "item_type"):
+            weapon_id = weapon.item_type
+        else:
+            raise ValueError("Every weapon should have an item_type or subtype, preferably both.")
+        if weapon_id in WEAPON_TERMS:
+            return WEAPON_TERMS[weapon_id]
+        else:
+            return str(weapon_id).split("/")[0].lower()
+
+
 #

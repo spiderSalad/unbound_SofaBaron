@@ -11,11 +11,13 @@ init 1 python in game:
         ]
 
         def __init__(self, pool_text, has_opp=False, action=None, sitmod=None, surge=False, **kwargs):
+            print("WE GOT: ", locals())
             utils = renpy.store.utils
             self.num_dice = 0
             self.has_opponent = has_opp
             self.surge = surge
             self.action = action
+            print("\n\nWe Are Surging?", self.surge, surge, '\n')
             self.contests = utils.parse_pool_string(pool_text, situational_mod=sitmod, blood_surging=self.surge)
             utils.log("\n--- {} ---\n{}".format("CONTESTS" if self.has_opponent else "TESTS", self.contests))
             if len(self.contests) != 1:
@@ -100,6 +102,7 @@ init 1 python in game:
 
         RESULT_ANY_WIN = [RESULT_WIN, RESULT_CRIT, RESULT_MESSY_CRIT]
         RESULT_ANY_FAIL = [RESULT_FAIL, RESULT_BESTIAL_FAIL]
+        RESULT_ANY_VALID = RESULT_ANY_WIN + RESULT_ANY_FAIL
 
         def __init__(self, pool, difficulty, hunger=1, include_hunger=True, win_threshold=0, original_pool_text=None):
             self.rid = renpy.store.utils.generate_random_id_str(label="v5roll#")
@@ -255,15 +258,15 @@ init 1 python in game:
             return self.calc_contest_margin()
 
 
-    def pass_fail(roll_obj, win_label, loss_label, top_label=""):
+    def rollrouting_pass_fail(roll_obj, win_label, loss_label, top_label=""):
         try:
             return top_label + win_label if roll_obj.outcome in V5DiceRoll.RESULT_ANY_WIN else top_label + loss_label
         except:
             return top_label + loss_label
 
-    def manual_roll_route(roll_obj, win, fail, mc=None, crit=None, bfail=None, top_label=""):
+    def rollrouting_manual(roll_obj, win, fail, mc=None, crit=None, bfail=None, top_label=""):
         if mc is None and crit is None and bfail is None:
-            return pass_fail(roll_obj, win, fail, top_label=top_label)
+            return rollrouting_pass_fail(roll_obj, win, fail, top_label=top_label)
         outcome = roll_obj.outcome
         if outcome == V5DiceRoll.RESULT_MESSY_CRIT:
             if mc or crit:
@@ -284,6 +287,8 @@ init 1 python in game:
 init python in state:
     # diceroller = None
     pc_roll, active_roll, response_roll = None, None, None
+    print("1. active_roll: ", active_roll)
+    print("1. response_roll", response_roll)
     roll_config, pool_readout = None, None
 
     cfg, utils = renpy.store.cfg, renpy.store.utils
@@ -301,7 +306,13 @@ init python in state:
         global response_roll
         global active_rc
 
-        del active_roll
+        print("2. active_roll: ", active_roll)
+        # print("2. response_roll", response_roll)
+
+        if active_roll:
+            del active_roll  # TODO: added response_roll, check this
+        # if response_roll:
+            # del response_roll
 
         if secondary_rc:
             active_roll, response_roll = diceroller.contest(
@@ -368,7 +379,6 @@ init python in state:
             diceroller.reroll_messy_crit(pc_roll)
         deal_damage(cfg.TRACK_WILL, cfg.DMG_FULL_SPF, 1)
         post_roll_routine()
-        # self.confirm_roll()
 
     def get_pool_readout():
         if hasattr(renpy.store.state, "pool_readout"):
@@ -385,9 +395,6 @@ init python in state:
                 set_hunger("+=1")
                 rc_fails += 1
                 hungrier = True
-            # elif q_sound is not None:
-                # renpy.play(success_sound, u'sound')
-            # renpy.sound.queue(q_sound, u'sound')
             renpy.play(q_sound, "audio")
         return hungrier, rc_fails
 
@@ -414,11 +421,11 @@ init python in state:
             ausp_stats = [sk for sk in seer.special_skills if sk in CAction.DETECTION_VARIANTS]
             seek_pool = max(ausp_stats)
         sense_roll, hide_roll = diceroller.contest(pool1=seek_pool, pool2=hide_pool, hunger=pc.hunger, include_hunger=seer.is_pc)
-        return sense_roll.margin > 0# -1
+        return sense_roll.margin > 0
 
 
-label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=None, response_a=None):
-
+label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=True, response_a=None):
+    # NOTE: active_a is True by default, so contests not involving player character should pass None.
     python:
         if not state.diceroller:
             state.diceroller = game.DiceRoller()
@@ -432,11 +439,19 @@ label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=
 
     python:
         diffic, opp_pool, pc_defending = None, None, None
-        if not active_a or active_a.user.is_pc:
+
+        active_user_pc = active_a is True or (hasattr(active_a, "user") and active_a.user and active_a.user.is_pc)
+        if active_a is True:
+            active_a = None
+        response_user_pc = response_a is True or hasattr(response_a, "user") and response_a.user.is_pc
+        if response_a is True:
+            response_a = None
+
+        if not active_a or active_user_pc:
             pc_defending = False
-        elif response_a.user.is_pc:
+        elif response_user_pc:
             pc_defending = True
-        contesting_response = response_a and response_a.action_type not in game.CAction.NO_CONTEST
+        contesting_response = hasattr(response_a, "action_type") and response_a.action_type not in game.CAction.NO_CONTEST
         if pc_defending or contesting_response or (test_or_contest and cfg.ROLL_CONTEST in test_or_contest):
             is_contest, primary_pool, opp_pool = True, active_pool, test_or_contest
         elif test_or_contest is None or cfg.ROLL_TEST in test_or_contest:
@@ -445,14 +460,11 @@ label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=
         else:
             raise ValueError("All calls to roll_control should 1) have a response action, 2) be a contest, or 3) be a test.")
 
-        # if (active_a or response_a) and not is_contest:
-        #     raise ValueError("Action arguments passed to roll control implies combat, which implies a contest.")
         if (pc_defending and (not active_a or not response_a)):
             raise ValueError("If player is defending, that implies combat which means there should be two actions passed.")
         if is_contest and not opp_pool:
             raise ValueError("Contests should always have an opp pool.")
 
-        active_user_pc = active_a and active_a.user and active_a.user.is_pc
         state.roll_config = game.RollConfig(
             primary_pool, has_opp=is_contest,
             sitmod=situational_mod if active_user_pc else None,
@@ -461,7 +473,6 @@ label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=
         )
         state.test_rco = None
         if opp_pool:
-            response_user_pc = response_a and response_a.user and response_a.user.is_pc
             state.test_rco = game.RollConfig(
                 opp_pool, has_opp=is_contest,
                 sitmod=situational_mod if response_user_pc else None,
@@ -480,7 +491,7 @@ label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=
             $ renpy.block_rollback()
         jump .end_npc_clash
 
-    label .choices:
+    label .reroll_options_menu:
 
         python:
             if pc_defending:
@@ -501,19 +512,19 @@ label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=
             "Focus your will and overcome the challenge (Re-roll)" if state.can_reroll_to_improve:
                 play sound dice_roll_few
                 $ state.reroll()
-                jump roll_control.choices
+                jump roll_control.reroll_options_menu
 
             "Focus your will and try to suppress the Beast (Re-roll)" if state.can_reroll_to_avert_mc:
                 play sound dice_roll_few
                 $ state.reroll(messy=True)
-                jump roll_control.choices
+                jump roll_control.reroll_options_menu
 
 
     label .rouse_check(num_checks=1, reroll=False, q_sound=None):
         play sound dice_roll_few
 
         $ hungrier, hunger_gained = state.rouse_check(num_checks=num_checks, reroll=reroll, q_sound=q_sound)
-        $ hunger_roll_desc = game.Flavorizer.get_rouse_check_blurb(hungrier)
+        $ hunger_roll_desc = flavor.get_rouse_check_blurb(hungrier)
 
         show roll_desc "{size=+5}[hunger_roll_desc]{/size}"
 

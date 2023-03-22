@@ -2,6 +2,7 @@ label combat_test_scenario_1:
 
     python:
         cfg, utils, state, game = renpy.store.cfg, renpy.store.utils, renpy.store.state, renpy.store.game
+        audio, flavor = renpy.store.audio, renpy.store.flavor
         pc, CAction, Item, Weapon = state.pc, game.CAction, game.Item, game.Weapon
         Entity, NPCFighter = game.Entity, game.NPCFighter
         crew, opps = None, None
@@ -17,28 +18,36 @@ label combat_test_scenario_1:
             NPCFighter.FT_ESCORT: ("VIP", "Noncombatant")
         }
 
-    label .start:
+        # state.arena.register_combatants(pc_team=[ally1, ally2, ally3], enemy_team=[enemy1, enemy2, enemy3, enemy4])
+        del crew, opps
+        crew, opps = state.staffing.roster_test_1(3, pc_team=True), state.staffing.roster_test_1(4)
+        for i, ent in enumerate(crew):
+            if '#' in ent.name:
+                ent.name = "bud{}-{}".format(i+1, temp_names[ent.ftype][0])
+        for i, ent in enumerate(opps):
+            if '#' in ent.name:
+                ent.name = "nme{}-{}".format(i+1, temp_names[ent.ftype][1])
+        state.set_hunger(0)
+
+    call combat_encounter.battle_setup(crew, opps) from combat_test_1_begin
+
+    return
+
+
+label combat_encounter:
+
+    label .battle_setup(crew, opps):
 
         python:
             state.arena.reset()
-            # state.arena.register_combatants(pc_team=[ally1, ally2, ally3], enemy_team=[enemy1, enemy2, enemy3, enemy4])
-            del crew, opps
-            crew, opps = state.staffing.roster_test_1(3, pc_team=True), state.staffing.roster_test_1(4)
-            for i, ent in enumerate(crew):
-                if '#' in ent.name:
-                    ent.name = "bud{}-{}".format(i+1, temp_names[ent.ftype][0])
-            for i, ent in enumerate(opps):
-                if '#' in ent.name:
-                    ent.name = "nme{}-{}".format(i+1, temp_names[ent.ftype][1])
-            state.arena.register_combatants(pc_team=crew, enemy_team=opps)
+            state.arena.register_combatants(pc_team=crew, enemy_team=opps)  # TODO: update this to take optional starting positions
             # state.arena.set_position((ally2, -2))
             state.arena.start()
-            state.set_hunger(0)
             chained_action = None
 
         "Battle commencing..."
 
-    label .exec_turn:
+    label .turn_loop_start:
 
         python:
             if not chained_action:
@@ -60,7 +69,7 @@ label combat_test_scenario_1:
         elif no_contest:
             $ up_next = state.arena.get_up_next()
             if up_next and up_next.dead:
-                call .action_chain(report=state.arena.process_new_result(None, None, None)) from no_contest_pnr
+                call .handle_post_action(report=state.arena.process_new_result(None, None, None)) from no_contest_pnr
                 $ chained_action = _return
             else:
                 jump .player_attack_menu
@@ -69,39 +78,54 @@ label combat_test_scenario_1:
                 jump .player_defense_menu
             $ roll_result = None
             if atk_action.action_type == CAction.DISENGAGE:
-                call roll_control(atk_action.pool, "diff1") from combat_uncontested_disengage
+                call roll_control(atk_action.pool, "diff1", active_a=None) from combat_uncontested_disengage
                 $ roll_result = _return
             $ non_action = CAction(CAction.NO_ACTION, None, user=None)
-            call .action_chain(report=state.arena.process_new_result(roll_result, atk_action, non_action))
+            call .handle_post_action(report=state.arena.process_new_result(roll_result, atk_action, non_action))
             $ chained_action = _return
         elif chained_action:
             call roll_control(atk_action.pool, def_action.pool, active_a=atk_action, response_a=def_action) from combat_chain_atk
             $ roll_result = _return
-            call .action_chain(report=state.arena.process_new_result(roll_result, atk_action, def_action)) from chain_pnr
+            call .handle_post_action(report=state.arena.process_new_result(roll_result, atk_action, def_action)) from chain_pnr
             $ chained_action = _return
         else:
             $ atk_pool, def_pool = "pool{}".format(atk_action.pool), "pool{}".format(def_action.pool)
             call roll_control(atk_pool, def_pool, active_a=atk_action, response_a=def_action) from combat_npc_vs_npc
             $ roll_result = _return
-            call .action_chain(report=state.arena.process_new_result(roll_result, atk_action, def_action)) from npc_vs_npc_pnr
+            call .handle_post_action(report=state.arena.process_new_result(roll_result, atk_action, def_action)) from npc_vs_npc_pnr
             $ chained_action = _return
 
-        jump .exec_turn
+        jump .turn_loop_start
 
-    label .action_chain(report=None):  # Prints out report from previous action and checks if there's another on the "stack".
+    label .handle_post_action(report=None):  # Prints out report from previous action and checks if there's another on the "stack".
 
         if report is None:
             return None
-        $ report_type = type(report)
-        if report_type in (list, tuple):
-            $ report_str, interject_action = report
-        elif report_type is str:
-            $ report_str, interject_action = report, None
-        else:
-            $ report_str, interject_action = None, report
-        if report_str:
-            "{size=30}[report_str]{/size}"
-        return interject_action
+        python:
+            report_type, report_readout, follow_up_action, obits = type(report), None, None, []
+            if report_type not in (list, tuple):
+                report = (report,)
+            for i, item in enumerate(report):
+                if type(item) is str and not report_readout:
+                    report_readout = item
+                elif type(item) is CAction:
+                    follow_up_action = item
+                elif isinstance(item, (NPCFighter, game.PlayerChar)):
+                    if item.dead:
+                        obits.append(flavor.prompt_combat_death(item, pc_hunger=state.pc.hunger))
+            death_numero, sanity_loop_limit = 0, 10
+
+        if report_readout and str(report_readout).startswith(game.CombatLog.REF_HEADER):
+            $ report_readout = report_readout[len(game.CombatLog.REF_HEADER):]
+            "{size=28}[report_readout]{/size}"
+        elif report_readout:
+            "[report_readout]"
+        while death_numero < len(obits) and death_numero < sanity_loop_limit:
+            $ obituary = obits[death_numero]
+            $ death_numero += 1
+            "[obituary]"
+
+        return follow_up_action
 
     label .player_attack_menu:
 
@@ -152,31 +176,26 @@ label combat_test_scenario_1:
                     using_deadly_weapon, using_heavy_weapon = True, True  # TODO: add something for this
                     using_feral_weapons, using_vicissitude_weapon = False, False
                     if using_deadly_weapon:
-                        dmg_type = cfg.DMG_AGG if target.mortal else cfg.DMG_SPF
                         pa_pool = "strength+combat" if using_heavy_weapon else "dexterity+combat"
                     elif using_feral_weapons:
-                        dmg_type = cfg.DMG_AGG if target.mortal else cfg.DMG_FULL_SPF
                         pa_pool = "dexterity+combat/strength+combat" if using_vicissitude_weapon else "strength+combat"
                     elif using_vicissitude_weapon:
-                        dmg_type = cfg.DMG_AGG if target.mortal else cfg.DMG_SPF
                         pa_pool = "dexterity+combat/strength+combat"
                     else:
-                        dmg_type = cfg.DMG_SPF
                         pa_pool = "strength+combat"
                     pc_atk = CAction(CAction.MELEE_ATTACK, target, user=pc, pool=pa_pool)
                 "you attack a random target in melee"
 
             "Shoot at them" if at_range and can_attack_ranged:
                 $ target = utils.get_random_list_elem(at_range) #[0]
-                $ pa_pool, dmg_type = "dexterity+firearms", cfg.DMG_AGG if target.mortal else cfg.DMG_SPF
+                $ pa_pool = "dexterity+firearms"
                 $ pc_atk = CAction(CAction.RANGED_ATTACK, target, user=pc, pool=pa_pool)
-                # TODO: get rid of these dmg_type variables and other shit that's not being used
                 "you draw your gun and fire at a random enemy"
 
             "Throw something!" if at_range and can_throw:
                 python:
                     target = utils.get_random_list_elem(at_range) #[0]
-                    pa_pool, dmg_type = "dexterity+athletics", cfg.DMG_AGG if target.mortal else cfg.DMG_SPF
+                    pa_pool = "dexterity+athletics"
                     throw_sidearm = not pc.held.throwable and pc.sidearm.throwable
                     pc_atk = CAction(
                         CAction.RANGED_ATTACK, target, user=pc, pool=pa_pool,
@@ -254,10 +273,10 @@ label combat_test_scenario_1:
             def_pool = "pool{}".format(npc_def.pool) if npc_def and npc_def.pool else None
         call roll_control(pa_pool, def_pool, active_a=pc_atk, response_a=npc_def) from combat_pc_atk
         $ roll_result = _return
-        call .action_chain(report=state.arena.process_new_result(roll_result, pc_atk, npc_def)) from pc_atk_pnr
+        call .handle_post_action(report=state.arena.process_new_result(roll_result, pc_atk, npc_def)) from pc_atk_pnr
         $ chained_action = _return
 
-        jump .exec_turn
+        jump .turn_loop_start
 
     label .pass_turn_submenu:
 
@@ -277,10 +296,10 @@ label combat_test_scenario_1:
 
         label .auto_pass:
 
-        call .action_chain(report=state.arena.process_new_result(roll_result, pc_atk, None)) from pc_pass_turn_pnr
+        call .handle_post_action(report=state.arena.process_new_result(roll_result, pc_atk, None)) from pc_pass_turn_pnr
         $ chained_action = _return
 
-        jump .exec_turn
+        jump .turn_loop_start
 
     label .player_defense_menu:
 
@@ -301,7 +320,7 @@ label combat_test_scenario_1:
             can_use_2p_disc = can_use_disc and pc.can_rouse()
             can_flit = Entity.SE_FLEETY in pc.status_effects and not state.fleet_dodge_this_turn
             state.menu_label_backref = "combat_test_scenario_1.player_defense_menu"
-            defend_prompt = game.Flavorizer.prompt_combat_defense(atk_action)
+            defend_prompt = flavor.prompt_combat_defense(atk_action)
 
         menu:
             # TODO: specify attack type/weapon, for narrative use later and for user benefit
@@ -391,10 +410,10 @@ label combat_test_scenario_1:
         $ state.menu_label_backref = None
         call roll_control(atk_pool, pd_pool, active_a=atk_action, response_a=pc_def) from combat_pc_def
         $ roll_result = _return
-        call .action_chain(report=state.arena.process_new_result(roll_result, atk_action, pc_def)) from pc_def_pnr
+        call .handle_post_action(report=state.arena.process_new_result(roll_result, atk_action, pc_def)) from pc_def_pnr
         $ chained_action = _return
 
-        jump .exec_turn
+        jump .turn_loop_start
 
     label .end:
 
@@ -403,77 +422,4 @@ label combat_test_scenario_1:
     return
 
 
-label devtests:
-
-    label .dt_combat_a1:
-        python:
-            Item, Weapon, Inventory = game.Item, game.Weapon, game.Inventory
-            pc = state.pc
-
-        menu:
-            "Which test build?"
-
-            "Brujah Brawler":
-                "..."
-                python:
-                    state.apply_test_build("Star Athlete", cfg.CLAN_BRUJAH, cfg.PT_ALLEYCAT, cfg.DISC_POTENCE)
-                    # potence 3, celerity 1
-                    pc.disciplines.set_discipline_level(cfg.DISC_CELERITY, 3)
-                    pc.disciplines.set_discipline_level(cfg.DISC_PRESENCE, 3)
-                    pc.disciplines.unlock_power(cfg.DISC_POTENCE, cfg.POWER_POTENCE_FATALITY)
-                    pc.disciplines.unlock_power(cfg.DISC_POTENCE, cfg.POWER_POTENCE_PROWESS)
-                    pc.disciplines.unlock_power(cfg.DISC_POTENCE, cfg.POWER_POTENCE_RAGE)
-                    pc.disciplines.unlock_power(cfg.DISC_CELERITY, cfg.POWER_CELERITY_TWITCH)
-                    pc.disciplines.unlock_power(cfg.DISC_CELERITY, cfg.POWER_CELERITY_SPEED)
-                    pc.disciplines.unlock_power(cfg.DISC_CELERITY, cfg.POWER_CELERITY_BLINK)
-                    pc.disciplines.unlock_power(cfg.DISC_PRESENCE, cfg.POWER_PRESENCE_AWE)
-                    pc.disciplines.unlock_power(cfg.DISC_PRESENCE, cfg.POWER_PRESENCE_DAUNT)
-                    pc.disciplines.unlock_power(cfg.DISC_PRESENCE, cfg.POWER_PRESENCE_SCARYFACE)
-                    #
-
-            "Ravnos Trickster (not implemented yet)":
-                "I said NOT IMPLEMENTED YET genius"
-                jump .dt_combat_a1
-
-            "Ventrue Gangster":
-                "..."
-                python:
-                    state.apply_test_build("Veteran", cfg.CLAN_VENTRUE, cfg.PT_ALLEYCAT, cfg.DISC_CELERITY)
-                    # knife = Weapon(Item.IT_WEAPON, "Butterfly Knife", tier=1, dmg_bonus=1, concealable=True)
-                    knife = state.gift_weapon(key="butterfly1")
-                    gun = state.gift_gun(key="glock19")
-                    state.give_item(knife, gun, equip_it=True)
-                    pc.inventory.equip(gun, Inventory.EQ_WEAPON_ALT)
-                    # celerity 1, fortitude 2, dominate 1
-                    pc.disciplines.unlock_power(cfg.DISC_FORTITUDE, cfg.POWER_FORTITUDE_HP)
-                    pc.disciplines.unlock_power(cfg.DISC_FORTITUDE, cfg.POWER_FORTITUDE_TOUGH)
-                    pc.disciplines.unlock_power(cfg.DISC_DOMINATE, cfg.POWER_DOMINATE_COMPEL)
-                    pc.disciplines.unlock_power(cfg.DISC_CELERITY, cfg.POWER_CELERITY_TWITCH)
-
-            "Nurse Ratchet":
-                "..."
-                python:
-                    state.apply_test_build("Nursing Student", cfg.CLAN_NOSFERATU, cfg.PT_BAGGER, cfg.DISC_OBFUSCATE)
-                    scalpel = state.gift_weapon(key="realscalpel")
-                    state.give_item(scalpel, equip_it=True)
-                    pc.disciplines.set_discipline_level(cfg.DISC_ANIMALISM, 0)
-                    pc.disciplines.set_discipline_level(cfg.DISC_OBFUSCATE, 4)
-                    pc.disciplines.set_discipline_level(cfg.DISC_POTENCE, 3)
-                    pc.disciplines.unlock_power(cfg.DISC_OBFUSCATE, cfg.POWER_OBFUSCATE_FADE)
-                    pc.disciplines.unlock_power(cfg.DISC_OBFUSCATE, cfg.POWER_OBFUSCATE_STEALTH)
-                    pc.disciplines.unlock_power(cfg.DISC_OBFUSCATE, cfg.POWER_OBFUSCATE_LAUGHINGMAN)
-                    pc.disciplines.unlock_power(cfg.DISC_OBFUSCATE, cfg.POWER_OBFUSCATE_VANISH)
-                    pc.disciplines.unlock_power(cfg.DISC_POTENCE, cfg.POWER_POTENCE_SUPERJUMP)
-                    pc.disciplines.unlock_power(cfg.DISC_POTENCE, cfg.POWER_POTENCE_PROWESS)
-                    pc.disciplines.unlock_power(cfg.DISC_POTENCE, cfg.POWER_POTENCE_MEGASUCK)
-
-
-    label .dt_combat_a2:
-
-        "fook"
-
-        call combat_test_scenario_1 from sortie_test_2_direct
-
-        "feck"
-
-        jump .dt_combat_a2
+#

@@ -5,9 +5,14 @@ init 0 python in cfg:
     DEV_MODE = True
     DEV_MUTE_MUSIC = False
     DEV_FREE_DISCIPLINES = False
+
+    DEV_TESTING_COMBAT = False
+    DEV_TESTING_HUNT_FLAVOR = True
     DEV_FREE_BLINK = False
     DEV_COMBAT_AUTO_PASS = True
     DEV_FACETANK = True
+
+    DEV_WHATEVER = False
 
     KEY_INPUT_ENABLED = False
     KEY_INPUT_WATCH = ascii_letters + digits
@@ -21,6 +26,7 @@ init 0 python in cfg:
 
     REF_TYPE = "type"
     REF_SUBTYPE = "subtype"
+    REF_DEFAULT = "default"
     REF_DESC = "desc"
     REF_TOOLTIP = "tooltip"
     REF_DOTS = "dots"
@@ -89,6 +95,13 @@ init 0 python in cfg:
         "\n".join(["{}:  {}".format(key, getattr(PN_MAN, key)) for key in PN_MAN.__dict__])
     ))
 
+    REF_APPARENT_AGE = "apparent_age"
+    REF_AA_YOUNG_ADULT = "a younger"
+    REF_AA_ADULT = " a 35-ish "
+    REF_AA_MIDDLE_AGED = "an older"
+    REF_AA_ELDERLY = "an elderly"
+
+    REF_HANGRY = "Hunger distracting"
     HUNGER_MAX = 5
     HUNGER_MAX_CALM = 2
     HUNGER_MIN = 1
@@ -255,8 +268,10 @@ init 0 python in cfg:
     BG_UGLY = "Ugly"
     BG_REPULSIVE = "Repulsive"
 
+    VAL_BASE_HUNTING_DIFF = 3
     REF_VENTRUE_PALATE = "ventrue_palate"
     REF_PREDATOR_TYPE = "predator_type"
+    REF_PT_AGNOSTIC = "any_predator_type"
     PT_ALLEYCAT = "Alley Cat"  # +1 Combat, +1 Intimidation, +1 Potence, -1 Humanity, +3 Contacts
     PT_BAGGER = "Bagger"  # +1 Clandestine, +Streetwise, +1 Obfuscate, more notoriety
     PT_FARMER = "Farmer"  # +1 Diplomacy, +1 Traversal, +1 Animalism, +1 Humanity, costs willpower to feed on humans

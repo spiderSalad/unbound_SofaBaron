@@ -2,7 +2,7 @@ init 1 python in game:
 
     from math import ceil as math_ceil
 
-    cfg, utils, state = renpy.store.cfg, renpy.store.utils, renpy.store.state
+    cfg, utils, state, flavor = renpy.store.cfg, renpy.store.utils, renpy.store.state, renpy.store.flavor
 
     class V5Tracker:
         def __init__(self, char, boxes: int, tracker_type: str, armor: int = 0, bonus: int = 0):
@@ -148,8 +148,63 @@ init 1 python in game:
                 self.agg_damage = max(damage - amount, 0)
 
 
-    class Entity:
+    class Person:
 
+        RAND_AGES = (cfg.REF_AA_YOUNG_ADULT, cfg.REF_AA_ADULT, cfg.REF_AA_MIDDLE_AGED, cfg.REF_AA_ELDERLY)
+        AGE_CUM_WEIGHTS = utils.get_cum_weights(100, 90, 80, 30)
+
+        def __init__(self, ctype=cfg.CT_HUMAN, pronoun_set=None, apparent_age=None, **kwargs):
+            self.is_pc = False
+            self.creature_type = ctype
+            self._pronoun_set = None
+            self.pronoun_set = pronoun_set
+            if pronoun_set is None:
+                self.pronoun_set = Person.random_pronouns()
+            self.apparent_age = apparent_age
+            if apparent_age is None:
+                self.apparent_age = utils.get_wrs(Person.RAND_AGES, cum_weights=Person.AGE_CUM_WEIGHTS[:len(Person.RAND_AGES)])
+            for kwarg in kwargs:
+                setattr(self, kwarg, kwargs[kwarg])
+
+        @property
+        def pronoun_set(self):
+            return self._pronoun_set
+
+        @pronoun_set.setter
+        def pronoun_set(self, new_pn_set):
+            self._pronoun_set = new_pn_set
+            self.scream = self.set_scream()
+
+        def set_scream(self, force_replace=False):
+            if not self.pronoun_set:
+                return None # TODO: add bestial screams
+            if not force_replace and self.scream:
+                return self.scream
+            screams = flavor.PAIN_SOUNDS[self.pronoun_set.PN_SHE_HE_THEY]
+            scream = utils.get_random_list_elem(screams) #[0]
+            self.scream = scream
+            return self.scream
+
+        @staticmethod
+        def random_pronouns():
+            if utils.percent_chance(95):
+                if utils.percent_chance(50):
+                    return cfg.PN_WOMAN
+                return cfg.PN_MAN
+            return cfg.PN_PERSON
+
+
+    class MortalPrey(Person):
+        def __init__(self, ctype=cfg.CT_HUMAN, pronoun_set=None, apparent_age=None, **kwargs):
+            super().__init__(ctype=ctype, pronoun_set=pronoun_set, apparent_age=apparent_age, **kwargs)
+            self.was_doing = flavor.what_they_were_doing(prey=self)
+
+        @property
+        def resonance(self):
+            return None
+
+
+    class Entity(Person):
         STATUS_LASTING = -1
 
         SE_BERSERK = "rage_frenzy"
@@ -168,12 +223,7 @@ init 1 python in game:
         LASTING_STATUS_FX = [SE_SHOCKED, SE_CRIPPLED, SE_FLESHCRAFT_WEAPON, SE_FLESHCRAFTED_STACK]
 
         def __init__(self, ctype=cfg.CT_HUMAN, pronoun_set=None, **kwargs):
-            self.is_pc = False
-            self.creature_type = ctype
-            self._pronoun_set = None
-            self.pronoun_set = pronoun_set
-            if pronoun_set is None:
-                self.pronoun_set = self.random_pronouns()
+            super().__init__(ctype=ctype, pronoun_set=pronoun_set, **kwargs)
             self.hp = self.will = None
             self.dead, self.cause_of_death = False, None
             self.appears_dead = self.dead
@@ -191,17 +241,8 @@ init 1 python in game:
             if self.creature_type in cfg.REF_MORTALS:
                 self.mortal = True
             self._hunger = 1 if self.creature_type == cfg.CT_VAMPIRE else None
-            for kwarg in kwargs:
-                setattr(self, kwarg, kwargs[kwarg])
-
-        @property
-        def pronoun_set(self):
-            return self._pronoun_set
-
-        @pronoun_set.setter
-        def pronoun_set(self, new_pn_set):
-            self._pronoun_set = new_pn_set
-            self.scream = self.set_scream()
+            # for kwarg in kwargs:
+            #     setattr(self, kwarg, kwargs[kwarg])
 
         @property
         def status_effects(self):
@@ -222,17 +263,6 @@ init 1 python in game:
             elif hasattr(self, "npc_weapon_alt") and self.npc_weapon_alt:
                 return self.npc_weapon_alt
             return None
-
-        def set_scream(self, force_replace=False):
-            if not self.pronoun_set:
-                print("no pronouns!")
-                return None # TODO: add bestial screams
-            if not force_replace and self.scream:
-                return self.scream
-            screams = cfg.PAIN_SOUNDS[self.pronoun_set.PN_SHE_HE_THEY]
-            scream = utils.get_random_list_elem(screams) #[0]
-            self.scream = scream
-            return self.scream
 
         def afflict(self, effect, turns=1):
             if effect not in self.status_effects:
@@ -266,13 +296,6 @@ init 1 python in game:
             if effect in self.status_effects:
                 return self.status_effects[effect]
             return None
-
-        def random_pronouns(self):
-            if utils.percent_chance(95):
-                if utils.percent_chance(50):
-                    return cfg.PN_WOMAN
-                return cfg.PN_MAN
-            return cfg.PN_PERSON
 
         def can_rouse(self):
             if self.creature_type != cfg.CT_VAMPIRE:

@@ -10,6 +10,7 @@ default state.daybreak              = False
 default state.overtime              = 0
 
 default state.outside_haven         = True
+default state.indoors               = False
 default state.in_combat             = False
 default state.menu_label_backref    = None
 
@@ -32,12 +33,17 @@ default state.ventrue_palate        = None
 
 default state.pc_car                = "old Toyota Camry"
 
+default state.prey          = None
 default state.innocent_killed       = False
 default state.innocent_drained      = False
+default state.hunger_b4_last_feeding= None
+default state.baseline_hunt_diff    = cfg.VAL_BASE_HUNTING_DIFF  # + ...?
 
 default state.opinions              = {}
 default state.masquerade            = 60  # 0 - 100
 default state.notoriety             = 6
+default state.self_help_unlocked    = False
+default state.sorties_unlocked      = False
 
 default state.pc_cash               = 250.00
 default state.roll_bonus            = 0
@@ -141,9 +147,13 @@ init 1 python in state:
     def set_hunger(delta, killed=False, innocent=False, ignore_killed=False):
         previous_hunger, hunger_floor = pc.hunger, cfg.HUNGER_MIN_KILL if killed or ignore_killed else cfg.HUNGER_MIN
         new_hunger = utils.nudge_int_value(pc.hunger, delta, "Hunger", floor=hunger_floor, ceiling=7)
-        pc.hunger = new_hunger
+        pc.hunger, slaked_hunger = new_hunger, 0
         if pc.hunger > previous_hunger:
             renpy.play(renpy.store.audio.beastgrowl1, "sound")
+        else:
+            global hunger_b4_last_feeding
+            hunger_b4_last_feeding = previous_hunger
+            slaked_hunger = previous_hunger - pc.hunger
         if killed and innocent:
             set_humanity("-=1")
         refresh_hunger_ui()
