@@ -9,11 +9,11 @@ init 1 python in game:
             self.char = char
             self.tracker_type = tracker_type
             self._boxes = boxes
+            self._bonus = bonus
             self._armor = armor
             self._deathsave = 0
             self._armor_active = False
             self.deathsave_active = False
-            self._bonus = bonus
             self.spf_damage = 0
             self.agg_damage = 0
             self.last_damage_source = None
@@ -31,6 +31,30 @@ init 1 python in game:
         @boxes.setter
         def boxes(self, new_num_boxes: int):
             self._boxes = new_num_boxes
+
+        @property
+        def bonus(self):
+            return self._bonus
+
+        @bonus.setter
+        def bonus(self, new_bonus: int):
+            self._bonus = new_bonus
+
+        @property
+        def total(self):
+            return self.boxes + self.bonus
+
+        @property
+        def undamaged(self):
+            return self.total - (self.spf_damage + self.agg_damage)
+
+        @property
+        def unfilled(self):
+            return self.total - self.agg_damage
+
+        @property
+        def spendable(self):  # 1 point "spent" == 1 point of unhalved superficial damage.
+            return (self.undamaged * 2) + self.spf_damage
 
         @property
         def armor(self):
@@ -57,22 +81,6 @@ init 1 python in game:
         @deathsave.setter
         def deathsave(self, new_ab_val):
             self._deathsave = new_ab_val
-
-        @property
-        def bonus(self):
-            return self._bonus
-
-        @bonus.setter
-        def bonus(self, new_bonus: int):
-            self._bonus = new_bonus
-
-        @property
-        def total(self):
-            return self.boxes + self.bonus
-
-        @property
-        def undamaged(self):
-            return self.total - (self.spf_damage + self.agg_damage)
 
         def damage(self, dtype, amount, source=None):
             if not utils.is_number(amount) or amount < 0:
@@ -156,6 +164,7 @@ init 1 python in game:
         def __init__(self, ctype=cfg.CT_HUMAN, pronoun_set=None, apparent_age=None, **kwargs):
             self.is_pc = False
             self.creature_type = ctype
+            self.scream = None  # For now.
             self._pronoun_set = None
             self.pronoun_set = pronoun_set
             if pronoun_set is None:
@@ -174,6 +183,20 @@ init 1 python in game:
         def pronoun_set(self, new_pn_set):
             self._pronoun_set = new_pn_set
             self.scream = self.set_scream()
+
+        @property
+        def desc_age_adj(self):
+            if ' ' in self.apparent_age:
+                return self.apparent_age.split(' ')[1]
+            return self.apparent_age
+
+        @property
+        def desc_indef_artic(self):
+            return "{} {}".format(self.apparent_age, self.pronoun_set.PN_STRANGER)
+
+        @property
+        def desc_no_artic(self):
+            return "{} {}".format(self.desc_age_adj, self.pronoun_set.PN_STRANGER)
 
         def set_scream(self, force_replace=False):
             if not self.pronoun_set:

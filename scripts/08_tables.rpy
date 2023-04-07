@@ -337,14 +337,28 @@ init 1 python in flavor:
         ]
     }
 
+    ## NOTE: Only flavor components that get re-used in multiple contexts, e.g. how dice rolls are used in combat and open-world script,
+    ## should be placed here; otherwise they should go in their relevant scripts.
 
-    def flavor_format(template_str, subject=None):
+
+    # def flavor_format(template_str, subject=None):
+    def flavor_format(template_choice_ref, subject=None):
+        if type(template_choice_ref) in (list, tuple):
+            template_str = utils.get_random_list_elem(template_choice_ref)
+        else:
+            template_str = str(template_choice_ref)
         # token_dict, tokens = {}, utils.get_all_matches_between('{', '}', template_str, lazy=True)
         token_dict, tokens = {}, utils.get_str_format_tokens(template_str)
         for token in tokens:
-            token = str(token)
+            token, capitalize_it, cap_m = str(token).upper(), False, "CAP_"
+            if token.startswith(cap_m):
+                token, capitalize_it = token[len(cap_m):], True
             if subject and token.startswith("PN_"):
-                token_dict[token] = getattr(subject.pronoun_set, token)
+                token_dict[token] = str(getattr(subject.pronoun_set, token))
+            elif subject and token.startswith("DESC_"):
+                desc_property = getattr(subject, token.lower())
+                print("type of desc_prop is: ", type(desc_property))
+                token_dict[token] = str(desc_property)
             elif subject and token == "NPC_NAME":
                 token_dict[token] = subject.name
             elif token == "FLOOR":
@@ -356,8 +370,20 @@ init 1 python in flavor:
                 if type(token_val) in (list, tuple):
                     token_val = utils.get_random_list_elem(token_val)
                 token_dict[token] = token_val
+            if capitalize_it:
+                token_dict[cap_m + token] = str(token_dict[token]).capitalize()
         return template_str.format(**token_dict) if token_dict else template_str
 
+    def flav(key1, *keys, subject=None):
+        template_ref = getattr(renpy.store.flavor, key1)
+        for key in keys:
+            if key in template_ref:
+                template_ref = template_ref[key]
+            elif hasattr(template_ref, key):
+                template_ref = getattr(template_ref, key)
+            else:
+                raise ValueError("Flavor key \"{}\" not found in \"{}\"!".format(key, template_ref))
+        return flavor_format(template_ref, subject=subject)
 
     CFW_BLURBS_RC_WIN = utils.get_cum_weights(100, 30, 5, 2, 1)
     CFW_BLURBS_RC_FAIL = utils.get_cum_weights(120, 40, 10, 5, 2, 1)
@@ -378,14 +404,20 @@ init 1 python in flavor:
             return utils.get_wrs(BLURBS_RC_FAILURE, cum_weights=CFW_BLURBS_RC_FAIL)
         return utils.get_wrs(BLURBS_RC_SUCCESS, cum_weights=CFW_BLURBS_RC_WIN)
 
+    NOUNS_MUSIC = ("melody", "beat", "drop", "lyrics", "bars", "singing", "bridge", "vocals")
+
     VERBS_TFW = ("frowning", "chuckling", "smiling", "grimacing", "staring in horror")
+    VERBS_DANCING = ("nodding", "swaying", "shaking", "gyrating")
+    VERBS_HEADPHONES = ("nodding", "rocking", "aggressively banging")
     VERBS_CONVO_1 = ("talking to", "shouting at", "glaring at", "chatting with")
 
     PREY_ACTIVITIES = {}
     PREY_ACTIVITIES[cfg.REF_PT_AGNOSTIC] = [
         "admiring {PN_HERSELF_HIMSELF_THEMSELF} by way of a nearby window",
         "reading something on {PN_HER_HIS_THEIR} phone and {VERBS_TFW}",
-        "absently humming a tune you can't place"
+        "{VERBS_TFW} at something on {PN_HER_HIS_THEIR} phone",
+        "absently humming a tune you can't place",
+        "{VERBS_HEADPHONES} {PN_HER_HIS_THEIR} head to the {NOUNS_MUSIC}"
     ]
 
     def what_they_were_doing(pred_type=None, prey=None, pronoun_set=None):
@@ -402,7 +434,9 @@ init 1 python in flavor:
     def whaddup_prey(self):
         return self.what_they_were_doing()
 
+
     # TODO: fix/refactor below, they're from the old Flavor class
+    # update (2023/03/22): most of the combat tables/functions below should be moved to combat, and you can move CAction back with them
 
     ## -- Defense prompt blurbs for the player in response to an incoming attack --
 

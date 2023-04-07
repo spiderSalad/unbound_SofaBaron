@@ -32,11 +32,14 @@ default state.starting_disc_dots    = False
 default state.ventrue_palate        = None
 
 default state.pc_car                = "old Toyota Camry"
+default state.pc_laptop             = "old ASUS"
 
-default state.prey          = None
+default state.prey                  = "None (a ya bidness)"
 default state.innocent_killed       = False
 default state.innocent_drained      = False
 default state.hunger_b4_last_feeding= None
+default state.current_hunt_type     = None
+default state.hunt_locale          = ""
 default state.baseline_hunt_diff    = cfg.VAL_BASE_HUNTING_DIFF  # + ...?
 
 default state.opinions              = {}
@@ -48,6 +51,10 @@ default state.sorties_unlocked      = False
 default state.pc_cash               = 250.00
 default state.roll_bonus            = 0
 default state.roll_malus            = 0
+default state.theoretical_sitmod    = 0
+default state.current_plan          = None
+default state.updated_pool          = ""
+default state.last_power_used       = None
 default state.blood_surge_enabled   = False
 default state.blood_surge_active    = False
 default state.mended_this_turn      = False
@@ -79,32 +86,32 @@ init 1 python in state:
     skill_names = [getattr(cfg, sname) for sname in gdict if str(sname).startswith("SK_")]
     discipline_names = [getattr(cfg, dname) for dname in gdict if str(dname).startswith("DISC_")]
 
-    from store.game import Item, Weapon, Inventory, Entity
+    from store.game import Item, Weapon, Inventory, Entity, MortalPrey
 
     # pc = renpy.store.game.PlayerChar(anames=attr_names, snames=skill_names, dnames=discipline_names)
 
-    def available_pc_will():
-        return pc.will.boxes - (pc.will.spf_damage + pc.will.agg_damage)
+    def unspent_will(who):
+        return who.will.undamaged
 
-    def pc_can_drink_swill():
+    def available_will(who):
+        return who.will.spendable
+
+    def unspent_pc_will():
+        return unspent_will(pc)
+
+    def available_pc_will():
+        return available_will(pc)
+
+    def pc_can_drink_swill():  # Regularly, that is.
         if pc.clan == cfg.CLAN_VENTRUE:
             return False
-        if pc.blood_potency > 4:
-            return False
-        if pc.blood_potency > 2 and not pc.has_disc_power(cfg.POWER_ANIMALISM_SUCCULENCE, cfg.DISC_ANIMALISM):
-            return False
-        return True
+        has_animal_succulence = pc.has_disc_power(cfg.POWER_ANIMALISM_SUCCULENCE, cfg.DISC_ANIMALISM)
+        return utils.get_feeding_penalty_swill(pc.blood_potency, has_animal_succulence) > 0
 
-    def pc_can_drink_swill_with_effort():
-        if pc_can_drink_swill():
-            return True
-        elif pc.clan == cfg.CLAN_VENTRUE:
-            if pc.blood_potency > 4:
-                return False
-            if pc.blood_potency > 2 and not pc.has_disc_power(cfg.POWER_ANIMALISM_SUCCULENCE, cfg.DISC_ANIMALISM):
-                return False
-            return True
-        return False
+    def pc_can_drink_swill_using_willpower():  # No reason to call this for non-Ventrue.
+        if not pc.clan or pc.clan != cfg.CLAN_VENTRUE:
+            return pc_can_drink_swill()
+        return pc_can_drink_swill() and (available_pc_will() >= utils.get_bane_severity(pc.blood_potency))
 
     def weapon_is_ranged(weapon):
         if not weapon:
@@ -178,6 +185,15 @@ init 1 python in state:
             return who.hp.mend(dtype, amount)
         else:
             return who.will.mend(dtype, amount)
+
+    def new_prey(pronoun_set=None):
+        global prey
+        if prey:
+            del prey
+            global prey
+            prey = None
+        prey = MortalPrey(pronoun_set=pronoun_set)
+        print("global prey defined as: {}, renpy.store.state.prey = {}".format(prey, renpy.store.state.prey))
 
     def masquerade_breach(base=10):
         global masquerade

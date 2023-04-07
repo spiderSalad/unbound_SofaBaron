@@ -69,7 +69,8 @@ label haven:
 
                 scene bg domain basic
 
-                call expression "hunt_" + str(pc.predator_type).replace(" ", "_").lower() pass (None) from main_hub_hunt
+                # call expression "hunt_" + str(pc.predator_type).replace(" ", "_").lower() pass (None) from main_hub_hunt
+                call hunt_preroute(pc.predator_type) from main_hub_hunt
 
                 # testing code was here
 

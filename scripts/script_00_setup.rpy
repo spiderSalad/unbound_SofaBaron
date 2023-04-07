@@ -94,11 +94,14 @@ label devtests:
 
         "feeeeeek"
 
-        call expression "hunt_" + str(pc.predator_type).replace(" ", "_").lower() pass (None) from hunting_test_base1
+        # call expression "hunt_" + str(pc.predator_type).replace(" ", "_").lower() pass (None) from hunting_test_base1
+        # $ print("|> > state (all keys): \n", "\n  -  ".join(["{}:  {}".format(itm[0], itm[1]) for itm in vars(renpy.store.state).items() if itm[0] != "gdict" and not str(itm[0]).startswith("_")]))
+        call hunt_preroute(pc.predator_type) from hunting_test_base1b
 
         "feckkkkk"
 
-        $ outcome, time_spent = _return
+        # $ ouuuutcome, time_spent = _return
+        $ state.pc.will.spf_damage = 0
 
         jump .dt_hunting_b2
 

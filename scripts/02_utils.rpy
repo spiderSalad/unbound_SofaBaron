@@ -46,7 +46,8 @@ init 1 python in utils:
             if type(pool_option) in (list, tuple):
                 po_operand = pool_option
             else:
-                po_operand = pool_option.split("+").replace(" ", "")
+                # po_operand = pool_option.split("+").replace(" ", "") NOTE shouldn't those functions be called in opposite order?
+                po_operand = pool_option.replace(" ", "").split("+")  # <-- like this?
             for pool_param in po_operand:
                 include = True
                 if remove_blood_surge:
@@ -59,6 +60,10 @@ init 1 python in utils:
                 po_string += " + {}".format(str(situational_mod).capitalize())
             new_pool_str += po_string
         return new_pool_str
+
+    def prettify_pool(pool_str, sitmod=None, add_blood_surge=False):
+        pool_obj = parse_pool_string(pool_str, situational_mod=sitmod, blood_surging=add_blood_surge)
+        return unparse_pool_object(pool_obj, situational_mod=sitmod, remove_blood_surge=not add_blood_surge)
 
     def translate_dice_pool_params(pool_params):
         adjusted_params = []
@@ -92,8 +97,19 @@ init 1 python in utils:
             return 1 if tb_clan_curse else 0
         return 1 + math_ceil(potency / 2)
 
-    def get_feeding_penalty(potency):
+    def get_feeding_modifier(potency, creature_type):
         pass
+
+    def get_feeding_penalty_human(potency):
+        pass
+
+    def get_feeding_penalty_swill(potency, has_animal_succulence=False):
+        adj_potency = potency - 2 if has_animal_succulence else potency
+        if adj_potency >= 3:
+            return 0
+        if adj_potency >= 2:
+            return 0.5
+        return 1
 
     def bonus_color(txt):
         return "{color=#23ed23}" + "{}".format(txt) + "{/color}"
@@ -108,6 +124,23 @@ init 1 python in utils:
             opening, closing = "{" + t + "}", "{/" + t + "}"
             altered_txt = opening + altered_txt + closing
         return altered_txt
+
+    def cascading_size_text(str_2b_sized, starting_sz=0, sz_delta=5, num_words=1, separator=' ', size_tup=None):
+        tokens, sized_tokens = str_2b_sized.split(separator), []
+        prev_i, cur_size, count = 0, starting_sz, 0
+        for i in range(num_words, len(tokens), num_words):
+            token = separator.join(tokens[prev_i:i])
+            if size_tup and type(size_tup) in (list, tuple):
+                print(" count = {}, len(size_tup) = {}, size_tup = {}".format(count, len(size_tup), size_tup))
+                cur_size = size_tup[count] if count < len(size_tup) else size_tup[-1]
+            else:
+                cur_size += sz_delta
+            str_cur_size = "+{}".format(cur_size) if int(cur_size) >= 0 else str(cur_size)
+            prev_i, count = i, count + 1
+            sized_token = "{{size={sz}}}{tk}{{/size}}".format(sz=str_cur_size, tk=token)
+            print("token #{} (index={}, size={}, num_words={})  ::  \"{}\"  |>  \"{}\"".format(count, i, cur_size, num_words, token, sized_token))
+            sized_tokens.append(sized_token)
+        return separator.join(sized_tokens)
 
     def get_all_matches_between(start, end, operand_str, lazy=True, inclusive=True):
         # TODO implement inclusive

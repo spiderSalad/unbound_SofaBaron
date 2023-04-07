@@ -316,16 +316,16 @@ init 1 python in game:
             self.hp.boxes = int(self.attrs[cfg.AT_STA]) + 3
             self.will.boxes = int(self.attrs[cfg.AT_COM]) + int(self.attrs[cfg.AT_RES])
 
-        def apply_background(self, background: (dict, str), bg_key=None, force_add=False, force_replace=False):
+        def apply_background(self, background, bg_key=None, force_add=False, force_replace=False):
             bg, key = background, bg_key
-            if isinstance(background, str):
+            if type(background) in (str,):
                 bg = cfg.CHAR_BACKGROUNDS[background]
                 key = background
             if cfg.REF_BG_NAME not in bg:
                 bg[cfg.REF_BG_NAME] = key
-            # Reject any background if it shares a subtype with an existing background unless force_add == True
-            # e.g. picking Nosferatu and Siren should leave PC with Repulsive and not Beautiful
-            # Setting force_replace to True removes any previous backgrounds of the same type.
+            # Reject any background if it shares a subtype with an existing background unless force_add == True, e.g picking
+            # Nosferatu and Siren should leave PC with Repulsive and not Beautiful. Setting force_replace to True removes any
+            # previous backgrounds of the same type. Backgrounds with a non-exclusive subtype (or no subtype) are exempt.
             if cfg.REF_SUBTYPE not in bg or force_add:
                 self._backgrounds.append(bg)
             elif force_replace:
@@ -335,13 +335,26 @@ init 1 python in game:
             else:
                 bg_subtype = bg[cfg.REF_SUBTYPE]
                 existing_subtypes = [bg[cfg.REF_SUBTYPE] for bg in self.backgrounds if cfg.REF_SUBTYPE in bg]
-                if bg_subtype not in existing_subtypes:
+                if bg_subtype in cfg.REF_BG_NON_EXCLUSIVE_SUBTYPES or bg_subtype not in existing_subtypes:
                     self._backgrounds.append(bg)
             if bg[cfg.REF_TYPE] == cfg.REF_BG_PAST:
                 self.mortal_backstory = bg[cfg.REF_BG_NAME]
             # elif bg[cfg.REF_TYPE] == cfg.REF_VENTRUE_PALATE:
             #     self.ventrue_feeding_palate = bg[cfg.REF_BG_NAME]
             self.recalculate_stats()
+
+        def get_matching_backgrounds(self, bg_name=None):  # TODO: update this to search for type and subtype
+            matching = []
+            for bg in self.backgrounds:
+                if type(bg) in (str,) and bg_name == bg:
+                    matching.append(bg)
+                elif type(bg) in (dict,) and cfg.REF_BG_NAME in bg and bg[cfg.REF_BG_NAME] == bg_name:
+                    matching.append(bg)
+            return matching
+
+        def has_background(self, bg_name=None):
+            matching = self.get_matching_backgrounds(bg_name=bg_name)
+            return len(matching) > 0
 
         def apply_xp(self):
             return self  # TODO: implement this
@@ -421,6 +434,7 @@ init 1 python in game:
                 self.skills[cfg.SK_COMB] += 1
                 self.skills[cfg.SK_INTI] += 1
             elif pt == cfg.PT_BAGGER:
+                self.apply_background(cfg.BG_IRON_GULLET)
                 self.skills[cfg.SK_CLAN] += 1
                 self.skills[cfg.SK_STWS] += 1
                 # TODO: Iron Gullet, Enemy (2)

@@ -11,13 +11,11 @@ init 1 python in game:
         ]
 
         def __init__(self, pool_text, has_opp=False, action=None, sitmod=None, surge=False, **kwargs):
-            print("WE GOT: ", locals())
             utils = renpy.store.utils
             self.num_dice = 0
             self.has_opponent = has_opp
             self.surge = surge
             self.action = action
-            print("\n\nWe Are Surging?", self.surge, surge, '\n')
             self.contests = utils.parse_pool_string(pool_text, situational_mod=sitmod, blood_surging=self.surge)
             utils.log("\n--- {} ---\n{}".format("CONTESTS" if self.has_opponent else "TESTS", self.contests))
             if len(self.contests) != 1:
@@ -297,7 +295,7 @@ init python in state:
     skill_names = [getattr(cfg, sname) for sname in gdict if str(sname).startswith("SK_")]
     discipline_names = [getattr(cfg, dname) for dname in gdict if str(dname).startswith("DISC_")]
 
-    def available_pc_will():
+    def available_pc_will_2():  # TODO why is this defined twice and why isn't Ren'py throwing an error without the '_2'?
         return pc.will.boxes - (pc.will.spf_damage + pc.will.agg_damage)
 
     def roll_bones(primary_rc, secondary_rc=None, difficulty=None, pc_defending=False):
@@ -305,9 +303,6 @@ init python in state:
         global active_roll
         global response_roll
         global active_rc
-
-        print("2. active_roll: ", active_roll)
-        # print("2. response_roll", response_roll)
 
         if active_roll:
             del active_roll  # TODO: added response_roll, check this

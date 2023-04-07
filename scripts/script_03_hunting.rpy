@@ -10,6 +10,15 @@
 
 # separate first hunt?
 
+label hunt_preroute(hunt_type):
+
+    $ state.current_hunt_type = hunt_type
+    call expression "hunt_" + str(hunt_type).replace(" ", "_").lower() pass (None) from hunt_preroute_default
+    $ state.current_hunt_type, state.hunt_locale = None, None
+
+    return
+
+
 label hunt_confirm(hunt_warning, pool_desc_1, pool_desc_2, situational_mod=None):
     python:
         pool_desc_raw = "{},{}".format(pool_desc_1, pool_desc_2)
@@ -33,7 +42,7 @@ label hunt_confirm(hunt_warning, pool_desc_1, pool_desc_2, situational_mod=None)
 
 label hunt_alley_cat(status):
 
-    $ state.current_hunt_type, planning_diff, strike_diff = cfg.PT_ALLEYCAT, "diff4", "diff4"
+    $ planning_diff, strike_diff = "diff4", "diff4"
 
     label .options:
 
@@ -41,7 +50,7 @@ label hunt_alley_cat(status):
         beast "The fear, the chase... it's best this way, isn't it? Where shall we hunt, my friend?"
 
         "Down by the river. Lots of drunks, homeless, and exhausted dockworkers there - easy prey.":
-            $ hw = "Unless you pick the wrong target. It's a rough area; lots of people there either scrap or hold a strap."
+            $ hw = "Unless you pick the wrong target. It's what you'd call a \"rough area\", isn't it? Prey there is feisty, sometimes armed."
             $ hunting_pool1, hunting_pool2 = "wits+streetwise", "strength+combat"
             call hunt_confirm(hw, hunting_pool1, hunting_pool2) from alley_cat_river_confirmation
             if _return:
@@ -69,6 +78,7 @@ label hunt_alley_cat(status):
 
     label .river:
 
+        $ state.hunt_locale = "river"
         "You hop in your [state.pc_car] and make your way onto the Interstate. You can see the river for almost the entire trip, golden and recumbent."
 
         "It doesn't take long for you to arrive at the docks. You remember when this place was nicer, probably because the jobs paid better."
@@ -83,6 +93,7 @@ label hunt_alley_cat(status):
 
     label .plaza:
 
+        $ state.hunt_locale = "plaza"
         "plaza test"
         call default_hunt_subroutine(hunting_pool1, planning_diff, hunting_pool2, strike_diff) from alley_cat_plaza_goodhunting
         $ hunt_outcome, time_spent = _return
@@ -99,7 +110,7 @@ label hunt_alley_cat(status):
 
 label hunt_bagger(status):
 
-    $ state.current_hunt_type, planning_diff, strike_diff = cfg.PT_BAGGER, "diff3", "diff3"
+    $ planning_diff, strike_diff = "diff3", "diff3"
 
     label .options:
 
@@ -133,7 +144,15 @@ label hunt_bagger(status):
 
     label .plug:
 
-        "bagger.plug hunt test start"
+        $ state.hunt_locale = "plug"
+        $ state.new_prey()  # This is your plug.
+
+        "You already have your list of contacts ready, and you don't want to do any of this work from anywhere near your haven."
+
+        "So you grab one of your burner phones - the one you use for roaming - and hop in your [state.pc_car]. You drive downtown, past the docks."
+
+        "Once you're there, you park and walk a few blocks in a random direction before you put the battery in your phone and start sending texts."
+
         call default_hunt_subroutine(hunting_pool1, planning_diff, hunting_pool2, strike_diff) from bagger_plug_goodhunting
         $ hunt_outcome, time_spent = _return
         "bagger.plug hunt test end"
@@ -142,8 +161,24 @@ label hunt_bagger(status):
 
     label .clinic:
 
-        "bagger.clinic hunt test start"
+        $ state.hunt_locale, state.outside_haven = "clinic", False  # Planning stage takes place inside haven.
+
+        "You pull your [state.pc_laptop] out from a drawer and set it onto your desk. You keep a spreadsheet with the names and information of several urgent care clinics and other locally-run acute care facilities."
+
+        $ can_drink_shit = state.pc.has_background(bg_name=cfg.BG_IRON_GULLET)
+        if can_drink_shit:
+            $ fract_1, fract_2 = ", which you would {i}really{/i} rather not drink, though you've found that you can.", "No, what you're looking for is "
+        else:
+            $ fract_1, fract_2 = ", all of which are pretty much undrinkable swill even by your rather low standards.", " You need "
+        "You're not going to any of them, of course - they mostly deal in fractionated blood products[fract_1]"
+
+        "[fract_2]whole blood. And if they have any, you can bet it's claimed by Kindred well above you on the food chain."
+
+        "So you're looking to trace their supply chains back to the places where the donations are made. Ad hoc, transitional spaces where supplies can sometimes \"fall through the cracks\"."
+
+        # TODO: eventually check number of successes/outcome - even a win will damage Masquerade, but a crit/high # of successes will avoid this penalty.
         call default_hunt_subroutine(hunting_pool1, planning_diff, hunting_pool2, strike_diff) from bagger_clinic_goodhunting
+
         $ hunt_outcome, time_spent = _return
         "bagger.clinic hunt test end"
         # TODO: certain results (_return) trigger an encounter
@@ -158,7 +193,13 @@ label hunt_bagger(status):
 
 label hunt_farmer(status):
 
-    $ state.current_hunt_type, planning_diff, strike_diff = cfg.PT_FARMER, "diff3", "diff3"
+    python:
+        planning_diff, strike_diff = "diff3", "diff3"
+        ksh_t_1, wont_help_them = "poor, doomed stray cats and dogs that don't have much time left on this Earth anyway", "can't give"
+        ksh_t_2, ksh_t_3 = "So no one will miss them. One silver lining to this debacle.", "You tell yourself, not for the first time, that y"
+        if state.pc.humanity <= cfg.KILLHUNT_HUMANITY_MAX:
+            ksh_t_1, wont_help_them = "unwanted strays that no one will miss.", "won't give"
+            ksh_t_2, ksh_t_3 = "Good thinking. Now if only you could think of something decent for us to eat.", "Y"
 
     label .options:
 
@@ -180,11 +221,19 @@ label hunt_farmer(status):
             jump hunt_farmer.options
 
         # TBA: Break into a kill shelter
-        "kill shelter":
-            "you plan to break into a kill shelter and pick out a few of the doomed animals to drain"
+        "There are plenty of kill shelters around the city, packed with [ksh_t_1].":
+            beast "[ksh_t_2]"
+
+            "[ksh_t_3]ou're really just easing their passage."
+
+            "Fortunately, these places don't tend to have a whole lot of security. You just need to break in and make sure you don't send the entire doomed menagerie into a panic."
+
+            "Anyway, the problem is that there could be night staff, and even just one is too many if they come running at the sound of a hundred strays freaking out."
+
+            "No matter how callously the animals are treated, it would not do to let yourself be seen or recorded chewing on one."
 
             $ hw = "At least have the decency to season our food a bit. Maybe let a few loose so we can chase them?"
-            $ hunting_pool1, hunting_pool2 = "dexterity+clandestine", "wits+diplomacy"
+            $ hunting_pool1, hunting_pool2 = "wits+clandestine", "dexterity+diplomacy"
             call hunt_confirm(hw, hunting_pool1, hunting_pool2) from farmer_killshelter_confirmation
             if _return:
                 jump hunt_farmer.killshelter
@@ -197,6 +246,7 @@ label hunt_farmer(status):
 
     label .trash:
 
+        $ state.hunt_locale = "trash"
         "hunting in the trash for rats"
         call default_hunt_subroutine(hunting_pool1, planning_diff, hunting_pool2, strike_diff) from farmer_trash_goodhunting
         $ hunt_outcome, time_spent = _return
@@ -206,7 +256,24 @@ label hunt_farmer(status):
 
     label .killshelter:
 
-        "hunting at shelter test (not implemented)"
+        $ state.hunt_locale = "killshelter"
+        # "hunting at shelter test (not implemented)"
+        if state.pc.has_disc_power(cfg.POWER_ANIMALISM_SPEAK):
+            "You might be able to communicate with them, but that doesn't do you a whole lot of good in this case."
+
+            "Some will plead for help you [wont_help_them], and others will know right away what you're there to do."
+        elif state.pc.has_disc_power(cfg.POWER_ANIMALISM_SENSE) or state.pc.skills[cfg.SK_DIPL] > 2:
+            "You have something of a knack for picking up on moods, even with animals. But you're on the hunt, and when they see you they'll know."
+
+            "Somehow they always seem to know."
+        else:
+            "Animals don't usually like your kind. They seem to instinctively regard you as the hungry, dead {i}things{/i} that you are."
+
+            "There are exceptions of course. A lot, actually. You've met plenty of Kindred who can call or even command animals. But that's the Blood working."
+
+            "One of your old coterie used to say that those powers were blasphemous mimicry, usurpation of the rightful diminion God gave Adam over the animals in the Garden of Eden."
+
+            "You replied that, by her standards, pretty much {i}everything{/i} Kindred did was some kind of blasphemy. She didn't disagree."
         call default_hunt_subroutine(hunting_pool1, planning_diff, hunting_pool2, strike_diff) from farmer_killshelter_goodhunting
         $ hunt_outcome, time_spent = _return
         "farmer kill shelter test end"
@@ -222,7 +289,7 @@ label hunt_farmer(status):
 
 label hunt_siren(status):
 
-    $ state.current_hunt_type, planning_diff, strike_diff = cfg.PT_SIREN, "diff3", "diff3"
+    $ planning_diff, strike_diff = "diff3", "diff3"
 
     label .options:
 
@@ -254,7 +321,7 @@ label hunt_siren(status):
             jump hunt_siren.options
 
         # TBA: Some other hookup spot
-        "other option (party, maybe?)":
+        "other option (party, maybe?)" if False:
             "not implemented"
 
             "insert text here dsfdsf"
@@ -280,6 +347,7 @@ label hunt_siren(status):
         call get_prey_gender from siren_gpg_nightclub
         $ desired = _return
 
+        $ state.hunt_locale = "nightclub"
         "insert club siren preamble text here"
         call default_hunt_subroutine(hunting_pool1, planning_diff, hunting_pool2, strike_diff) from siren_nightclub_goodhunting
         $ hunt_outcome, time_spent = _return
@@ -291,6 +359,7 @@ label hunt_siren(status):
         call get_prey_gender from siren_gpg_houseparty
         $ desired = _return
 
+        $ state.hunt_locale = "houseparty"
         "party (maybe?) test - not implemented"
         call default_hunt_subroutine(hunting_pool1, planning_diff, hunting_pool2, strike_diff) from siren_houseparty_goodhunting
         $ hunt_outcome, time_spent = _return
@@ -312,16 +381,22 @@ label default_hunt_subroutine(planning_pool, planning_test, feeding_pool, feedin
         tll_1, tll_2 = "default_hunt_subroutine", "hunting_outcome_generic_sub"
 
         # TODO: diverge here for predator types with non-human targets(?)
+        if state.current_hunt_type == cfg.PT_BAGGER:
+            tll_2 = "hunting_outcome_bloodbag_sub"
+        elif state.current_hunt_type == cfg.PT_FARMER:
+            tll_2 = "hunting_outcome_animal_sub"
+
         # TODO: make srue prey is deleted after hunt
-        if state.prey:
-            del state.prey
-        state.prey = game.MortalPrey()
+        state.new_prey()
+        prey_pns = state.siren_orientation if state.current_hunt_type == cfg.PT_SIREN else None
+        state.new_prey(pronoun_set=prey_pns)
         pns, age_desc = state.prey.pronoun_set, state.prey.apparent_age
         if age_desc.startswith(" "):
             age_desc = "a"
         prey_ref_1 = "{} {}".format(age_desc, pns.PN_STRANGER)
         prey_ref_2 = prey_ref_1.split(" ")[1]
         She_He_They, Shes_Hes_Theyre = str(pns.PN_SHE_HE_THEY).capitalize(), str(pns.PN_SHES_HES_THEYRE).capitalize()
+        state.updated_pool = None
 
     label .planning_roll:
 
@@ -337,7 +412,8 @@ label default_hunt_subroutine(planning_pool, planning_test, feeding_pool, feedin
             elif state.roll_malus > 0:
                 fp_mod = -1 * state.roll_malus
 
-            final_feeding_pool = feeding_pool
+            final_feeding_pool = feeding_pool if state.updated_pool is None else state.updated_pool
+            # state.last_power_used ?
         call roll_control(final_feeding_pool, feeding_test, situational_mod=fp_mod) from generic_hunt_strike_roll
         jump expression renpy.store.game.rollrouting_manual(_return, ".win", ".fail", mc=".messy", crit=".crit", bfail=".beastfail", top_label=tll_1)
 
@@ -377,6 +453,7 @@ label default_hunt_subroutine(planning_pool, planning_test, feeding_pool, feedin
         return
 
     label .end:
+        $ state.current_plan, state.updated_pool, state.last_power_used = None, None, None
         call pass_time(time_spent) from default_hunt_subroutine_end
         return hunt_outcome, time_spent
 
@@ -544,10 +621,23 @@ label predator_type_subsets:
 
 label hunt_kill_choice:
 
-    beast "This kine is helpless. Let's drain it. We have to eat well to keep up our strength, don't we?"
+    $ her_him_them = state.prey.pronoun_set.PN_HER_HIM_THEM
+
+    if pc.hunger > cfg.HUNGER_MAX_CALM:
+        beast "Drain [her_him_them] drain [her_him_them] drain [her_him_them] drain [her_him_them] drain [her_him_them]"
+
+        if utils.percent_chance(50):
+            beast "Better now than later, right?"
+
+            if utils.percent_chance(30):
+                beast "{b}RIGHT?!{/b}"
+    else:
+        beast "This kine is helpless. Let's drain it. We have to eat well to keep up our strength, don't we?"
 
     python:
-        kill_choice_prompt = "Just let it happen. They were going to die soon anyway. Relatively speaking."
+        she_he_they = str(state.prey.pronoun_set.PN_SHE_HE_THEY)
+        sht_was_were = she_he_they.capitalize() + (" were" if "they" in she_he_they.lower() else " was")
+        kill_choice_prompt = "Just let it happen. [sht_was_were] going to die soon anyway. Relatively speaking."
         kill_yes = "I take everything they have to give."
         if state.innocent_drained:
             kill_no = "No, I can't do this again."

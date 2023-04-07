@@ -1,11 +1,11 @@
 ﻿# The script of the game goes in this file.
 
-# Declare characters used by this game. The color argument colorizes the
-# name of the character.
-
+# Declare characters used by this game. The color argument colorizes the name of the character.
 define you = Character("You")
 define beast = Character("The Beast", color="#e90505")
 define james = Character("Man", color="#662222")
+define security_guard = Character("Security", color="#233492")
+# define night_vet = Character("")
 
 
 # The game starts here.

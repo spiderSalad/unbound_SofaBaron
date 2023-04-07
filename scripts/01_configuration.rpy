@@ -97,7 +97,7 @@ init 0 python in cfg:
 
     REF_APPARENT_AGE = "apparent_age"
     REF_AA_YOUNG_ADULT = "a younger"
-    REF_AA_ADULT = " a 35-ish "
+    REF_AA_ADULT = "a late-thirties"
     REF_AA_MIDDLE_AGED = "an older"
     REF_AA_ELDERLY = "an elderly"
 
@@ -106,6 +106,8 @@ init 0 python in cfg:
     HUNGER_MAX_CALM = 2
     HUNGER_MIN = 1
     HUNGER_MIN_KILL = 0
+    VAL_SWILL_SLAKE_MAX = 3
+    VAL_SWILL_SLAKE_MAX_CRIT = 4
     MAX_HUMANITY = 8
     MIN_HUMANITY = 4
     KILLHUNT_HUMANITY_MAX = 4
@@ -261,10 +263,15 @@ init 0 python in cfg:
     REF_BG_PAST = "Past"  # Collection of stat bonuses, not a merit/flaw in the V5 parlance
     REF_BG_MERIT = "Merit"
     REF_BG_FLAW = "Flaw"
-    REF_BG_LOOKS = "Looks"
 
-    BG_BEAUTIFUL = "Beautiful"
+    REF_BG_LOOKS = "Looks"
+    REF_BG_FEEDING = "Feeding"
+
+    REF_BG_NON_EXCLUSIVE_SUBTYPES = (REF_BG_FEEDING,)
+
+    BG_IRON_GULLET = "Iron Gullet"
     BG_ENEMY = "Enemy"
+    BG_BEAUTIFUL = "Beautiful"
     BG_UGLY = "Ugly"
     BG_REPULSIVE = "Repulsive"
 
@@ -418,6 +425,10 @@ init 0 python in cfg:
         BG_ENEMY: {
             REF_TYPE: REF_BG_FLAW,
             REF_DESC: "Some mortal has it out for you. They may even know who you are, though hopefully not {i}what{/i}."
+        },
+        BG_IRON_GULLET: {
+            REF_TYPE: REF_BG_MERIT, REF_DOTS: 3, REF_SUBTYPE: REF_BG_FEEDING,
+            REF_DESC: "You can drink blood that's cold, rancid, or even fractionated. You don't {i}want{/i} to, but you can."
         }
     }
 
