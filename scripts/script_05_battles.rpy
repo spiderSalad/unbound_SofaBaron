@@ -1,3 +1,9 @@
+init 1 python:
+
+    cfg, utils, audio = renpy.store.cfg, renpy.store.utils, renpy.store.audio
+    state, game, flavor = renpy.store.state, renpy.store.game, renpy.store.flavor
+
+
 label combat_test_scenario_1:
 
     python:
@@ -39,6 +45,9 @@ label combat_encounter:
     label .battle_setup(crew, opps):
 
         python:
+            pc, CAction, Item, Weapon = state.pc, game.CAction, game.Item, game.Weapon
+            Entity, NPCFighter = game.Entity, game.NPCFighter
+
             state.arena.reset()
             state.arena.register_combatants(pc_team=crew, enemy_team=opps)  # TODO: update this to take optional starting positions
             # state.arena.set_position((ally2, -2))
@@ -108,9 +117,9 @@ label combat_encounter:
             for i, item in enumerate(report):
                 if type(item) is str and not report_readout:
                     report_readout = item
-                elif type(item) is CAction:
+                elif type(item) is game.CAction:
                     follow_up_action = item
-                elif isinstance(item, (NPCFighter, game.PlayerChar)):
+                elif isinstance(item, (game.NPCFighter, game.PlayerChar)):
                     if item.dead:
                         obits.append(flavor.prompt_combat_death(item, pc_hunger=state.pc.hunger))
             death_numero, sanity_loop_limit = 0, 10
@@ -149,7 +158,7 @@ label combat_encounter:
             disengage_default_prompt = "I need to back up, find a better vantage point."
             if pc.engaged:
                 disengage_default_prompt = "I need to back out of this mess and reorient myself."
-            state.menu_label_backref = "combat_test_scenario_1.player_attack_menu"
+            state.menu_label_backref = "{}.player_attack_menu".format(cfg.COMBAT_LABEL_MAIN)
 
         menu:
             "What will you do?"
@@ -225,7 +234,7 @@ label combat_encounter:
 
             "Pass turn":
                 "Reckless haste will get you killed..."
-                if cfg.DEV_MODE and cfg.DEV_COMBAT_AUTO_PASS:
+                if cfg.DEV_MODE and devtest.DEV_COMBAT_AUTO_PASS:
                     $ pc_atk, roll_result = CAction(CAction.NO_ACTION, None, user=pc), None
                     jump .auto_pass
                 jump .pass_turn_submenu
@@ -233,9 +242,6 @@ label combat_encounter:
             "Run":
                 "run awaaaaaaaaaaaayyyyy"
                 jump .end
-
-            "test option jaaaaaaaaaa":
-                "oooooooooooo"
 
         jump .pc_attack_post
 
@@ -245,7 +251,7 @@ label combat_encounter:
             pa_pool = "strength+athletics/dexterity+athletics"
             pc_atk = CAction(CAction.MELEE_ENGAGE, target, user=pc, pool=pa_pool)
             pc_atk.unarmed_power_used = utils.unique_append(pc_atk.unarmed_power_used, rush_power_used, sep=", ")
-            free_blink = cfg.DEV_MODE and (cfg.DEV_FREE_BLINK or cfg.DEV_FREE_DISCIPLINES)
+            free_blink = cfg.DEV_MODE and (cfg.FREE_BLINK or cfg.FREE_DISCIPLINES)
 
         if rush_power_used == cfg.POWER_CELERITY_BLINK and not free_blink:
             call roll_control.rouse_check() from pc_rush_blink_rouse
@@ -258,7 +264,7 @@ label combat_encounter:
             pa_pool = "wits+clandestine/dexterity+athletics"
             pc_atk = CAction(CAction.DISENGAGE, target, user=pc, pool=pa_pool)
             pc_atk.unarmed_power_used = utils.unique_append(pc_atk.unarmed_power_used, disengage_power_used, sep=", ")
-            free_blink = cfg.DEV_MODE and (cfg.DEV_FREE_BLINK or cfg.DEV_FREE_DISCIPLINES)
+            free_blink = cfg.DEV_MODE and (cfg.FREE_BLINK or cfg.FREE_DISCIPLINES)
 
         if disengage_power_used == cfg.POWER_CELERITY_BLINK and not free_blink:
             call roll_control.rouse_check() from pc_disengage_blink_rouse
@@ -319,14 +325,14 @@ label combat_encounter:
             can_use_disc = not state.used_disc_this_turn
             can_use_2p_disc = can_use_disc and pc.can_rouse()
             can_flit = Entity.SE_FLEETY in pc.status_effects and not state.fleet_dodge_this_turn
-            state.menu_label_backref = "combat_test_scenario_1.player_defense_menu"
+            state.menu_label_backref = "{}.player_defense_menu".format(cfg.COMBAT_LABEL_MAIN)
             defend_prompt = flavor.prompt_combat_defense(atk_action)
 
         menu:
             # TODO: specify attack type/weapon, for narrative use later and for user benefit
             "[defend_prompt]"
 
-            "Just take it." if cfg.DEV_MODE and cfg.DEV_FACETANK:
+            "Just take it." if cfg.DEV_MODE and devtest.DEV_FACETANK:
                 $ pd_pool = "pool1"
                 $ pc_def = CAction(CAction.NO_ACTION, None, user=pc, defending=True, pool=pd_pool)
 
@@ -398,7 +404,7 @@ label combat_encounter:
                     pd_pool += "+-{}".format(cfg.BULLET_DODGE_PENALTY)
             pc_def = CAction(CAction.DODGE, None, user=pc, defending=True, pool=pd_pool)
             pc_def.unarmed_power_used = utils.unique_append(pc_def.unarmed_power_used, dodge_power_used, sep=", ")
-            free_blink = cfg.DEV_MODE and (cfg.DEV_FREE_BLINK or cfg.DEV_FREE_DISCIPLINES)
+            free_blink = cfg.DEV_MODE and (cfg.FREE_BLINK or cfg.FREE_DISCIPLINES)
 
         if dodge_power_used == cfg.POWER_CELERITY_BLINK and not free_blink:
             call roll_control.rouse_check() from pc_dodge_blink_rouse

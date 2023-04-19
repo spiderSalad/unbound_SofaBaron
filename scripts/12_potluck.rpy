@@ -3,24 +3,38 @@ init 1 python in game:
     cfg, utils, state = renpy.store.cfg, renpy.store.utils, renpy.store.state
 
     import random
+    import math
 
     class TempAgency:
 
-        RANDOM_CTYPES_BASIC = (cfg.CT_HUMAN, cfg.CT_GHOUL, cfg.CT_VAMPIRE)
-        CUM_WEIGHTS_CTYPE_BASIC = utils.get_cum_weights(100, 70, 90)
-        RANDOM_FTYPES_BASIC = (NPCFighter.FT_BRAWLER, NPCFighter.FT_SHOOTER, NPCFighter.FT_WILDCARD, NPCFighter.FT_FTPC)
-        CUM_WEIGHTS_FTYPE_BASIC = utils.get_cum_weights(100, 70, 50, 40)
-        RANDOM_FTYPES_ALLIES = (NPCFighter.FT_BRAWLER, NPCFighter.FT_SHOOTER, NPCFighter.FT_WILDCARD)
-        CUM_WEIGHTS_FTYPE_ALLIES = utils.get_cum_weights(110, 85, 65)
+        NPC_CREATURE_TYPES = {
+            "basic": {
+                cfg.REF_VALUES: (cfg.CT_HUMAN, cfg.CT_GHOUL, cfg.CT_VAMPIRE),
+                cfg.REF_CUM_WEIGHTS: utils.get_cum_weights(100, 70, 90)
+            },
+            "extended_weights": (150, 80, )
+        }
 
-        CUM_WEIGHTS_DISC_PICK = utils.get_cum_weights(100, 70, 50, 50, 20)
+        NPC_FIGHTER_TYPES = {
+            "random_basic": {
+                cfg.REF_VALUES: (NPCFighter.FT_BRAWLER, NPCFighter.FT_SHOOTER, NPCFighter.FT_WILDCARD, NPCFighter.FT_FTPC),
+                cfg.REF_CUM_WEIGHTS: utils.get_cum_weights(100, 70, 50, 40)
+            },
+            "random_allies": {
+                cfg.REF_VALUES: (NPCFighter.FT_BRAWLER, NPCFighter.FT_SHOOTER, NPCFighter.FT_WILDCARD),
+                cfg.REF_CUM_WEIGHTS: utils.get_cum_weights(110, 85, 65)
+            }
+        }
 
-        REF_FTYPE_DISC_SETS = {
-            NPCFighter.FT_BRAWLER: [cfg.DISC_POTENCE, cfg.DISC_FORTITUDE, cfg.DISC_CELERITY, cfg.DISC_PROTEAN],
-            NPCFighter.FT_SHOOTER: [cfg.DISC_CELERITY, cfg.DISC_OBFUSCATE],
-            NPCFighter.FT_WILDCARD: [cfg.DISC_FORTITUDE, cfg.DISC_CELERITY, cfg.DISC_PROTEAN, cfg.DISC_POTENCE],
-            NPCFighter.FT_FTPC: [cfg.DISC_CELERITY, cfg.DISC_POTENCE, cfg.DISC_PROTEAN],
-            NPCFighter.FT_ESCORT: [cfg.DISC_FORTITUDE, cfg.DISC_CELERITY]
+        NPC_DISCIPLINES = {
+            cfg.REF_CUM_WEIGHTS: utils.get_cum_weights(100, 70, 50, 50, 20),
+            cfg.REF_VALUES: {
+                NPCFighter.FT_BRAWLER: [cfg.DISC_POTENCE, cfg.DISC_FORTITUDE, cfg.DISC_CELERITY, cfg.DISC_PROTEAN],
+                NPCFighter.FT_SHOOTER: [cfg.DISC_CELERITY, cfg.DISC_OBFUSCATE],
+                NPCFighter.FT_WILDCARD: [cfg.DISC_FORTITUDE, cfg.DISC_CELERITY, cfg.DISC_PROTEAN, cfg.DISC_POTENCE],
+                NPCFighter.FT_FTPC: [cfg.DISC_CELERITY, cfg.DISC_POTENCE, cfg.DISC_PROTEAN],
+                NPCFighter.FT_ESCORT: [cfg.DISC_FORTITUDE, cfg.DISC_CELERITY]
+            }
         }
 
         def __init__(self):
@@ -36,6 +50,34 @@ init 1 python in game:
                     roster.append(self.get_random_combatant(cr_type=cfg.CT_VAMPIRE, f_type=vf_type))
             return roster
 
+        def enc_mundane(self, diff_tier=1):
+            return self.get_random_roster(
+                utils.random_int_range(diff_tier, math.ceil(diff_tier*2.5)),
+                cr_type=cfg.CT_HUMAN,
+                diff_adjust=diff_tier
+            )
+
+        def enc_hunters(self, diff_tier=1):
+            return self.get_random_roster(
+                utils.random_int_range(diff_tier, diff_tier*2),
+                cr_type=cfg.CT_HUMAN,
+                diff_adjust=diff_tier+1
+            )
+
+        def enc_vampires(self, diff_tier=1):
+            goons = self.get_random_roster(
+                utils.random_int_range(diff_tier, diff_tier*2),
+                cr_type=utils.get_wrs((cfg.CT_HUMAN, cfg.CT_GHOUL, cfg.CT_GHOUL)),
+                diff_adjust=diff_tier
+            )
+            vamps = []
+            if diff_tier > 1:
+                vamps = self.get_random_roster(
+                    utils.get_wrs((1, 2), weights=(100, 25)), cr_type=cfg.CT_VAMPIRE,
+                    diff_adjust=diff_tier+1
+                )
+            return goons + vamps
+
         def get_random_roster(self, num_fighters, cr_type=None, f_type=None, diff_adjust=0, pc_team=False):
             return [
                 self.get_random_combatant(cr_type=cr_type, f_type=f_type, diff_adjust=diff_adjust, pc_team=pc_team)
@@ -44,23 +86,30 @@ init 1 python in game:
 
         def get_random_combatant(self, cr_type=None, f_type=None, diff_adjust=0, pc_team=False):
             if cr_type is None:
-                cr_type = utils.get_wrs(TempAgency.RANDOM_CTYPES_BASIC, cum_weights=TempAgency.CUM_WEIGHTS_CTYPE_BASIC)
+                ctypes = TempAgency.NPC_CREATURE_TYPES["basic"]
+                cr_type = utils.get_wrs(ctypes[cfg.REF_VALUES], cum_weights=ctypes[cfg.REF_CUM_WEIGHTS])
+            elif type(cr_type) in (list, tuple):
+                cr_type = utils.get_random_list_elem(cr_type)
+
             if f_type is None and pc_team:
-                f_type = utils.get_wrs(TempAgency.RANDOM_FTYPES_ALLIES, cum_weights=TempAgency.CUM_WEIGHTS_FTYPE_ALLIES)
+                ally_ftypes = TempAgency.NPC_FIGHTER_TYPES["random_allies"]
+                f_type = utils.get_wrs(ally_ftypes[cfg.REF_VALUES], cum_weights=ally_ftypes[cfg.REF_CUM_WEIGHTS])
             else:
-                f_type = utils.get_wrs(TempAgency.RANDOM_FTYPES_BASIC, cum_weights=TempAgency.CUM_WEIGHTS_FTYPE_BASIC)
+                basic_ftypes = TempAgency.NPC_FIGHTER_TYPES["random_basic"]
+                f_type = utils.get_wrs(basic_ftypes[cfg.REF_VALUES], cum_weights=basic_ftypes[cfg.REF_CUM_WEIGHTS])
             ent_params = {"creature_type": cr_type, "ftype": f_type}
-            # Represent generic Attribute + Skill combo of that type.
-            ent_params[cfg.NPCAT_PHYS] = utils.random_int_range(4, 6)
-            ent_params[cfg.NPCAT_SOCL] = utils.random_int_range(4, 7)
-            ent_params[cfg.NPCAT_MENT] = utils.random_int_range(3, 6)
-            ent_params[cfg.SK_ATHL] = utils.random_int_range(4, 6)
+
+            # Represents generic Attribute + Skill combo of that type.
+            ent_params[cfg.NPCAT_PHYS] = utils.random_int_range(3+diff_adjust, 5+diff_adjust)
+            ent_params[cfg.NPCAT_SOCL] = utils.random_int_range(3+diff_adjust, 6+diff_adjust)
+            ent_params[cfg.NPCAT_MENT] = utils.random_int_range(2+diff_adjust, 5+diff_adjust)
+            ent_params[cfg.SK_ATHL] = utils.random_int_range(4, 5+diff_adjust)
             powerset = TempAgency.get_random_npc_powerset(cr_type, f_type, diff_adjust=diff_adjust)
             if f_type == NPCFighter.FT_BRAWLER:
-                ent_params[cfg.SK_COMB] = max(ent_params[cfg.NPCAT_PHYS], utils.random_int_range(5, 8))
+                ent_params[cfg.SK_COMB] = max(ent_params[cfg.NPCAT_PHYS], utils.random_int_range(5+diff_adjust, 7+diff_adjust))
                 npc_weapon, npc_weapon_alt = state.gift_weapon(key=None), None
             elif f_type == NPCFighter.FT_SHOOTER:
-                ent_params[cfg.SK_FIRE] = utils.random_int_range(5, 7)
+                ent_params[cfg.SK_FIRE] = utils.random_int_range(5+diff_adjust, 6+diff_adjust)
                 # TODO: come back to this when .lose() method is less ass.
                 npc_weapon, npc_weapon_alt = state.gift_gun(key=None), state.gift_weapon(key="butterfly1")
             else:
@@ -90,8 +139,8 @@ init 1 python in game:
                 num_disciplines, power_ceil = 2, 1
             elif cr_type in (cfg.CT_VAMPIRE, cfg.CT_LUPINE):
                 num_disciplines, power_ceil = utils.random_int_range(2 + diffa, 3 + diffa), 2 + diffa
-            cum_weight_full_set = TempAgency.CUM_WEIGHTS_DISC_PICK
-            ft_disc_pack = TempAgency.REF_FTYPE_DISC_SETS[f_type]
+            cum_weight_full_set = TempAgency.NPC_DISCIPLINES[cfg.REF_CUM_WEIGHTS]
+            ft_disc_pack = TempAgency.NPC_DISCIPLINES[cfg.REF_VALUES][f_type]
             cum_weights = cum_weight_full_set[:len(ft_disc_pack)]
             powerset = {}
             # random.seed()

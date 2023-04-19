@@ -181,7 +181,7 @@ init 1 python in game:
             if self.user and self.use_sidearm:
                 self.using_sidearm = True
                 utils.log("Off-hand weapon penalty imposed on {} because use_sidearm ({}) set to True.".format(
-                    self.user.name, self.user.sidearm if self.user and self.user.sidearm else "None?"
+                    self.user.label, self.user.sidearm if self.user and self.user.sidearm else "None?"
                 ))
             self.unarmed_power_used, self.power_used = None, None
             if self.action_type is None and self.action_label is None:
@@ -206,7 +206,7 @@ init 1 python in game:
                 self.weapon_used = weapon_alt
                 self.using_sidearm = True
                 utils.log("Off-hand weapon penalty applied to attack type {} by {}, who has {} at hand and {} at side".format(
-                    self.action_type, self.user.name, weapon.name, weapon_alt.name
+                    self.action_type, self.user.label, weapon.label, weapon_alt.label
                 ))
             else:
                 self.weapon_used = None
@@ -342,7 +342,7 @@ init 1 python in flavor:
 
 
     # def flavor_format(template_str, subject=None):
-    def flavor_format(template_choice_ref, subject=None):
+    def flavor_format(template_choice_ref, subject=None, action=None, indoors=False):
         if type(template_choice_ref) in (list, tuple):
             template_str = utils.get_random_list_elem(template_choice_ref)
         else:
@@ -357,14 +357,24 @@ init 1 python in flavor:
                 token_dict[token] = str(getattr(subject.pronoun_set, token))
             elif subject and token.startswith("DESC_"):
                 desc_property = getattr(subject, token.lower())
-                print("type of desc_prop is: ", type(desc_property))
                 token_dict[token] = str(desc_property)
-            elif subject and token == "NPC_NAME":
-                token_dict[token] = subject.name
+            elif subject and token in ("NPC_NAME", "WEAPON_NAME"):
+                if token == "NPC_NAME":
+                    token_dict[token] = subject.label
+                elif token == "WEAPON_NAME":
+                    weapon = None
+                    if action:
+                        weapon = action.weapon_used
+                    elif hasattr(subject, "inventory") and isinstance(subject.inventory, game.Inventory):
+                        weapon = subject.inventory.held
+                    elif hasattr(subject, "npc_weapon"):
+                        weapon = subject.npc_weapon
+                    token_dict[token] = weapon.label if weapon else "strange, unknown weapon"
             elif token == "FLOOR":
                 token_dict[token] = "floor" if (state.indoors or not state.outside_haven) else "ground"
             elif token == "HUNGER_DESC":
                 token_dict[token] = utils.get_random_list_elem(BLURBS_BLEEDING) if state.pc.hunger > cfg.HUNGER_MAX_CALM else ""
+                print("hunger desc  (BLEEDING) token = ", token_dict[token])
             else:
                 token_val = getattr(renpy.store.flavor, token)
                 if type(token_val) in (list, tuple):
@@ -372,7 +382,16 @@ init 1 python in flavor:
                 token_dict[token] = token_val
             if capitalize_it:
                 token_dict[cap_m + token] = str(token_dict[token]).capitalize()
-        return template_str.format(**token_dict) if token_dict else template_str
+        retval = template_str.format(**token_dict)# if token_dict else template_str
+        print("token_dict: ", token_dict)
+        print("formatted template str: {}".format(retval))
+        return retval
+        # NOTE: ^ ^ If template_str isn't formatted, then the renpy formatting tags with double {{}} will still have them with renpy
+        # NOTE: processes them, so they show up in text. The double {{}} are meant for .format(), which will remove them.
+        # NOTE: So there needs to be consistency there.
+        # NOTE: ALSO, double {{}} don't belong in the token_dict consumed by .format(), only in the unformatted string.
+
+        # TODO TODO TODO 4/14/23 VERBS_HEADPHONES gets KeyError, why?
 
     def flav(key1, *keys, subject=None):
         template_ref = getattr(renpy.store.flavor, key1)
@@ -388,7 +407,7 @@ init 1 python in flavor:
     CFW_BLURBS_RC_WIN = utils.get_cum_weights(100, 30, 5, 2, 1)
     CFW_BLURBS_RC_FAIL = utils.get_cum_weights(120, 40, 10, 5, 2, 1)
 
-    BLURBS_BLEEDING = [", {{i}}tantalizing{{/i}}", ", lovely little", ", {{i}}intoxicating{{/i}}"]
+    BLURBS_BLEEDING = [", {i}tantalizing{/i}", ", lovely little", ", {i}intoxicating{/i}"]
 
     BLURBS_RC_SUCCESS = ("", "...", "Lucky you.", "Feel that rush?", "Blood is power.")
     BLURBS_RC_FAILURE = (
@@ -413,10 +432,10 @@ init 1 python in flavor:
 
     PREY_ACTIVITIES = {}
     PREY_ACTIVITIES[cfg.REF_PT_AGNOSTIC] = [
-        "admiring {PN_HERSELF_HIMSELF_THEMSELF} by way of a nearby window",
-        "reading something on {PN_HER_HIS_THEIR} phone and {VERBS_TFW}",
-        "{VERBS_TFW} at something on {PN_HER_HIS_THEIR} phone",
-        "absently humming a tune you can't place",
+        # "admiring {PN_HERSELF_HIMSELF_THEMSELF} by way of a nearby window",
+        # "reading something on {PN_HER_HIS_THEIR} phone and {VERBS_TFW}",
+        # "{VERBS_TFW} at something on {PN_HER_HIS_THEIR} phone",
+        # "absently humming a tune you can't place",
         "{VERBS_HEADPHONES} {PN_HER_HIS_THEIR} head to the {NOUNS_MUSIC}"
     ]
 
@@ -456,7 +475,7 @@ init 1 python in flavor:
         Weapon.RW_AUTO: ["{NPC_NAME} points a {WEAPON_NAME} in your direction, ready to spray you (and anyone close to you)."]
     }
     C_ATK_BLURBS[CAction.MELEE_ATTACK] = CAB_MEL = {
-        cfg.REF_DEFAULT: ["{NPC_WEAPON} takes a step toward you, the {WEAPON_NAME} in {PN_HER_HIS_THEIR} hand."],
+        cfg.REF_DEFAULT: ["{NPC_NAME} takes a step toward you, the {WEAPON_NAME} in {PN_HER_HIS_THEIR} hand."],
         Weapon.NO_WEAPON: {
             cfg.CT_HUMAN: [
                 ("In a flash {NPC_NAME} is on you, swinging. Apparently this mortal is either foolish "
@@ -475,8 +494,8 @@ init 1 python in flavor:
         },
         cfg.POWER_PROTEAN_MOLD_SELF: ["brandishing a grotesque appendage in the rough shape of a morning star."],
         Item.IT_FIREARM: [" Looks like you're in for a pistol-whipping if you don't move."],
-        Weapon.MW_KNIFE: [" {PN_SHES_HES_THEYRE} trying to get inside your guard so {PN_SHE_HE_THEY} can shank you."],
-        Weapon.MW_SWORD: ["{NPC_NAME} rushes you, {PN_HER_HIS_THEIR} wicked-looking blade whistling through the air toward you."],
+        Weapon.MW_KNIFE: [" {CAP_PN_SHES_HES_THEYRE} trying to get inside your guard so {PN_SHE_HE_THEY} can shank you."],
+        Weapon.MW_SWORD: ["{NPC_NAME} rushes you, {PN_HER_HIS_THEIR} wicked-looking blade whistling through the air."],
         Weapon.MW_AXE: [
             ("{NPC_NAME} steps forward, {PN_HER_HIS_THEIR} {WEAPON_NAME} clutched in both hands."
             " A weapon like that is almost as dangerous to you as it is to mortals. You'd better do something, fast.")
@@ -499,21 +518,22 @@ init 1 python in flavor:
 
     def prompt_combat_defense(atk_action):
         attacker, action_type, weapon = atk_action.user, atk_action.action_type, atk_action.weapon_used
-        weap_type = get_weapon_term(weapon)
+        # weap_type = get_weapon_term(weapon)  # TODO: why was this here? what's that method for?
+        weap_type = weapon.subtype if weapon else Weapon.NO_WEAPON
 
         base_blurbs = C_ATK_BLURBS[action_type]
         if action_type == CAction.RANGED_ATTACK:
             if not weapon or weap_type in (Weapon.RW_AUTO,):
-                return flavor_format(base_blurbs[weap_type], subject=attacker)
+                return flavor_format(base_blurbs[weap_type], subject=attacker, action=atk_action)
             elif weapon.item_type != Item.IT_FIREARM and weapon.throwable:
-                return flavor_format(base_blurbs[Weapon.RW_THROWING][cfg.REF_DEFAULT], subject=attacker)
+                return flavor_format(base_blurbs[Weapon.RW_THROWING][cfg.REF_DEFAULT], subject=attacker, action=atk_action)
             elif weapon.item_type != Item.IT_FIREARM:
-                return flavor_format(base_blurbs[Weapon.RW_THROWING][Weapon.NO_WEAPON], subject=attacker)
-            return flavor_format(base_blurbs[cfg.REF_DEFAULT])
+                return flavor_format(base_blurbs[Weapon.RW_THROWING][Weapon.NO_WEAPON], subject=attacker, action=atk_action)
+            return flavor_format(base_blurbs[cfg.REF_DEFAULT], subject=attacker)
         elif action_type == CAction.MELEE_ATTACK:
             if not weapon and not atk_action.unarmed_power_used:
                 mortality_desig = cfg.CT_HUMAN if attacker.creature_type in cfg.REF_MORTALS else cfg.CT_VAMPIRE
-                return flavor_format(base_blurbs[Weapon.NO_WEAPON][mortality_desig])
+                return flavor_format(base_blurbs[Weapon.NO_WEAPON][mortality_desig], subject=attacker, action=atk_action)
             elif atk_action.unarmed_power_used:
                 ua_power, tmpl_prefix = atk_action.unarmed_power_used, "In a flash {NPC_NAME} is on you, "
                 atk_blurb_key_1, atk_blurb_key_2 = None, None
@@ -528,18 +548,22 @@ init 1 python in flavor:
                 else:
                     atk_blurb_key_1 = cfg.POWER_PROTEAN_TOOTH_N_CLAW
                 tmpl_body = base_blurbs[atk_blurb_key_1][atk_blurb_key_2] if atk_blurb_key_2 else base_blurbs[atk_blurb_key_1]
-                return flavor_format(tmpl_prefix + tmpl_body, subject=attacker)
+                return flavor_format(tmpl_prefix + tmpl_body, subject=attacker, action=atk_action)
             elif weapon:
-                return flavor_format(base_blurbs[cfg.REF_DEFAULT] + base_blurbs[weap_type], subject=attacker)
+                rep_str_2 = flavor_format(base_blurbs[weap_type], subject=attacker, action=atk_action)
+                if rep_str_2.startswith(" "):  # If it starts with a space it's meant to follow an initial generic prompt.
+                    rep_str_1 = flavor_format(base_blurbs[cfg.REF_DEFAULT], subject=attacker, action=atk_action)
+                    return rep_str_1 + rep_str_2
+                return rep_str_2
             else:
                 return flavor_format(
                     "You're not exactly sure what it is that {NPC_NAME} is swinging at you, but do you really want to find out?",
-                    subject=attacker
+                    subject=attacker, action=atk_action
                 )
         elif action_type == CAction.MELEE_ENGAGE:  # TODO: later, adjust these to have unique text for blink/soaring leap
-            return flavor_format(base_blurbs[cfg.REF_DEFAULT], subject=attacker)
+            return flavor_format(base_blurbs[cfg.REF_DEFAULT], subject=attacker, action=atk_action)
         elif action_type == CAction.DISENGAGE:
-            return flavor_format(base_blurbs[cfg.REF_DEFAULT], subject=attacker)
+            return flavor_format(base_blurbs[cfg.REF_DEFAULT], subject=attacker, action=atk_action)
         else:
             raise NotImplementedError("Blurbs are currently only implemented for ranged/melee attacks and rush/disengage actions.")
 
@@ -553,6 +577,7 @@ init 1 python in flavor:
 
     def prompt_combat_death(fallen, indoors=None, cause_of_death=None, pc_hunger=1):
         # TODO: expand on this
+        mortality_desig = cfg.CT_HUMAN if fallen.creature_type in cfg.REF_MORTALS else cfg.CT_VAMPIRE
         return flavor_format(C_DEATH_BLURBS[mortality_desig][cfg.REF_DEFAULT], subject=fallen, indoors=indoors)
 
     WEAPON_TERMS = {

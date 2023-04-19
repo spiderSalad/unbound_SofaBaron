@@ -226,10 +226,11 @@ init 1 python in game:
             self.disciplines.reset(hard_reset=True)
             self.inventory, self.equipped_weapon = None, None
             self.lethal_body_active = False
+            self.sense_creature_types = False
             self.reset_charsheet_stats()
 
         @property
-        def name(self):
+        def label(self):
             return "You"
             # return self.nickname
 

@@ -1330,6 +1330,121 @@
         ]
     },
     {
+        "name":"Ryanz-Official",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Slurping", "licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"Ryanz-Official", "url":"https://freesound.org/people/Ryanz-Official/"}
+        ]
+    },
+    {
+        "name":"iainmccurdy",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"Frying09.wav", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"iainmccurdy", "url":"https://freesound.org/people/iainmccurdy/"}
+        ]
+    },
+    {
+        "name":"Drake Stafford",
+        "type":"musician",
+        "works":[
+            {"name":"Excogitate", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"},
+        ],
+        "website":"https://www.drakestafford.com/",
+        "socials":[
+            {"site":"Soundcloud", "handle":"Drake Stafford", "url":"https://soundcloud.com/drake_stafford"},
+            {"site":"Youtube", "handle":"Drake Stafford", "url":"https://www.youtube.com/channel/UCiaus0-lYZ5GNPhaneLb1XQ"},
+            {"site":"Freemusicarchive.org", "handle":"Drake Stafford", "url":"https://freemusicarchive.org/music/Drake_Stafford/"}
+        ]
+    },
+    {
+        "name":"Sro",
+        "type":"musician",
+        "works":[
+            {"name":"Creepy Delta Ship", "licenseUrl":"https://creativecommons.org/licenses/by-sa/4.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"Soundcloud", "handle":"s-r-o", "url":"https://soundcloud.com/s-r-o"},
+            {"site":"Bandcamp", "handle":"s-r-o", "url":"https://sromuchsound.bandcamp.com/"},
+            {"site":"Freemusicarchive.org", "handle":"Sro", "url":"https://freemusicarchive.org/music/Sro/"}
+        ]
+    },
+    {
+        "name":"10 Echo",
+        "type":"musician",
+        "works":[
+            {"name":"Volcano", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"Freemusicarchive.org", "handle":"10 Echo", "url":"https://freemusicarchive.org/music/10-echo/contact"},
+            {"site":"Bandcamp", "handle":"10 Echo", "url":"https://10echo.bandcamp.com/"},
+        ]
+    },
+    {
+        "name":"",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"asdfdsdfd", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"sdfdfd", "url":"https://freesound.org/people/sdfdfd/"}
+        ]
+    },
+    {
+        "name":"",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"asdfdsdfd", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"sdfdfd", "url":"https://freesound.org/people/sdfdfd/"}
+        ]
+    },
+    {
+        "name":"",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"asdfdsdfd", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"sdfdfd", "url":"https://freesound.org/people/sdfdfd/"}
+        ]
+    },
+    {
+        "name":"",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"asdfdsdfd", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"sdfdfd", "url":"https://freesound.org/people/sdfdfd/"}
+        ]
+    },
+    {
+        "name":"",
+        "type":"sound_engineer",
+        "works":[
+            {"name":"asdfdsdfd", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+        ],
+        "website":"",
+        "socials":[
+            {"site":"freesound.org", "handle":"sdfdfd", "url":"https://freesound.org/people/sdfdfd/"}
+        ]
+    },
+    {
         "name":"",
         "type":"sound_engineer",
         "works":[

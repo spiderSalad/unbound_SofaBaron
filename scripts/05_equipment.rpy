@@ -1,6 +1,6 @@
 init 1 python in game:
 
-    cfg, utils, audio = renpy.store.cfg, renpy.store.utils, renpy.store.audio
+    cfg, utils, audio, flavor = renpy.store.cfg, renpy.store.utils, renpy.store.audio, renpy.store.flavor
 
 
     class Item:
@@ -41,12 +41,16 @@ init 1 python in game:
             for kwarg in kwargs:
                 setattr(self, kwarg, kwargs[kwarg])
 
+        @property
+        def label(self):
+            return self.name
+
         def __repr__(self):
             t_label = self.subtype if self.subtype else self.item_type
-            return "<{} #{}>".format(self.name, utils.truncate_string(self.key[7:], leng=len(t_label) + 5))
+            return "<{} #{}>".format(self.label, utils.truncate_string(self.key[7:], leng=len(t_label) + 5))
 
         def __str__(self):
-            return "<{}>".format(self.name)
+            return "<{}>".format(self.label)
 
         def copy(self, item_base=None):
             if item_base is None:
@@ -147,11 +151,11 @@ init 1 python in game:
                 return None
             wtype, subtype = action.weapon_used.item_type, action.weapon_used.subtype
             if hit:
-                return cfg.IMPACT_SOUNDS[subtype] if wtype == Item.IT_FIREARM else cfg.STRIKE_SOUNDS[subtype]
+                return flavor.IMPACT_SOUNDS[subtype] if wtype == Item.IT_FIREARM else flavor.STRIKE_SOUNDS[subtype]
             elif hit == False:
-                return cfg.WHIFF_SOUNDS[subtype] if wtype == Item.IT_WEAPON else cfg.RICOCHET_SOUNDS[subtype]
+                return flavor.WHIFF_SOUNDS[subtype] if wtype == Item.IT_WEAPON else flavor.RICOCHET_SOUNDS[subtype]
             else:  # hit is None
-                return cfg.FIRING_SOUNDS[subtype] if wtype == Item.IT_FIREARM else cfg.RICOCHET_SOUNDS[subtype]
+                return flavor.FIRING_SOUNDS[subtype] if wtype == Item.IT_FIREARM else flavor.RICOCHET_SOUNDS[subtype]
 
         @staticmethod
         def get_damage_type(lethality, target_creature_type):
@@ -195,7 +199,7 @@ init 1 python in game:
                 ))
 
         def __str__(self):
-            return '\n'.join([itm.name for itm in self.items])
+            return '\n'.join([itm.label for itm in self.items])
 
         @property
         def items(self):
@@ -321,12 +325,12 @@ init 1 python in game:
         def equip(self, item, slot=None, force=False):
             equip_slot = self.get_free_equipment_slot(item.item_type, preferred_slot=slot)
             if equip_slot is None and not force:
-                utils.log("Could not equip item \"{}\"; there are no free valid slots.".format(item.name))
+                utils.log("Could not equip item \"{}\"; there are no free valid slots.".format(item.label))
             elif equip_slot is None:
                 valid_slots = self.get_valid_equipment_slots(item.item_type)
                 if valid_slots is None:
                     raise ValueError("Could not equip \"{}\"; \"{}\" is not a valid type.".format(
-                        item.name, item.item_type
+                        item.label, item.item_type
                     ))
                 self.equipped[valid_slots[0]] = item
             else:
@@ -334,11 +338,11 @@ init 1 python in game:
 
         def unequip(self, item, slot=None):
             if not self.is_equipped(item):
-                utils.log("Attempted to unequip item \"{}\", but it's not equipped.".format(item.name))
+                utils.log("Attempted to unequip item \"{}\", but it's not equipped.".format(item.label))
                 return
             valid_slots = self.get_valid_equipment_slots(item.item_type)
             if valid_slots is None:
-                raise ValueError("Could not equip \"{}\"; \"{}\" is not a valid type.".format(item.name, item.item_type))
+                raise ValueError("Could not equip \"{}\"; \"{}\" is not a valid type.".format(item.label, item.item_type))
             for slot in valid_slots:
                 if Inventory.item_match(item, self.equipped[slot]):
                     self.equipped[slot] = None

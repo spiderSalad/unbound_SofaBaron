@@ -32,7 +32,7 @@ init 1 python in flavor:
 
     hunt_failed_human_generic = {
         "prey_fled_1": [
-            "That could have gone better. You fail to feed, but you {i}think{/i} you managed a clean escape.",
+            "That could have gone better. You fail to feed, but you {{i}}think{{/i}} you managed a clean escape.",
             "At this rate you're going to be sent to bed with no dinner.",
             "Tonight just might not be your night."
         ],
@@ -46,7 +46,7 @@ init 1 python in flavor:
 
     fed_on_bagged = {
         "two_slaked": [
-            "Relief, at last. But that's all. No flavor, no kick, no pathos, no {i}life{/i}. Just relief from the Hunger. For now.",
+            "Relief, at last. But that's all. No flavor, no kick, no pathos, no {{i}}life{{/i}}. Just relief from the Hunger. For now.",
             "Your Hunger subsides as the cold, dead blood pours down your throat."
         ],
         "one_slaked": [
@@ -63,11 +63,11 @@ init 1 python in flavor:
 
     fed_on_animal = {  # TODO: Add separate entries for Animal Succulence?
         "two_slaked": [
-            "There's flavor here. There's life. But it's {i}faint{/i}, somehow. Or maybe distorted? Incompatible, somehow. But your Hunger {i}does{/i} recede.",
-            "You feel like there should be {i}more{/i} to this, somehow. They struggled. Feared. Hoped. In their own way. But there's a disconnect. Still, the Hunger fades."
+            "There's flavor here. There's life. But it's {{i}}faint{{/i}}, somehow. Or maybe distorted? Incompatible, somehow. But your Hunger {{i}}does{{/i}} recede.",
+            "You feel like there should be {{i}}more{{/i}} to this, somehow. They struggled. Feared. Hoped. In their own way. But there's a disconnect. Still, the Hunger fades."
         ],
         "one_slaked": [
-            "It's not flavorless. Just the opposite, in fact. There's a musky taste to it. Something reminiscent of human fear, but {i}off{/i}. Faint. Unsatisfying.",
+            "It's not flavorless. Just the opposite, in fact. There's a musky taste to it. Something reminiscent of human fear, but {{i}}off{{/i}}. Faint. Unsatisfying.",
             "You taste the now-familiar animal musk of the blood, a rank, tangy, heady brew that effervesces away into nothing, satisfying just a bit of your Hunger."
         ],
         "zero_slaked": [  # Ditto animal blood.
@@ -363,9 +363,6 @@ label hunting_outcome_bloodbag_sub(*args):
 
     label .strike_messycrit:
 
-        play sound audio.feed_bite1
-        queue sound audio.feed_heartbeat  # TODO: get a new sound to replace this w/ bloodbags, like a slurping sound
-
         "You soberly contemplate the mess you've made in your frenzied haste, and sigh."
 
         if pc.humanity <= cfg.KILLHUNT_HUMANITY_MAX and state.innocent_killed:
@@ -383,9 +380,6 @@ label hunting_outcome_bloodbag_sub(*args):
         jump .either_crit_type
 
     label .strike_crit:
-
-        play sound audio.feed_bite1
-        queue sound audio.feed_heartbeat  # TODO: get a new sound to replace this w/ bloodbags, like a slurping sound
 
         if pc.predator_type == cfg.PT_BAGGER:
             $ you_feed = "That could hardly have gone better. Like a quick run to the corner store to pick up a six-pack."
@@ -409,6 +403,9 @@ label hunting_outcome_bloodbag_sub(*args):
         $ slaked_hunger = _return
 
         label .any_win:
+
+        play sound audio.feed_bite1
+        queue sound audio.feed_bagged_1
 
         # Messages for drinking bagged blood are all the same after 2.
         $ you_feed_ps = flavor.flav("fed_on_bagged", "{}_slaked".format(cfg.SCORE_WORDS[min(slaked_hunger, 2)]))
@@ -593,7 +590,7 @@ label hunting_outcome_animal_sub(*args):
                 "If there's anything lower than framing dogs for your own frenzied killing, it's having to do so more than once. You're not even sure it'll work again."
             elif state.killshelter_frenzy:
                 "You have your doubts that this trick will work again, but what choice do you have?"
-            elif state.pc.Humanity > 5:
+            elif state.pc.humanity > 5:
                 "Framing dogs for your own frenzied killing. For your own lack of control. This must be a new low."
             $ state.killshelter_frenzy = True
             $ state.masquerade_breach(base=25)  # People are much more likely to notice dead shelter animals than dead rats.
@@ -625,10 +622,6 @@ label hunting_outcome_animal_sub(*args):
         $ current_result_messycrit = False
         "That went about as well as it could."
 
-        $ you_feed = flavor.flav("fed_on_animal", "{}_slaked".format(cfg.SCORE_WORDS[min(slaked_hunger, 2)]))
-
-        "[you_feed]"
-
         if state.hunt_locale == "trash":
             "You drink your fill of rats, darting back and forth in the darkness amid panicked squeaks and scrabbling claws."
             # TODO: update this for animalism powers
@@ -645,6 +638,10 @@ label hunting_outcome_animal_sub(*args):
             state.set_hunger("-={}".format(slaked_hunger))
             state.feed_resonance(reso=cfg.RESON_ANIMAL, boost=1)
 
+        $ you_feed = flavor.flav("fed_on_animal", "{}_slaked".format(cfg.SCORE_WORDS[min(slaked_hunger, 2)]))
+
+        "[you_feed]"
+
         if not current_result_messycrit:
             jump .any_win
 
@@ -660,6 +657,8 @@ label hunting_outcome_animal_sub(*args):
 
         # Messages for drinking animal blood are all the same after 2.
         $ you_feed = flavor.flav("fed_on_animal", "{}_slaked".format(cfg.SCORE_WORDS[min(slaked_hunger, 2)]))
+
+        $ print("you_feed :> ", you_feed)
 
         "[you_feed]"
 

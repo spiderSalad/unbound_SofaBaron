@@ -3,8 +3,6 @@ default state.diceroller            = None
 default state.arena                 = None
 default state.clock                 = None
 
-default state.night                 = 0
-default state.hours_left            = 12
 default state.first_hunt            = False
 default state.daybreak              = False
 default state.overtime              = 0
@@ -37,6 +35,7 @@ default state.pc_laptop             = "old ASUS"
 default state.prey                  = "None (a ya bidness)"
 default state.innocent_killed       = False
 default state.innocent_drained      = False
+default state.killshelter_frenzy    = False
 default state.hunger_b4_last_feeding= None
 default state.current_hunt_type     = None
 default state.hunt_locale          = ""
@@ -79,7 +78,7 @@ default state.cum_intensity_weights = store.utils.get_cum_weights(*state.rint_we
 
 init 1 python in state:
     # pc = None
-    cfg, utils = renpy.store.cfg, renpy.store.utils
+    cfg, utils, devtest = renpy.store.cfg, renpy.store.utils, renpy.store.devtest
 
     gdict = cfg.__dict__
     attr_names = [getattr(cfg, aname) for aname in gdict if str(aname).startswith("AT_")]
@@ -188,12 +187,14 @@ init 1 python in state:
 
     def new_prey(pronoun_set=None):
         global prey
-        if prey:
-            del prey
-            global prey
-            prey = None
+        prey = None
+        # if prey:
+        # del prey
+        # global prey
+        # prey = None
         prey = MortalPrey(pronoun_set=pronoun_set)
         print("global prey defined as: {}, renpy.store.state.prey = {}".format(prey, renpy.store.state.prey))
+        # TODO: this still isn't working 4/24/23
 
     def masquerade_breach(base=10):
         global masquerade
@@ -212,6 +213,20 @@ init 1 python in state:
         if masquerade > cfg.VAL_MASQUERADE_MAX:
             overfill = masquerade - cfg.VAL_MASQUERADE_MAX
             give_item(Item(Item.IT_MONEY, name="Masquerade Bucks", quantity=overfill))  # TODO: change this to rep gain later
+
+    def nightly_event_handler():
+        global masquerade, notoriety
+        prev_masq, prev_notor = masquerade, notoriety
+        masquerade += utils.random_int_range(-5, 5)
+        masquerade = min(cfg.VAL_MASQUERADE_MAX, max(cfg.VAL_MASQUERADE_MIN, masquerade))
+        if notoriety < 30:
+            notoriety -= (1 if utils.percent_chance(35) else 0)
+        notoriety = min(cfg.VAL_NOTORIETY_MAX, max(cfg.VAL_NOTORIETY_MIN, notoriety))
+        utils.log("Nightly shift: Masquerade change from {:5.2f} to {:5.2f}. Notoriety change from {:7.4f} to {:7.4f}".format(
+            prev_masq, masquerade, prev_notor, notoriety  # TODO: left off here (Apr 8)!! TODO
+        ))
+        if cfg.DEV_MODE and devtest.DEV_DAY_NIGHT_TEST:
+            devtest.test_night_cycle()
 
     def feed_resonance(intensity=None, reso=None, boost: int = 0):
         if not intensity:
@@ -429,13 +444,17 @@ label sun_threat:
         if sun_damage < 1:
             "Somehow you make it to shelter unscathed."
         else:
-            # TODO: add sound effect here
+            play audio audio.sun_threat_2_burn
+            play sound audio.fleeing_footsteps1
+            queue sound audio.body_fall4
 
             beast "AAAAAAAAAAAAAAAAAAAAAAAA"
 
             "The sun blazes with hateful light. Blinded and burning, you flee in a Beast driven panic."
 
-            "Thinking back later, you wonder. Were you guided by the uncanny instinct of your Beast? Or did what was left of your rational mind prevail?"
+            "Thinking back later, you wonder. Were you guided by the uncanny instinct of your Beast?"
+
+            "Or did what was left of your rational mind prevail?"
 
             "And where the hell are you, anyway?"
 
@@ -457,6 +476,7 @@ label new_night:
         state.hunted_tonight = False
         state.tried_hunt_tonight = False
         state.mended_agg_tonight = False
+        state.nightly_event_handler()
 
     if pc.hp.agg_damage > 0:
         call mend.aggravated from new_night_standard_agg_mend
@@ -476,7 +496,10 @@ label new_night:
     if hungrier and can_hunt and not state.mended_agg_tonight:
         beast "Wake. Up. We need to feed."
     elif hungrier and can_hunt:
-        beast "Pull your carcass off the floor and get hunting! Chop. Chop."
+        beast "Pull your carcass off the floor and get hunting! Chop. {i}Chop.{/i}"
+
+    if cfg.DEV_MODE:
+        call dev_tests.test_nightly_encounter_roulette from hub_dev_test_option_nightly_1
 
     return
 
@@ -534,11 +557,13 @@ label mend:
                 "But eventually it's over, and in reality it's been about an hour."
 
                 if hungrier:
-                    "The Hunger stabs its talons into your brain, making your head pound and your gums throb. But you're a bit closer to being whole."
+                    "Hunger stabs its talons into your brain, making your head pound and your gums throb."
+
+                    "But you're a bit closer to being whole."
 
                     beast "TIME TO FEED, \"FRIEND\". Time. To. Fucking. Feed."
                 else:
-                    "Incredibly, you don't even feel any hungrier than before. Perhaps later you ought to ponder the meaning of such good fortune."
+                    "Incredibly, you don't even feel any hungrier than before. Perhaps later you'll to ponder the meaning of such good fortune."
 
                     beast "Don't say I never did anything for you."
 

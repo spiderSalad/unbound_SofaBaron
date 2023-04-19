@@ -156,24 +156,20 @@ init 1 python in game:
                 self.agg_damage = max(damage - amount, 0)
 
 
-    class Person:
+    class NarrativeObject:
 
-        RAND_AGES = (cfg.REF_AA_YOUNG_ADULT, cfg.REF_AA_ADULT, cfg.REF_AA_MIDDLE_AGED, cfg.REF_AA_ELDERLY)
-        AGE_CUM_WEIGHTS = utils.get_cum_weights(100, 90, 80, 30)
-
-        def __init__(self, ctype=cfg.CT_HUMAN, pronoun_set=None, apparent_age=None, **kwargs):
+        def __init__(self, name="", **kwargs):
+            self.name = name
             self.is_pc = False
-            self.creature_type = ctype
-            self.scream = None  # For now.
+            self.creature_type = None
+            self.sapient = False
             self._pronoun_set = None
-            self.pronoun_set = pronoun_set
-            if pronoun_set is None:
-                self.pronoun_set = Person.random_pronouns()
-            self.apparent_age = apparent_age
-            if apparent_age is None:
-                self.apparent_age = utils.get_wrs(Person.RAND_AGES, cum_weights=Person.AGE_CUM_WEIGHTS[:len(Person.RAND_AGES)])
-            for kwarg in kwargs:
-                setattr(self, kwarg, kwargs[kwarg])
+            self._hostility = None
+            if isinstance(self, Person):
+                self.is_animate = True
+            else:
+                self.is_animate = False
+                self.pronoun_set = cfg.PN_INANIMATE
 
         @property
         def pronoun_set(self):
@@ -183,6 +179,63 @@ init 1 python in game:
         def pronoun_set(self, new_pn_set):
             self._pronoun_set = new_pn_set
             self.scream = self.set_scream()
+
+        @property
+        def has_Beast(self):
+            return self.creature_type in cfg.REF_HAS_SUPERNATURAL_BEAST
+
+        @property
+        def hostility(self):
+            if not self._hostility:
+                return "calm"
+            any_hostility = False
+            if self._hostility is True or self._hostility > 0:
+                any_hostility = True
+            if hasattr(self, "in_combat") and self.in_combat:
+                return "attacking" if any_hostility else "wary"
+            if self._hostility > 2:
+                return "intent on violence"
+            return "aggressive" if self._hostility > 1 else "agitated"
+
+        @hostility.setter
+        def hostility(self, new_hostil):
+            self._hostility = new_hostil
+
+        @property
+        def label(self):
+            ent_label = self.name
+            if state.pc and (self.is_animate or state.pc.sense_creature_types):
+                beast_check = "BEAST, " if self.has_Beast else ""
+                if state.pc.using_sense_the_beast and state.pc.sense_creature_types:
+                    ent_label = "{} ({}{}, {})".format(ent_label, beast_check, self.creature_type, self.hostility)
+                elif state.pc.using_sense_the_beast:
+                    ent_label = "{} ({}{})".format(ent_label, beast_check, self.hostility)
+                elif state.pc.sense_creature_types:
+                    ent_label = "{} ({})".format(ent_label, self.creature_type)
+            return ent_label
+
+
+    class Person(NarrativeObject):
+
+        RAND_AGES = (cfg.REF_AA_YOUNG_ADULT, cfg.REF_AA_ADULT, cfg.REF_AA_MIDDLE_AGED, cfg.REF_AA_ELDERLY)
+        AGE_CUM_WEIGHTS = utils.get_cum_weights(100, 90, 80, 30)
+
+        def __init__(self, name="", ctype=cfg.CT_HUMAN, pronoun_set=None, apparent_age=None, set_sapience=None, **kwargs):
+            super().__init__(name=name, **kwargs)
+            self.creature_type = ctype
+            self.sapient = True
+            if self.creature_type not in cfg.REF_SAPIENT_SPECIES and not sapience:
+                self.sapient = False  # All persons are sentient, but not all animals are sapient
+            self.scream = None  # For now.
+            self.pronoun_set = pronoun_set
+            if pronoun_set is None:
+                self.pronoun_set = Person.random_pronouns()
+            self.apparent_age = apparent_age
+            if apparent_age is None:
+                self.apparent_age = utils.get_wrs(Person.RAND_AGES, cum_weights=Person.AGE_CUM_WEIGHTS[:len(Person.RAND_AGES)])
+            self.using_sense_the_beast = False
+            for kwarg in kwargs:
+                setattr(self, kwarg, kwargs[kwarg])
 
         @property
         def desc_age_adj(self):
@@ -352,9 +405,9 @@ init 1 python in game:
         def __init__(self, physical=4, social=4, mental=4, name="", ftype=None, ctype=cfg.CT_HUMAN, bcs=None, **kwargs):
             super().__init__(ctype=ctype, **kwargs)
             self.ftype = NPCFighter.FT_BRAWLER if ftype is None else ftype
-            self.name = name
+            self.char_id = utils.generate_random_id_str(label="npc#{}#".format(self.ftype))
             if not self.name:
-                self.name = utils.generate_random_id_str(label="npc#{}#".format(self.ftype))
+                self.name = "{} {}".format(self.creature_type, self.ftype)
             self.physical, self.social, self.mental = physical, social, mental
             self.hp = V5Tracker(self, self.physical + 3, cfg.TRACK_HP)
             self.will = V5Tracker(self, self.mental + self.social, cfg.TRACK_WILL)

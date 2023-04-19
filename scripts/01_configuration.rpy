@@ -1,18 +1,13 @@
+# Modules: cfg, utils, state, game, flavor, audio, devtest
+
 init 0 python in cfg:
     from string import ascii_letters, digits
 
     # NOTE: this persists between game load/cycles, as it's run when Ren'py starts - NOT when the game starts.
     DEV_MODE = True
-    DEV_MUTE_MUSIC = False
-    DEV_FREE_DISCIPLINES = False
 
-    DEV_TESTING_COMBAT = False
-    DEV_TESTING_HUNT_FLAVOR = True
-    DEV_FREE_BLINK = False
-    DEV_COMBAT_AUTO_PASS = True
-    DEV_FACETANK = True
-
-    DEV_WHATEVER = False
+    FREE_DISCIPLINES = False
+    FREE_BLINK = False
 
     KEY_INPUT_ENABLED = False
     KEY_INPUT_WATCH = ascii_letters + digits
@@ -22,6 +17,7 @@ init 0 python in cfg:
     PATH_GUI_IMAGES = "gui/"
     PATH_CREDITS_JSON = "credits.json"
 
+    COMBAT_LABEL_MAIN = "combat_encounter"
     DOT_NUMBERS = ("zero", "one", "two", "three", "four", "five")
 
     REF_TYPE = "type"
@@ -35,6 +31,12 @@ init 0 python in cfg:
     REF_MOMENTS = "moments"
     REF_MID = "mid"
     REF_TEXT = "text"
+    REF_1_VALUE = "value"
+    REF_VALUES = "values"
+    REF_1_WEIGHT = "weight"
+    REF_WEIGHTS = "weights"
+    REF_CUM_WEIGHTS = "cum_weights"
+    REF_TOTAL = "ref_total"
     REF_CHOICE_PROMPT = "text"
     REF_CHOICES = "choices"
     REF_CHOICE_LABEL = "label"
@@ -47,12 +49,14 @@ init 0 python in cfg:
     CT_ANIMAL = "Animal"
     CT_FAMULUS = "Ghoul (Animal)"
     CT_HUMAN = "Human"
-    CT_GHOUL = "Ghoul (Human)"
+    CT_GHOUL = "Ghoul"
     CT_VAMPIRE = "Kindred"
     CT_LUPINE = "Werewolf"
 
     REF_MORTALS = [CT_ANIMAL, CT_FAMULUS, CT_HUMAN, CT_GHOUL, CT_LUPINE]  # TODO: revisit this for lupines
+    REF_SAPIENT_SPECIES = [CT_HUMAN, CT_GHOUL, CT_VAMPIRE, CT_LUPINE]
     REF_UNDEAD = [CT_VAMPIRE]
+    REF_HAS_SUPERNATURAL_BEAST = [CT_VAMPIRE, CT_LUPINE]
 
     # Pronouns
     PN_SHE_HE_THEY = "pn_subjective"
@@ -90,10 +94,14 @@ init 0 python in cfg:
     PN_PERSON.PN_SHELL_HELL_THEYLL = "they'll"
     PN_PERSON.PN_HERSELF_HIMSELF_THEMSELF = "themself"
 
-    print("\n---\nman:{}\nwoman: {}\nenby: {}".format(PN_MAN, PN_WOMAN, PN_PERSON))
-    print("\n\npn man:\n{}".format(
-        "\n".join(["{}:  {}".format(key, getattr(PN_MAN, key)) for key in PN_MAN.__dict__])
-    ))
+    PN_INANIMATE = object()
+    PN_INANIMATE.PN_SHE_HE_THEY = "it"
+    PN_INANIMATE.PN_HER_HIM_THEM = "it"
+    PN_INANIMATE.PN_STRANGER = "object"
+    PN_INANIMATE.PN_HER_HIS_THEIR = "its"
+    PN_INANIMATE.PN_SHES_HES_THEYRE = "it's"
+    PN_INANIMATE.PN_SHELL_HELL_THEYLL = "it'll"
+    PN_INANIMATE.PN_HERSELF_HIMSELF_THEMSELF = "itself"
 
     REF_APPARENT_AGE = "apparent_age"
     REF_AA_YOUNG_ADULT = "a younger"
@@ -372,7 +380,7 @@ init 0 python in cfg:
         },
         "Bartender": {
             REF_TYPE: REF_BG_PAST, REF_SUBTYPE: REF_BG_PAST,
-            REF_DESC: "You exist at the intersection of countless lives. One of the few things that hasn't changed.",
+            REF_DESC: "You thrive at the noisy intersection of countless lives. At least that hasn't changed.",
             REF_ATTRS_ALL: 1, AT_DEX: 1, AT_CHA: 2, AT_MAN: 1, AT_WIT: 1, AT_RES: -1,
             REF_SKILLS_ALL: 1, SK_DIPL: 2, SK_INSP: 1, SK_STWS: 2, SK_INTR: 2, SK_TRAV: 1,
             SK_ATHL: -1, SK_FIRE: -1, SK_OCCL: -1,
@@ -751,13 +759,17 @@ image bg haven basic            = "images/bg_haven.jpg"
 image bg domain basic           = "images/bg_domain.jpg"
 image bg sunrise sky            = "images/bg_sunrise.jpg"
 
-define audio.main_theme         = "audio/music/Darkstar83 - Shadow Walker.mp3"
+define audio.main_theme         = "audio/music/Darkstar83 - Shadow Walker.mp3"  # can't use; remove
+define audio.excogitate         = "audio/music/Drake Stafford - Excogitate.mp3"  # main theme?
+define audio.creepydelta        = "audio/music/Sro - Creepy Delta Ship.mp3"  # hunting/intrigue/horror?
+define audio.Volcano            = "audio/music/10 Echo - Volcano.mp3"  # outside/hunting?
 
 define audio.gui_heartbeat      = "audio/sound/86886__timbre__74829-jobro-heartbeat-timbre-s-variant-1b-loop.mp3"
 define audio.beastgrowl1        = "audio/sound/344903__aegersum__monster-deep-growl.mp3"
 define audio.beastgag           = "audio/sound/347541__pfranzen__human-impression-of-cat-hacking-up-hairball.ogg"
 define audio.feed_bite1         = "audio/sound/400174__jgriffie919__flesh-bite.mp3"
 define audio.feed_heartbeat     = "audio/sound/608241__newlocknew__heart-beat-calm-rhythm-blood-flows-in-the-veins-6lrs.mp3"
+define audio.feed_bagged_1      = "audio/sound/639848__ryanz-official__slurping.mp3"
 define audio.body_fall1         = "audio/sound/372226__eflexmusic__bodyfall-3-mixed.mp3"
 define audio.body_fall2         = "audio/sound/502553__kneeling__goblin-fall.mp3"
 define audio.body_fall3_cough   = "audio/sound/222501__qubodup__person-knocked-down.mp3"
@@ -783,6 +795,7 @@ define audio.oncoming_frenzy_2  = "audio/sound/37192__volivieri__funky-static.mp
 define audio.flanging_clang_1   = "audio/sound/39377__shimsewn__quaver-pokes.mp3"
 define audio.alien_whisper      = "audio/sound/329333__curly123456__monster-185-flange.mp3"
 define audio.sun_threat_1       = "audio/sound/484461__nowism__fx-long-meepf.mp3"
+define audio.sun_threat_2_burn  = "audio/sound/440857__iainmccurdy__frying09.mp3"
 define audio.get_item_1_gun     = "audio/sound/177054__woodmoose__lowerguncock.mp3"
 define audio.get_item_2         = "audio/sound/630021__flem0527__shuffling-backpack.mp3"
 define audio.mending_1          = "audio/sound/659959__legand569__flesh-wound-removing-bulletowi.mp3"

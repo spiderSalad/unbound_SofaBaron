@@ -167,7 +167,7 @@ label hunt_bagger(status):
 
         $ can_drink_shit = state.pc.has_background(bg_name=cfg.BG_IRON_GULLET)
         if can_drink_shit:
-            $ fract_1, fract_2 = ", which you would {i}really{/i} rather not drink, though you've found that you can.", "No, what you're looking for is "
+            $ fract_1, fract_2 = ", which you've found you {i}can{/i} drink - sometimes - but you'd really rather not.", "No, what you're looking for is "
         else:
             $ fract_1, fract_2 = ", all of which are pretty much undrinkable swill even by your rather low standards.", " You need "
         "You're not going to any of them, of course - they mostly deal in fractionated blood products[fract_1]"
@@ -228,7 +228,7 @@ label hunt_farmer(status):
 
             "Fortunately, these places don't tend to have a whole lot of security. You just need to break in and make sure you don't send the entire doomed menagerie into a panic."
 
-            "Anyway, the problem is that there could be night staff, and even just one is too many if they come running at the sound of a hundred strays freaking out."
+            "The problem is that there could be night staff, and if even one person comes running at the sound of a hundred strays freaking out..."
 
             "No matter how callously the animals are treated, it would not do to let yourself be seen or recorded chewing on one."
 
@@ -448,7 +448,6 @@ label default_hunt_subroutine(planning_pool, planning_test, feeding_pool, feedin
         jump .end
 
     label .say_flavor(h_phase, h_outcome):
-        $ flavor_text = state.pt_flavor_pack.assemble(h_phase, h_outcome)
         call say_script(flavor_text) from hunt_2_sayscript_reroute_1
         return
 

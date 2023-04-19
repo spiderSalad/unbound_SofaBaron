@@ -271,7 +271,7 @@ init 1 python in state:
                 ))
                 # rouse_check(num_checks=num_rouse_checks, reroll=reroll)
                 if num_rouse_checks > 0 and who.can_rouse():
-                    if not cfg.DEV_MODE or not cfg.DEV_FREE_DISCIPLINES:
+                    if not cfg.DEV_MODE or not cfg.FREE_DISCIPLINES:
                         hungrier = renpy.call_in_new_context("roll_control.rouse_check", num_checks=num_rouse_checks, reroll=reroll)
                     if hungrier:
                         refresh_hunger_ui()
@@ -287,6 +287,13 @@ init 1 python in state:
                 # while on a menu, as if that's returning None as a menu choice selection?
             else:
                 raise ValueError("\"{}\" is not implemented here, at least not yet.".format(dp_name))
+
+        # Animalism
+
+        def sense_the_beast(self, who=None):
+            if who.has_disc_power(cfg.POWER_ANIMALISM_SENSE, cfg.DISC_ANIMALISM):
+                who.using_sense_the_beast = not who.using_sense_the_beast
+                # renpy.play(audio.something, "audio") TODO find sound for this
 
         # Celerity
 

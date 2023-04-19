@@ -30,7 +30,7 @@ init 1 python in game:
             self.actual_dmg_tup = None
 
         def __repr__(self):
-            targ = " ==> {}".format(self.target.name) if self.target else ""
+            targ = " ==> {}".format(self.target.label) if self.target else ""
             return "{} #{} | {}{} :: {}".format(self.battle_id, self.record_id, self.user, target, self.log_str)
 
         def __str__(self):
@@ -80,7 +80,7 @@ init 1 python in game:
 
             weapon_str, power_str = "", ""
             if damaging_attack and action.weapon_used:
-                weapon_str = "+{} via {}".format(record.dmg_bonus, action.weapon_used.name)
+                weapon_str = "+{} via {}".format(record.dmg_bonus, action.weapon_used.label)
             elif damaging_attack and action.unarmed_power_used:
                 if record.dmg_bonus > 0:
                     weapon_str = "+{} via {}".format(record.dmg_bonus, action.unarmed_power_used)
@@ -132,21 +132,21 @@ init 1 python in game:
             elif def_action.lost_to_trump_card:
                 rep_atk_str = "atk: failed successfully"
             else:
-                fail_weap = atk_action.weapon_used.name if atk_action.weapon_used else "unarmed"
+                fail_weap = atk_action.weapon_used.label if atk_action.weapon_used else "unarmed"
                 rep_atk_str = "atk: ({}) failed to connect".format(fail_weap)
             if self.defend_record and self.defend_record.log_str and not def_action.lost_to_trump_card:
                 rep_def_str = "\n  /  def: {}".format(self.defend_record.log_str)
             elif atk_action.lost_to_trump_card:
                 rep_def_str = "\n  /  def: failed, but got away anyway"
             else:
-                fail_weap = def_action.weapon_used.name if def_action.weapon_used else "unarmed"
+                fail_weap = def_action.weapon_used.label if def_action.weapon_used else "unarmed"
                 rep_def_str = "\n  /  def: ({}) failed to defend".format(fail_weap)
             atkr_name = "{}[{}-{}]".format(
-                atk_action.user.name, str(atk_action.user.creature_type)[:2], str(atk_action.user.ftype)[:4]
+                atk_action.user.label, str(atk_action.user.creature_type)[:2], str(atk_action.user.ftype)[:4]
             )
             defender = atk_action.target if atk_action.target else (def_action.user if def_action.user else None)
             defr_name = "{}[{}-{}]".format(
-                defender.name if defender else "-???-", str(defender.creature_type)[:2] if defender else "--",
+                defender.label if defender else "-???-", str(defender.creature_type)[:2] if defender else "--",
                 str(defender.ftype)[:4] if defender else "x"
             )
             report_str = rpt_template.format(atkr_name, atype, defr_name, dtype, r1, r2, r3, r4, r5, rep_atk_str, rep_def_str)
@@ -274,7 +274,7 @@ init 1 python in game:
             if roll_result is None:
                 if just_went.dead:
                     self.increment()
-                    return "{} is dead.".format(just_went.name)
+                    return "{} is dead.".format(just_went.label)
                 elif atk_action.action_type in CAction.NO_CONTEST:
                     self.increment()
                     if just_went.is_pc:
@@ -282,10 +282,10 @@ init 1 python in game:
                     pns = just_went.pronoun_set
                     if just_went.engaged:
                         return "{} is unable to act while {} cornered by {} attackers.".format(
-                            just_went.name, pns.PN_SHES_HES_THEYRE, pns.PN_HER_HIS_THEIR
+                            just_went.label, pns.PN_SHES_HES_THEYRE, pns.PN_HER_HIS_THEIR
                         )
                     else:
-                        return "{} seems to be biding {} time...".format(just_went.name, pns.PN_HER_HIS_THEIR)
+                        return "{} seems to be biding {} time...".format(just_went.label, pns.PN_HER_HIS_THEIR)
                 raise ValueError("This should never be reached unless acting combatant is dead, and they don't seem to be.")
 
             follow_up = self.handle_clash(roll_result, atk_action, def_action)
@@ -457,7 +457,7 @@ init 1 python in game:
                 for i in range(len(ent.engaged) - 1, -1, -1):
                     opp = ent.engaged[i]
                     if opp.current_pos != ent.current_pos or opp.dead or opp.crippled or opp.shocked:
-                        utils.log("Disengaging {} from {}.".format(ent.name, opp.name))
+                        utils.log("Disengaging {} from {}.".format(ent.label, opp.label))
                         ent.engaged.remove(opp)
             # Other regular housekeeping
             for action in (atk_action, def_action):  # If an off-hand weapon was used for an attack, it's now the main held weapon.

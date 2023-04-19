@@ -40,7 +40,7 @@ screen dev_panel(*args):
         python:
             state, ro_text_main, ao_r, rosters_r = renpy.store.state, "", "", ""
 
-            # ent_format = lambda ent: " {}   {}".format(">" if state.arena.get_up_next() is ent else " ", ent.name)
+            # ent_format = lambda ent: " {}   {}".format(">" if state.arena.get_up_next() is ent else " ", ent.label)
             def ent_format(ent, show_stats=False):
                 if ent.dead:
                     key = "X"
@@ -58,7 +58,7 @@ screen dev_panel(*args):
                             # spf, agg, total, ent.current_pos, eng
                         # )
                         status_r = "  (hp: {})   {}".format(ent.hp, eng)
-                return " {0}{1}   {2: <8}{3}".format(key, status_l, ent.name, status_r)
+                return " {0}{1}   {2: <8}{3}".format(key, status_l, ent.label, status_r)
 
             pc_append = "  (pc={}/{}".format(pc.pronoun_set.PN_SHE_HE_THEY, pc.pronoun_set.PN_HER_HIM_THEM)
             pc_append += ", scream={})".format(utils.truncate_string(pc.scream, leng=20, reverse=True))
@@ -114,7 +114,7 @@ screen bl_corner_panel(*args):
                     use hovertext("{}".format(surge_prompt), tooltip=surge_tooltip, _action=bs_action, activated=state.blood_surge_active)
                     for item_slot in equipped:  # Add quickbar later
                         $ item, qb_key, sw_tt = equipped[item_slot] if equipped[item_slot] else None, "", None
-                        # $ print("we have item {} at slot {}".format(item.name if item else None, item_slot))
+                        # $ print("we have item {} at slot {}".format(item.label if item else None, item_slot))
                         if item and item_slot in [Inventory.EQ_CONSUMABLE_1, Inventory.EQ_CONSUMABLE_2]:
                             $ qb_key = " (x{})".format(equipped[item_slot].quantity)
                             $ sw_tt = item.desc if state.is_their_turn(pc) else sw_tooltip
@@ -124,7 +124,7 @@ screen bl_corner_panel(*args):
                                 qb_key = "{b}At hand{/b}: " if item_slot == Inventory.EQ_WEAPON else "At side: "
                                 sw_tt = item_desc if state.is_their_turn(pc) else sw_tooltip
                         if item:
-                            use hovertext("{}{}".format(qb_key, item.name), tooltip=sw_tt, _action=item_action)
+                            use hovertext("{}{}".format(qb_key, item.label), tooltip=sw_tt, _action=item_action)
                     for disc in pc.disciplines.get_unlocked():
                         for pow_level in pc.disciplines.pc_powers[disc]:
                             python:
@@ -558,12 +558,12 @@ screen codexCasefilesPage(*args):
                         frame style style.utility_frame:
                             python:
                                 color_str = game.Item.ITEM_COLOR_KEYS[item.item_type]
-                                title = item.name
+                                title = item.label
                                 tooltip = item.desc
                                 itype = item.item_type
 
                                 if itype == game.Item.IT_MONEY:
-                                    title = "{}: ${:.2f}".format(item.name, item.quantity)
+                                    title = "{}: ${:.2f}".format(item.label, item.quantity)
                                 elif itype == game.Item.IT_WEAPON or itype == game.Item.IT_FIREARM:
                                     if item.concealable:
                                         concealed = "You have your trusty forged CCW permit, just in case."

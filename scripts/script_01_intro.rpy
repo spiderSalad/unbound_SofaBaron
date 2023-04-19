@@ -12,7 +12,7 @@ define security_guard = Character("Security", color="#233492")
 
 label start:
 
-    if cfg.DEV_MUTE_MUSIC:
+    if devtest.DEV_MUTE_MUSIC:
         stop music
 
     if cfg.DEV_MODE:
@@ -55,7 +55,7 @@ label intro:
 
     james "Holy shit, you're alive! Thought for sure you was dead."
 
-    "The return to consciousness is jarring, almost painful. Not at all like waking up from natural sleep, like you used to do. The man kneeling at your side reeks of cheap booze and body odor, but the concern on his face seems genuine."
+    "The return to consciousness is jarring, almost painful. Not at all like waking up from real sleep, like you used to do. The man kneeling at your side reeks of cheap booze and body odor, but the concern on his face seems genuine."
 
     james "You alright? You wasn't movin' at all. Like a dead body or something."
 
@@ -63,7 +63,7 @@ label intro:
 
     "How you ended up in this dirty back alley is a question for later. For now, there's the matter of this man who saw you - and apparently spent some time around you - while you were compromised."
 
-    "You're not bound by the Tower or its rules, but like every other tick in this city you have a {i}visceral{/i} understanding of what happens when enough idiots violate the First of their so-called \"Traditions\"."
+    "You're not bound by the Tower or its rules, but like every other tick in this city you have a {i}visceral{/i} understanding of what happens when enough idiots violate the First of the Tower's so-called \"Traditions\"."
 
     "The Masquerade."
 
