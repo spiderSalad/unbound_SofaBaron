@@ -102,7 +102,7 @@ init 1 python in state:
 
 init 1 python in game:
 
-    class CAction:
+    class CombAct:
         NO_ACTION = "null_action"
         FALL_BACK = "fall_back"
         MELEE_ENGAGE = "melee_engage"
@@ -112,6 +112,15 @@ init 1 python in game:
         SPECIAL_ATTACK = "special_attack"
         DISENGAGE = "back_dafuq_up"
         ESCAPE_ATTEMPT = "tryna_escape"
+
+        GRAPPLE_BITE = "grapple_bite"
+        GRAPPLE_BITE_PLUS = "bite_instant_brutal_feed"
+        GRAPPLE_HOLD = "hold_in_place"
+        GRAPPLE_DMG = "damaging_grapple"
+        GRAPPLE_DRINK = "combat_feeding"
+        GRAPPLE_DRINK_PLUS = "brutal_combat_feeding"
+        GRAPPLE_ACTIVE_ESCAPE = "get_off_me_bro"
+        GRAPPLE_MAINTAIN = "maintain_grip_while"  # For non-grapple actions that shouldn't break grapple, e.g. Arms of Ahriman.
 
         # Not necessarily attacks, but abilities that can be actively used in combat, not including
         # passive abilities that can affect combat.
@@ -168,113 +177,21 @@ init 1 python in game:
         NONVIOLENT = (DODGE, MELEE_ENGAGE, DISENGAGE, NO_ACTION, FALL_BACK)
         NO_CONTEST = (NO_ACTION, FALL_BACK)
 
-        def __init__(
-            self, action_type, target:Entity, user=None, defending=False, pool=None, subtype=None, use_sidearm=False, lethality=None
-        ):
-            self.action_type = action_type  # Should be one of above types; subtype should be a discipline power or similar or None.
-            self.pool, self.num_dice, self.using_sidearm = pool, None, None
-            self.target, self.defending = target, defending
-            self.user = user
-            self.action_label = subtype
-            self.weapon_used, self.skip_contest, self.lost_to_trump_card = None, False, False
-            self.use_sidearm = use_sidearm
-            if self.user and self.use_sidearm:
-                self.using_sidearm = True
-                utils.log("Off-hand weapon penalty imposed on {} because use_sidearm ({}) set to True.".format(
-                    self.user.label, self.user.sidearm if self.user and self.user.sidearm else "None?"
-                ))
-            self.unarmed_power_used, self.power_used = None, None
-            if self.action_type is None and self.action_label is None:
-                raise ValueError("At least one of 'action_type' and 'action_label' must be defined; they can't both be empty!")
-            elif self.action_type is None:
-                self.action_type = self.evaluate_type()
-            # ---
-            self.dmg_bonus, self.lethality = 0, 1
-            self.dmg_bonus_labels = {}
-            weapon, weapon_alt = None, None
-            if self.user:
-                if hasattr(self.user, "npc_weapon"):
-                    weapon = self.user.npc_weapon
-                if hasattr(self.user, "npc_weapon_alt"):
-                    weapon_alt = self.user.npc_weapon_alt
-                if self.user.is_pc or hasattr(self.user, "inventory"):
-                    weapon, weapon_alt = self.user.held, self.user.sidearm
-
-            if CAction.attack_weapon_match(weapon, self):
-                self.weapon_used = weapon
-            elif CAction.attack_weapon_match(weapon_alt, self):
-                self.weapon_used = weapon_alt
-                self.using_sidearm = True
-                utils.log("Off-hand weapon penalty applied to attack type {} by {}, who has {} at hand and {} at side".format(
-                    self.action_type, self.user.label, weapon.label, weapon_alt.label
-                ))
-            else:
-                self.weapon_used = None
-
-            self.dmg_bonus = 0
-            self.armor_piercing = 0
-            if self.user:
-                if hasattr(self.user, "npc_dmg_bonus") and self.user.npc_dmg_bonus:
-                    self.dmg_bonus, self.lethality = self.user.npc_dmg_bonus, self.user.npc_atk_lethality
-                elif self.weapon_used:
-                    self.dmg_bonus, self.lethality = self.weapon_used.dmg_bonus, self.weapon_used.lethality
-            if lethality is not None:  # If lethality value is passed it overrides other sources.
-                self.lethality = lethality
-            # ---
-            if not self.target or self.action_type in CAction.NONVIOLENT:
-                self.dmg_type = cfg.DMG_NONE
-            else:
-                self.dmg_type = Weapon.get_damage_type(self.lethality, target.creature_type)
-
-        def __repr__(self):
-            return "< {} action, label {} >".format(self.action_type, self.action_label)
-
-        def evaluate_type(self):
-            if self.defending and self.action_label in CAction.DODGE_VARIANTS:
-                return CAction.DODGE
-            elif self.action_label in CAction.RANGED_ACTIONS:
-                return CAction.RANGED_ATTACK
-            elif self.action_label in CAction.MELEE_ACTIONS:
-                return CAction.MELEE_ATTACK
-            elif self.action_label in CAction.ANYWHERE_ACTIONS:
-                if self.target is None:
-                    return CAction.ESCAPE_ATTEMPT if self.defending else CAction.SPECIAL_ATTACK
-                if self.target.current_pos == self.user.current_pos:
-                    return CAction.MELEE_ATTACK
-                return CAction.RANGED_ATTACK
-            return CAction.NO_ACTION
-
-        @staticmethod
-        def attack_weapon_match(weapon, action):
-            if not weapon or not action:
-                return False
-            if weapon.item_type == Item.IT_FIREARM:
-                return action.action_type == CAction.RANGED_ATTACK
-            if weapon.item_type == Item.IT_WEAPON:
-                return action.action_type == CAction.MELEE_ATTACK or weapon.throwable
-            return False
-
-        @staticmethod
-        def attack_is_gunshot(attacker, atk_action):
-            if atk_action.action_type != CAction.RANGED_ATTACK:
-                return False
-            if attacker.ranged_attacks_use_gun or utils.caseless_in(cfg.SK_FIRE, atk_action.action_label):
-                return True
-            return False
-
 
 init 1 python in flavor:
 
     cfg, utils, state = renpy.store.cfg, renpy.store.utils, renpy.store.state
     audio, game = renpy.store.audio, renpy.store.game
-    Person, CAction, Item, Weapon = game.Person, game.CAction, game.Item, game.Weapon
+    Person, CombAct, Item, Weapon = game.Person, game.CombAct, game.Item, game.Weapon
 
     STRIKE_SOUNDS = {
         Weapon.MW_KNIFE: audio.stab_1,
-        Weapon.MW_SWORD: audio.multiple_cuts_2,
+        Weapon.MW_SWORD: audio.sword_cut_2,  # audio.multiple_cuts_2,
         Weapon.MW_BLUNT_LIGHT: audio.bashing_1_light,
         Weapon.MW_BLUNT_HEAVY: audio.bashing_2_heavy,
         Weapon.MW_AXE: audio.axe_cleave_2,
+        Weapon.MW_FANGS: audio.feed_bite1,
+        Weapon.MW_DRAIN: audio.feed_heartbeat,
         Weapon.RW_THROWING: audio.stab_1
     }
 
@@ -283,7 +200,9 @@ init 1 python in flavor:
         Weapon.MW_SWORD: audio.melee_miss_heavy_1,
         Weapon.MW_BLUNT_LIGHT: audio.melee_miss_light_1,
         Weapon.MW_BLUNT_HEAVY: audio.melee_miss_heavy_1,
-        Weapon.MW_AXE: audio.melee_miss_heavy_1
+        Weapon.MW_AXE: audio.melee_miss_heavy_1,
+        Weapon.MW_FANGS: audio.thwarted_bite_1,
+        Weapon.MW_DRAIN: audio.thwarted_bite_1
     }
 
     FIRING_SOUNDS = {
@@ -306,6 +225,8 @@ init 1 python in flavor:
         Weapon.MW_BLUNT_LIGHT: audio.blunt_ricochet_1,
         Weapon.MW_BLUNT_HEAVY: audio.blunt_ricochet_1,
         Weapon.MW_AXE: audio.blunt_ricochet_1,
+        Weapon.MW_FANGS: audio.feed_bite1,
+        Weapon.MW_DRAIN: None,
         Weapon.RW_THROWING: None,
 
         Weapon.RW_PISTOL: audio.pistol_ricochet,
@@ -360,7 +281,7 @@ init 1 python in flavor:
                 token_dict[token] = str(desc_property)
             elif subject and token in ("NPC_NAME", "WEAPON_NAME"):
                 if token == "NPC_NAME":
-                    token_dict[token] = subject.label
+                    token_dict[token] = str(subject)
                 elif token == "WEAPON_NAME":
                     weapon = None
                     if action:
@@ -369,7 +290,7 @@ init 1 python in flavor:
                         weapon = subject.inventory.held
                     elif hasattr(subject, "npc_weapon"):
                         weapon = subject.npc_weapon
-                    token_dict[token] = weapon.label if weapon else "strange, unknown weapon"
+                    token_dict[token] = str(weapon) if weapon else "bare fists"#"strange, unknown weapon"
             elif token == "FLOOR":
                 token_dict[token] = "floor" if (state.indoors or not state.outside_haven) else "ground"
             elif token == "HUNGER_DESC":
@@ -455,12 +376,12 @@ init 1 python in flavor:
 
 
     # TODO: fix/refactor below, they're from the old Flavor class
-    # update (2023/03/22): most of the combat tables/functions below should be moved to combat, and you can move CAction back with them
+    # update (2023/03/22): most of the combat tables/functions below should be moved to combat, and you can move CombAct back with them
 
     ## -- Defense prompt blurbs for the player in response to an incoming attack --
 
     C_ATK_BLURBS = {}
-    C_ATK_BLURBS[CAction.RANGED_ATTACK] = CAB_RNG = {
+    C_ATK_BLURBS[CombAct.RANGED_ATTACK] = CAB_RNG = {
         cfg.REF_DEFAULT: ["{NPC_NAME} aims {PN_HER_HIS_THEIR} {WEAPON_NAME} squarely in your direction."],
         Weapon.NO_WEAPON: [
             "{NPC_NAME} is attacking you at range without a weapon, somehow. Maybe {PN_SHES_HES_THEYRE} psychic?"
@@ -472,9 +393,18 @@ init 1 python in flavor:
             ],
             Weapon.NO_WEAPON: ["{NPC_NAME} is preparing to throw... something, at you."]
         },
-        Weapon.RW_AUTO: ["{NPC_NAME} points a {WEAPON_NAME} in your direction, ready to spray you (and anyone close to you)."]
+        Weapon.RW_AUTO: ["{NPC_NAME} points a {WEAPON_NAME} in your direction, ready to spray you (and anyone close to you)."],
+        CombAct.GRAPPLE_ACTIVE_ESCAPE: {
+            cfg.REF_ADROIT: [
+                "{NPC_NAME} wrestles against your grip, trying to point {PN_HER_HIS_THEIR} {WEAPON_NAME} at you for a point-blank shot!"
+            ],
+            cfg.REF_CLUMSY: [
+                ("{NPC_NAME} is trying to shoot you point-blank with {PN_HER_HIS_THEIR} {WEAPON_NAME},"
+                " but is clearly having trouble pointing it at you.")
+            ]
+        }
     }
-    C_ATK_BLURBS[CAction.MELEE_ATTACK] = CAB_MEL = {
+    C_ATK_BLURBS[CombAct.MELEE_ATTACK] = CAB_MEL = {
         cfg.REF_DEFAULT: ["{NPC_NAME} takes a step toward you, the {WEAPON_NAME} in {PN_HER_HIS_THEIR} hand."],
         Weapon.NO_WEAPON: {
             cfg.CT_HUMAN: [
@@ -502,15 +432,33 @@ init 1 python in flavor:
         ],
         Weapon.MW_BLUNT_HEAVY: [
             "{NPC_NAME} swings a {WEAPON_NAME} wildly at you, hoping to beat you into the dirt."
-        ]
+        ],
+        CombAct.GRAPPLE_ACTIVE_ESCAPE: {
+            Weapon.NO_WEAPON: [
+                "{NPC_NAME} thrashes in your grip, intent on breaking free."
+            ],
+            Weapon.MW_FANGS: [
+                "{NPC_NAME} thrashes in your grip, trying to bite you!"
+            ],
+            Weapon.MW_KNIFE: [
+                "{NPC_NAME} wrestles against your grip, trying to stab you with {PN_HER_HIS_THEIR} {WEAPON_NAME}."
+            ],
+            cfg.REF_ADROIT: [
+                "{NPC_NAME} wrestles against your grip, trying to get you with {PN_HER_HIS_THEIR} {WEAPON_NAME}."
+            ],
+            cfg.REF_CLUMSY: [
+                ("{NPC_NAME} is trying to hit you with {PN_HER_HIS_THEIR} {WEAPON_NAME},"
+                " but it's too big and {PN_SHES_HES_THEYRE} clearly having trouble bringing it to bear.")
+            ]
+        }
     }
     CAB_MEL[Weapon.MW_BLUNT_LIGHT] = CAB_MEL[Weapon.MW_BLUNT_HEAVY]
-    C_ATK_BLURBS[CAction.MELEE_ENGAGE] = {
+    C_ATK_BLURBS[CombAct.MELEE_ENGAGE] = {
         cfg.REF_DEFAULT: [
             "{NPC_NAME} is sprinting in your direction, closing fast. In a few seconds {PN_SHELL_HELL_THEYLL} be right on top of you."
         ]
     }
-    C_ATK_BLURBS[CAction.DISENGAGE] = {
+    C_ATK_BLURBS[CombAct.DISENGAGE] = {
         cfg.REF_DEFAULT: [
             "{NPC_NAME} seems to be trying to slink back into the shadows, perhaps to better position {PN_HERSELF_HIMSELF_THEMSELF}."
         ]
@@ -522,7 +470,12 @@ init 1 python in flavor:
         weap_type = weapon.subtype if weapon else Weapon.NO_WEAPON
 
         base_blurbs = C_ATK_BLURBS[action_type]
-        if action_type == CAction.RANGED_ATTACK:
+        if action_type == CombAct.RANGED_ATTACK:
+            if atk_action.grapple_action_type and atk_action.grapple_action_type == CombAct.GRAPPLE_ACTIVE_ESCAPE:
+                bf_key = cfg.REF_CLUMSY
+                if weap_type in (Weapon.NO_WEAPON,) or weapon.concealable:
+                    bf_key = cfg.REF_ADROIT
+                return flavor_format(base_blurbs[CombAct.GRAPPLE_ACTIVE_ESCAPE][bf_key], subject=attacker, action=atk_action)
             if not weapon or weap_type in (Weapon.RW_AUTO,):
                 return flavor_format(base_blurbs[weap_type], subject=attacker, action=atk_action)
             elif weapon.item_type != Item.IT_FIREARM and weapon.throwable:
@@ -530,7 +483,13 @@ init 1 python in flavor:
             elif weapon.item_type != Item.IT_FIREARM:
                 return flavor_format(base_blurbs[Weapon.RW_THROWING][Weapon.NO_WEAPON], subject=attacker, action=atk_action)
             return flavor_format(base_blurbs[cfg.REF_DEFAULT], subject=attacker)
-        elif action_type == CAction.MELEE_ATTACK:
+        elif action_type == CombAct.MELEE_ATTACK:
+            if atk_action.grapple_action_type and atk_action.grapple_action_type == CombAct.GRAPPLE_ACTIVE_ESCAPE:
+                if weap_type in (Weapon.NO_WEAPON, Weapon.MW_FANGS, Weapon.MW_KNIFE):
+                    bf_key = weap_type
+                else:
+                    bf_key = cfg.REF_ADROIT if weapon.concealable else cfg.REF_CLUMSY
+                return flavor_format(base_blurbs[CombAct.GRAPPLE_ACTIVE_ESCAPE][bf_key], subject=attacker, action=atk_action)
             if not weapon and not atk_action.unarmed_power_used:
                 mortality_desig = cfg.CT_HUMAN if attacker.creature_type in cfg.REF_MORTALS else cfg.CT_VAMPIRE
                 return flavor_format(base_blurbs[Weapon.NO_WEAPON][mortality_desig], subject=attacker, action=atk_action)
@@ -560,9 +519,9 @@ init 1 python in flavor:
                     "You're not exactly sure what it is that {NPC_NAME} is swinging at you, but do you really want to find out?",
                     subject=attacker, action=atk_action
                 )
-        elif action_type == CAction.MELEE_ENGAGE:  # TODO: later, adjust these to have unique text for blink/soaring leap
+        elif action_type == CombAct.MELEE_ENGAGE:  # TODO: later, adjust these to have unique text for blink/soaring leap
             return flavor_format(base_blurbs[cfg.REF_DEFAULT], subject=attacker, action=atk_action)
-        elif action_type == CAction.DISENGAGE:
+        elif action_type == CombAct.DISENGAGE:
             return flavor_format(base_blurbs[cfg.REF_DEFAULT], subject=attacker, action=atk_action)
         else:
             raise NotImplementedError("Blurbs are currently only implemented for ranged/melee attacks and rush/disengage actions.")
@@ -575,7 +534,7 @@ init 1 python in flavor:
         cfg.REF_DEFAULT: ["{NPC_NAME} crumples to the {FLOOR} in a heap of rigor mortis."]
     }
 
-    def prompt_combat_death(fallen, indoors=None, cause_of_death=None, pc_hunger=1):
+    def prompt_combat_death(fallen, indoors=None, killer=None, cause_of_death=None, pc_hunger=1):
         # TODO: expand on this
         mortality_desig = cfg.CT_HUMAN if fallen.creature_type in cfg.REF_MORTALS else cfg.CT_VAMPIRE
         return flavor_format(C_DEATH_BLURBS[mortality_desig][cfg.REF_DEFAULT], subject=fallen, indoors=indoors)

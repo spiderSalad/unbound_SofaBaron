@@ -390,7 +390,7 @@ label ventrue_feeding_choice:
         if not state.ventrue_palate:
             state.ventrue_palate = chosen_palate
             if state.ventrue_palate != cfg.REF_VENTRUE_TARGET_PAINED and state.intro_man_drank:
-                state.deal_damage(cfg.TRACK_WILL, cfg.DMG_FULL_SPF, 2, source="Fed on James when he's not your Ventrue type")
+                state.deal_damage(cfg.TRACK_WILL, cfg.DMG_FULL_SPF, 2, source_what="Fed on James when he's not your Ventrue type", source_who=state.pc)
 
     return
 

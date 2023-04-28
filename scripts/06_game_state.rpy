@@ -40,6 +40,8 @@ default state.hunger_b4_last_feeding= None
 default state.current_hunt_type     = None
 default state.hunt_locale          = ""
 default state.baseline_hunt_diff    = cfg.VAL_BASE_HUNTING_DIFF  # + ...?
+default state.setite_blood_buys     = 0
+default state.camarilla_blood_buys  = 0
 
 default state.opinions              = {}
 default state.masquerade            = 60  # 0 - 100
@@ -74,6 +76,13 @@ default state.reson_intensity_table = [cfg.RINT_BALANCED, cfg.RINT_FLEETING, cfg
 default state.rint_weights          = [1000, 500, 100, 10]
 default state.cum_intensity_weights = store.utils.get_cum_weights(*state.rint_weights)
 # [(rw8 + state.rint_weights[i-1] if i > 0 else rw8) for i, rw8 in enumerate(state.rint_weights)]
+
+default state.pulse_enc_mortals     = None
+default state.pulse_enc_hunters     = None
+default state.pulse_enc_vampires    = None
+default state.enc_pc_team           = []
+default state.enc_opp_sets          = []
+default state.current_party         = []
 
 
 init 1 python in state:
@@ -150,32 +159,34 @@ init 1 python in state:
         else:
             renpy.hide_screen("hungerlay", "master")
 
-    def set_hunger(delta, killed=False, innocent=False, ignore_killed=False):
-        previous_hunger, hunger_floor = pc.hunger, cfg.HUNGER_MIN_KILL if killed or ignore_killed else cfg.HUNGER_MIN
-        new_hunger = utils.nudge_int_value(pc.hunger, delta, "Hunger", floor=hunger_floor, ceiling=7)
-        pc.hunger, slaked_hunger = new_hunger, 0
-        if pc.hunger > previous_hunger:
-            renpy.play(renpy.store.audio.beastgrowl1, "sound")
-        else:
-            global hunger_b4_last_feeding
-            hunger_b4_last_feeding = previous_hunger
-            slaked_hunger = previous_hunger - pc.hunger
-        if killed and innocent:
-            set_humanity("-=1")
-        refresh_hunger_ui()
-
+    def set_hunger(delta, who=None, killed=False, innocent=False, ignore_killed=False):
+        if who is None:
+            who = pc
+        previous_hunger, hunger_floor = who.hunger, cfg.HUNGER_MIN_KILL if killed or ignore_killed else cfg.HUNGER_MIN
+        new_hunger = utils.nudge_int_value(who.hunger, delta, "Hunger", floor=hunger_floor, ceiling=7)
+        who.hunger, slaked_hunger = new_hunger, 0
+        if who is pc:
+            if pc.hunger > previous_hunger:
+                renpy.play(renpy.store.audio.beastgrowl1, "sound")
+            else:
+                global hunger_b4_last_feeding
+                hunger_b4_last_feeding = previous_hunger
+                slaked_hunger = previous_hunger - pc.hunger
+            if killed and innocent:
+                set_humanity("-=1")
+            refresh_hunger_ui()
 
     def set_humanity(delta):
         new_humanity = utils.nudge_int_value(pc.humanity, delta, "Humanity", floor=cfg.MIN_HUMANITY, ceiling=cfg.MAX_HUMANITY)
         pc.humanity = new_humanity
 
-    def deal_damage(tracker, dtype, amount, target: Entity = None, source=None):
+    def deal_damage(tracker, dtype, amount, target: Entity = None, source_what=None, source_who=None):
         dmg_target = pc if target is None else target
         print("\ndtype = {}, amount = {}, tracker = {}".format(dtype, amount, target))
         if tracker == cfg.TRACK_HP:
-            return dmg_target.hp.damage(dtype, amount, source=source)
+            return dmg_target.hp.damage(dtype, amount, source_what=source_what, source_who=source_who)
         else:
-            return dmg_target.will.damage(dtype, amount, source=source)
+            return dmg_target.will.damage(dtype, amount, source_what=source_what, source_who=source_who)
 
     def mend_damage(who, tracker, dtype, amount):
         if who is None:
@@ -186,15 +197,12 @@ init 1 python in state:
             return who.will.mend(dtype, amount)
 
     def new_prey(pronoun_set=None):
+        # self_state = renpy.store.state
+        # del self_state.prey
+        # self.state.prey = None
         global prey
         prey = None
-        # if prey:
-        # del prey
-        # global prey
-        # prey = None
         prey = MortalPrey(pronoun_set=pronoun_set)
-        print("global prey defined as: {}, renpy.store.state.prey = {}".format(prey, renpy.store.state.prey))
-        # TODO: this still isn't working 4/24/23
 
     def masquerade_breach(base=10):
         global masquerade
@@ -225,8 +233,9 @@ init 1 python in state:
         utils.log("Nightly shift: Masquerade change from {:5.2f} to {:5.2f}. Notoriety change from {:7.4f} to {:7.4f}".format(
             prev_masq, masquerade, prev_notor, notoriety  # TODO: left off here (Apr 8)!! TODO
         ))
-        if cfg.DEV_MODE and devtest.DEV_DAY_NIGHT_TEST:
-            devtest.test_night_cycle()
+        # if cfg.DEV_MODE and devtest.DEV_DAY_NIGHT_TEST:
+        #     devtest.test_night_cycle()
+        return encounter_pulse()
 
     def feed_resonance(intensity=None, reso=None, boost: int = 0):
         if not intensity:
@@ -325,6 +334,47 @@ init 1 python in state:
             return self.advance(hrs)
 
 
+    def create_encounter_pulses_1():
+        global pulse_enc_mortals, pulse_enc_hunters, pulse_enc_vampires
+        pulse_enc_mortals = game.WeightedPulse(
+            "mortals",
+            values=cfg.PULSE_ENC_MRT[cfg.REF_VALUES],
+            weights=cfg.PULSE_ENC_MRT[cfg.REF_WEIGHTS]
+        )
+        pulse_enc_hunters = game.WeightedPulse(
+            "hunters",
+            values=cfg.PULSE_ENC_HNT[cfg.REF_VALUES],
+            weights=cfg.PULSE_ENC_HNT[cfg.REF_WEIGHTS]
+        )
+        pulse_enc_vampires = game.WeightedPulse(
+            "vampires",
+            values=cfg.PULSE_ENC_VMP[cfg.REF_VALUES],
+            weights=cfg.PULSE_ENC_VMP[cfg.REF_WEIGHTS]
+        )
+
+    def encounter_pulse(force_enc=False):
+        global pulse_enc_mortals, pulse_enc_hunters, pulse_enc_vampires, notoriety, masquerade
+        if not pulse_enc_mortals:
+            create_encounter_pulses_1()
+        notor_masq = (notoriety / 2) + (cfg.VAL_MASQUERADE_MAX - masquerade)
+        menc, menc_str = pulse_enc_mortals.flatten(notor_masq).get_outcome()
+        henc, henc_str = pulse_enc_hunters.flatten(notor_masq).get_outcome()
+        venc, venc_str = pulse_enc_vampires.flatten(notor_masq).get_outcome()
+
+        global enc_opp_sets, staffing, clock
+        enc_opp_sets = []
+
+        if henc[cfg.REF_1_VALUE] or force_enc:
+            enc_opp_sets.append(("hunters : {}".format(henc[cfg.REF_1_VALUE]), staffing.enc_hunters(diff_tier=1)))
+        if menc[cfg.REF_1_VALUE] or force_enc:
+            enc_opp_sets.append(("humans : {}".format(menc[cfg.REF_1_VALUE]), staffing.enc_mundane(diff_tier=1)))
+        if venc[cfg.REF_1_VALUE] or force_enc:
+            enc_opp_sets.append(("vamps : {}".format(venc[cfg.REF_1_VALUE]), staffing.enc_vampires(diff_tier=1)))
+
+        test_enc_readout_str = "results for day {day}:\n{0}\n{1}\n{2}".format(menc_str, henc_str, venc_str, day=clock.night)
+        print(test_enc_readout_str)
+        return test_enc_readout_str
+
     def get_power_choices(disc_key):
         return pc.disciplines.power_choices[disc_key]
 
@@ -392,6 +442,7 @@ init 1 python in state:
         pc.mortal_backstory = backstory
         pc.apply_background(cfg.CHAR_BACKGROUNDS[pc.mortal_backstory], bg_key=pc.mortal_backstory)
         pc.choose_clan(clan)
+        global clan_chosen
         clan_chosen = True
         pc.choose_predator_type(pred_type, pt_disc)
 
@@ -416,9 +467,9 @@ label sun_threat:
 
     "{i}Too{/i} light. What time is it?"
 
-    play sound audio.sun_threat_1
-
     beast "You idiot. You goddamned fool. YOU ABSOLUTELY WORTHLESS BRAINDEAD FUCKING-"
+
+    play sound audio.sun_threat_1
 
     scene bg sunrise sky with dissolve
 
@@ -438,7 +489,7 @@ label sun_threat:
             death_save, min_burn = _return.margin, 2 if short_notice else 0
             sunburn = utils.random_int_range(0, 10)
             sun_damage = max(min_burn, sunburn - death_save)
-            state.deal_damage(cfg.TRACK_HP, cfg.DMG_AGG, sun_damage, source=cfg.COD_SUN)
+            state.deal_damage(cfg.TRACK_HP, cfg.DMG_AGG, sun_damage, source_what=cfg.COD_SUN)
 
         # If the sun kills the PC this shouldn't be reached.
         if sun_damage < 1:
@@ -476,7 +527,10 @@ label new_night:
         state.hunted_tonight = False
         state.tried_hunt_tonight = False
         state.mended_agg_tonight = False
-        state.nightly_event_handler()
+        enc_pulse_str = state.nightly_event_handler()
+
+    if cfg.DEV_MODE and enc_pulse_str:
+        "{size=24}[enc_pulse_str]{/size}"
 
     if pc.hp.agg_damage > 0:
         call mend.aggravated from new_night_standard_agg_mend
@@ -498,8 +552,14 @@ label new_night:
     elif hungrier and can_hunt:
         beast "Pull your carcass off the floor and get hunting! Chop. {i}Chop.{/i}"
 
-    if cfg.DEV_MODE:
-        call dev_tests.test_nightly_encounter_roulette from hub_dev_test_option_nightly_1
+    # if cfg.DEV_MODE:
+    #     call dev_tests.test_nightly_encounter_roulette from hub_dev_test_option_nightly_1
+
+    if state.enc_opp_sets:
+        "You hear a noise coming from outside..."
+        call pulse_combat_encounter from new_night_enc_pulse
+    else:
+        "Seems quiet tonight. Good."
 
     return
 
@@ -542,7 +602,7 @@ label mend:
         menu:
             "\"This too shall pass.\" If you can pay the staggering cost in time and Blood."
 
-            "I force the Blood to mend my scarred, ravaged form, even at the risk of terrible Hunger.":
+            "I force the Blood to mend my scarred, ravaged form, even at the risk of terrible Hunger." if pc.can_rouse():
                 call roll_control.rouse_check(num_checks=3) from mend_agg_rouse_check
 
                 python:
@@ -567,9 +627,13 @@ label mend:
 
                     beast "Don't say I never did anything for you."
 
-            "I can't risk losing control now. I'll have to bear the pain for the time being.":
+            "I can't risk losing control now. I'll have to bear the pain for the time being." if pc.can_rouse():
 
                 beast "...Careful, now."
+
+            "...I can't." if not pc.can_rouse():
+
+                "Burnt flesh, dry veins. All you can do is wallow in the agony of it all."
 
         return
 

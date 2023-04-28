@@ -14,13 +14,13 @@ init 1 python in game:
 
             if action is None:
                 return BuffPipeline.noncombat_test(who, contest_params, base_pool)
-            if action.action_type == CAction.MELEE_ATTACK:
+            if action.action_type == CombAct.MELEE_ATTACK:
                 return BuffPipeline.melee_attack(who, action, base_pool)
-            if action.action_type == CAction.RANGED_ATTACK:
+            if action.action_type == CombAct.RANGED_ATTACK:
                 return BuffPipeline.ranged_attack(who, action, base_pool)
-            if action.action_type == CAction.MELEE_ENGAGE:
+            if action.action_type == CombAct.MELEE_ENGAGE:
                 return BuffPipeline.rush(who, action, base_pool)
-            if action.action_type == CAction.DODGE:
+            if action.action_type == CombAct.DODGE:
                 return BuffPipeline.attack_evasion(who, action, base_pool)
             return action, base_pool
 
@@ -32,12 +32,12 @@ init 1 python in game:
             # Prowess (feats of strength)
             if user.has_disc_power(cfg.POWER_POTENCE_PROWESS, cfg.DISC_POTENCE) and Entity.SE_HULKING in fx:
                 if cfg.AT_STR in base_pool or (user.shapeshift_form and cfg.SK_COMB in base_pool):
-                    new_pool += "+{}".format(cfg.DISC_POTENCE)
+                    new_pool += f'+{cfg.DISC_POTENCE}'
 
             # Fleetness (noncombat dexterity)
             if user.has_disc_power(cfg.POWER_CELERITY_SPEED, cfg.DISC_CELERITY) and Entity.SE_FLEETY in fx:
                 if cfg.AT_DEX in base_pool or (user.shapeshift_form and cfg.SK_ATHL in base_pool):
-                    new_pool += "+{}".format(cfg.DISC_CELERITY)
+                    new_pool += f'+{cfg.DISC_CELERITY}'
 
             # Cat's Grace, contest_param for "balance"
             #
@@ -50,9 +50,9 @@ init 1 python in game:
 
             if action.using_sidearm is not None:
                 if user.has_disc_power(cfg.POWER_CELERITY_TWITCH, cfg.DISC_CELERITY):
-                    utils.log("Quick-draw! Weapon switch penalty waived for {}.".format(user.name))
+                    utils.log(f'Quick-draw! Weapon switch penalty waived for {user.name}.')
                 else:
-                    new_pool += "+-{}".format(cfg.WEAPON_DRAW_PENALTY)
+                    new_pool += f'+-{cfg.WEAPON_DRAW_PENALTY}'
 
             # Lethal Body
             if not weapon_used and user.has_disc_power(cfg.POWER_POTENCE_FATALITY, cfg.DISC_POTENCE):
@@ -64,9 +64,15 @@ init 1 python in game:
             fx = user.status_effects
             # Prowess (combat)
             if user.has_disc_power(cfg.POWER_POTENCE_PROWESS, cfg.DISC_POTENCE) and Entity.SE_HULKING in fx:
-                potence_rank = user.disciplines.levels[cfg.DISC_POTENCE]
-                prowess_dmg = math_ceil(potence_rank / 2) if weapon_used else potence_rank
-                BuffPipeline.apply_damage_bonus(action, prowess_dmg, cfg.POWER_POTENCE_PROWESS)
+                # Either get Potence rank as feat-of-strength pool bonus or combat damage bonus, but not both.
+                user_gat = action.grapple_action_type
+                # You get feat-of-strength bonus if you're trying to escape a grapple or melee-attacking someone you've already got grappled.
+                if (user_gat and user_gat in (CombAct.GRAPPLE_ACTIVE_ESCAPE,)) or (user.grappling_with and target in user.grappling_with):
+                    new_pool += f'+{cfg.DISC_POTENCE}'
+                else:
+                    potence_rank = user.disciplines.levels[cfg.DISC_POTENCE]
+                    prowess_dmg = math_ceil(potence_rank / 2) if weapon_used else potence_rank
+                    BuffPipeline.apply_damage_bonus(action, prowess_dmg, cfg.POWER_POTENCE_PROWESS)
                 action.power_used = utils.unique_append(action.power_used, cfg.POWER_POTENCE_PROWESS, sep=", ")
 
             # Feral Weapons and Vicissitude weapons
@@ -137,6 +143,9 @@ init 1 python in game:
 
             fx = user.status_effects
 
+            # Rapid Reflexes (dodging)
+            # NOTE: Code implementing this is in script_05_battles.rpy for PC and 10_behavior.rpy for NPCs, considering moving it.
+
             # Fleetness (dodging)
             can_flit = Entity.SE_FLEETY in fx and not state.fleet_dodge_this_turn
             # can_flit = user.has_disc_power(cfg.POWER_CELERITY_SPEED, cfg.DISC_CELERITY)
@@ -157,6 +166,8 @@ init 1 python in game:
             superjump = cfg.POWER_POTENCE_SUPERJUMP
             if user.has_disc_power(superjump, cfg.DISC_POTENCE) and utils.caseless_in(superjump, action.unarmed_power_used):
                 new_pool += "+{}".format(cfg.DISC_POTENCE)
+
+            # Potence power for dodging while grapples?
 
             return action, new_pool
 
@@ -257,7 +268,10 @@ init 1 python in state:
             if p_level <= 1:  # TODO: revisit when Blood Sorcery added.
                 return 0, None
             reroll_cap = utils.get_bp_disc_reroll_level(p_level)
-            return 1, p_level <= reroll_cap  # TODO: implement two-check powers later
+            gets_reroll = p_level <= reroll_cap
+            if power_name in cfg.REF_DISC_TWO_ROUSE_POWERS:  # Empty list for now.
+                return 2, gets_reroll
+            return 1, gets_reroll
 
         def use_disc_power(self, power_name, who=None):
             if who is None:
@@ -347,7 +361,7 @@ init 1 python in state:
             return usable, StatusFX.power_is_active(pc, ability)
         if ability in cfg.REF_DISC_POWER_BUFFS:
             return can_use_disc, StatusFX.power_is_active(pc, ability)
-        if in_combat and ability in game.CAction.NPC_COMBAT_DISC_POWERS:
+        if in_combat and ability in game.CombAct.NPC_COMBAT_DISC_POWERS:
             return can_use_disc, False
         return None, None  # TODO: come back to this regularly
 

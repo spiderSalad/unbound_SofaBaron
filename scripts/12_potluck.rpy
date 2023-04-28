@@ -5,6 +5,56 @@ init 1 python in game:
     import random
     import math
 
+
+    class WeightedPulse:
+        def __init__(self, name, weights=[], values=[], w8_adjust=0):
+            if len(weights) != len(values):
+                raise ValueError("Weights and values must have 1-to-1 relationship.")
+            self.name = name
+            self.orig_weights = weights
+            self.orig_values = values
+            self.pairs = None
+            self._w8_adjust = w8_adjust
+            self.reset()
+
+        @property
+        def w8_adjust(self):
+            return self._w8_adjust
+
+        @w8_adjust.setter
+        def w8_adjust(self, new_adjust):
+            self._w8_adjust = new_adjust
+
+        def flatten(self, new_adjust=None, reset_first=True):
+            # By default, it's assumed that we always want to flatten by w8_adjust, non-cumulatively.
+            if new_adjust is not None:
+                self.w8_adjust = new_adjust
+            if reset_first:
+                self.reset()
+            mod, first_elem = self.w8_adjust / max(1, len(self.pairs) - 1), True
+            for pair in self.pairs:
+                pair[cfg.REF_1_WEIGHT] += (mod if not first_elem else -1 * self.w8_adjust)
+                first_elem = False
+            return self
+
+        def reset(self):
+            self.pairs = []
+            for i in range(len(self.orig_weights)):
+                self.pairs.append({cfg.REF_1_WEIGHT: self.orig_weights[i], cfg.REF_1_VALUE: self.orig_values[i]})
+
+        def get_outcome(self):
+            weights = [w[cfg.REF_1_WEIGHT] for w in self.pairs]
+            result = utils.get_wrs(self.pairs, weights=weights)
+            weight_sum, enc_weight_sum = sum(weights), sum(weights[1:])
+            w8_str = "{} | {} | weights: ({}) ± {} | enc rate: {}%"
+            print("\n\nweight adjust!   ", self.w8_adjust)
+            w8_str = w8_str.format(
+                self.name, result[cfg.REF_1_VALUE], ", ".join([f'{w8:.2f}' for w8 in weights]),
+                f'{self.w8_adjust / (len(self.pairs) - 1):.2f}', f'{enc_weight_sum * 100 / weight_sum:.2f}'
+            )
+            return result, w8_str
+
+
     class TempAgency:
 
         NPC_CREATURE_TYPES = {
@@ -155,6 +205,8 @@ init 1 python in game:
                     powerset[disc][power] = highest_disc_level
             return powerset
 
+        # @staticmethod
+        # def
 
 
 #

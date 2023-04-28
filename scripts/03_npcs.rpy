@@ -16,7 +16,8 @@ init 1 python in game:
             self.deathsave_active = False
             self.spf_damage = 0
             self.agg_damage = 0
-            self.last_damage_source = None
+            self.last_damage_source = {"who": None, "what": None}
+            self.dfldko = None
 
         def __repr__(self):
             repr_str = ''.join(["|x" for _ in range(self.agg_damage)])
@@ -82,7 +83,7 @@ init 1 python in game:
         def deathsave(self, new_ab_val):
             self._deathsave = new_ab_val
 
-        def damage(self, dtype, amount, source=None):
+        def damage(self, dtype, amount, source_what=None, source_who=None):
             if not utils.is_number(amount) or amount < 0:
                 raise ValueError("Damage should always be an integer of zero or more.")
 
@@ -142,9 +143,9 @@ init 1 python in game:
                 pass
             elif injured:
                 # renpy.sound.queue(audio.stab2, u'sound')
-                self.last_damage_source = source
-                if self.last_damage_source is None:
-                    self.last_damage_source = cfg.COD_PHYSICAL
+                self.last_damage_source = {"what": source_what, "who": source_who}
+                if self.last_damage_source["what"] is None:
+                    self.last_damage_source["what"] = cfg.COD_PHYSICAL
             return (actual_dmg, unhalved_dmg, prevented_dmg, mitigated_dmg,)
 
         def mend(self, dtype, amount):
@@ -159,6 +160,7 @@ init 1 python in game:
     class NarrativeObject:
 
         def __init__(self, name="", **kwargs):
+            self.char_id = utils.generate_random_id_str(label="nobj#", leng=3)
             self.name = name
             self.is_pc = False
             self.creature_type = None
@@ -201,9 +203,16 @@ init 1 python in game:
         def hostility(self, new_hostil):
             self._hostility = new_hostil
 
-        @property
-        def label(self):
-            ent_label = self.name
+        def __repr__(self):
+            if hasattr(self, "nickname") and self.nickname:
+                ent_label = self.nickname
+            elif self.name:
+                ent_label = self.name
+            else:
+                ent_label = "unknown"
+
+            # print(f'NAMAE WA {self.name if self.name else "no name"}')
+
             if state.pc and (self.is_animate or state.pc.sense_creature_types):
                 beast_check = "BEAST, " if self.has_Beast else ""
                 if state.pc.using_sense_the_beast and state.pc.sense_creature_types:
@@ -212,7 +221,11 @@ init 1 python in game:
                     ent_label = "{} ({}{})".format(ent_label, beast_check, self.hostility)
                 elif state.pc.sense_creature_types:
                     ent_label = "{} ({})".format(ent_label, self.creature_type)
-            return ent_label
+            id_tag = f'[{self.char_id[-3:]}]' if cfg.DEV_MODE else ""
+            return f'{id_tag}{ent_label}'
+
+        def __str__(self):
+            return self.__repr__()
 
 
     class Person(NarrativeObject):
@@ -301,11 +314,13 @@ init 1 python in game:
         def __init__(self, ctype=cfg.CT_HUMAN, pronoun_set=None, **kwargs):
             super().__init__(ctype=ctype, pronoun_set=pronoun_set, **kwargs)
             self.hp = self.will = None
-            self.dead, self.cause_of_death = False, None
+            self.dead, self.cause_of_death, self.killer = False, None, None
             self.appears_dead = self.dead
             self.shocked = self.crippled = False
             self.last_rolled_init = None
-            self.engaged = []  # Melee engagement is mutual. If they're in your list you should be in theirs.
+            self.engaged_by = []  # Melee engagement is no longer mutual.
+            self.grappling_with, self.grappled_by = [], []  # Grappling is explicitly not mutual.
+            self.times_attacked_this_turn = 0
             self.current_pos = None  # Actually that contradicts code I wrote elsewhere; fuck
             self.ranged_attacks_use_gun = False
             self.inventory, self.equipped = [], []
@@ -378,6 +393,24 @@ init 1 python in game:
                 return True  # TODO: revisit
             return self.hunger < cfg.HUNGER_MAX
 
+        @property
+        def hunger(self):
+            return self._hunger
+
+        @hunger.setter
+        def hunger(self, new_hunger):
+            if self.creature_type != cfg.CT_VAMPIRE:  # Only vampires can have Hunger.
+                return
+            self._hunger = max(0, min(new_hunger, cfg.HUNGER_MAX + 1))
+            if self.hunger > cfg.HUNGER_MAX:
+                print("Hunger tested at 5; frenzy check?")  # TODO: frenzy check
+                self.frenzied_bc_hunger = True
+                self.hunger = cfg.HUNGER_MAX
+            else:
+                utils.log("Hunger now set at {}".format(self.hunger))
+                if self.hunger < cfg.HUNGER_MAX_CALM:
+                    self.frenzied_bc_hunger = False
+
         def attack(self, action_order, ao_index, enemy_targets, all_targets):
             pass
 
@@ -392,7 +425,8 @@ init 1 python in game:
 
         def handle_demise(self, tracker_type, damage_source):
             self.dead = True
-            self.cause_of_death = damage_source
+            self.cause_of_death = damage_source["what"]
+            self.killer = damage_source["who"]
 
 
     class NPCFighter(Entity):
@@ -405,9 +439,9 @@ init 1 python in game:
         def __init__(self, physical=4, social=4, mental=4, name="", ftype=None, ctype=cfg.CT_HUMAN, bcs=None, **kwargs):
             super().__init__(ctype=ctype, **kwargs)
             self.ftype = NPCFighter.FT_BRAWLER if ftype is None else ftype
-            self.char_id = utils.generate_random_id_str(label="npc#{}#".format(self.ftype))
             if not self.name:
                 self.name = "{} {}".format(self.creature_type, self.ftype)
+                self.name = f'{self.ftype}'
             self.physical, self.social, self.mental = physical, social, mental
             self.hp = V5Tracker(self, self.physical + 3, cfg.TRACK_HP)
             self.will = V5Tracker(self, self.mental + self.social, cfg.TRACK_WILL)
@@ -465,7 +499,7 @@ init 1 python in game:
 
         def handle_demise(self, tracker_type, damage_source):
             super().handle_demise(tracker_type=tracker_type, damage_source=damage_source)
-            print("NPC \"{}\" has died.".format(self.name))
+            print(f'NPC \"{str(self)}\" has died.')
 
 
 #

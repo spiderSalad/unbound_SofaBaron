@@ -45,6 +45,8 @@ init 0 python in cfg:
     REF_CHOICE_RID = "choice_id"
     REF_STATE_CHANGE_EXPR = "evex"
     REF_EVAL_TAG = "evex"
+    REF_ADROIT = "adroit"
+    REF_CLUMSY = "clumsy"
 
     CT_ANIMAL = "Animal"
     CT_FAMULUS = "Ghoul (Animal)"
@@ -102,6 +104,15 @@ init 0 python in cfg:
     PN_INANIMATE.PN_SHES_HES_THEYRE = "it's"
     PN_INANIMATE.PN_SHELL_HELL_THEYLL = "it'll"
     PN_INANIMATE.PN_HERSELF_HIMSELF_THEMSELF = "itself"
+
+    PN_GROUP = object()
+    PN_GROUP.PN_SHE_HE_THEY = "they"
+    PN_GROUP.PN_HER_HIM_THEM = "them"
+    PN_GROUP.PN_STRANGER = "people"
+    PN_GROUP.PN_HER_HIS_THEIR = "their"
+    PN_GROUP.PN_SHES_HES_THEYRE = "they're"
+    PN_GROUP.PN_SHELL_HELL_THEYLL = "they'll"
+    PN_GROUP.PN_HERSELF_HIMSELF_THEMSELF = "themselves"
 
     REF_APPARENT_AGE = "apparent_age"
     REF_AA_YOUNG_ADULT = "a younger"
@@ -211,7 +222,9 @@ init 0 python in cfg:
     DMG_NONE = "clear"
 
     BULLET_DODGE_PENALTY = 2
+    DODGE_WHILE_GRAPPLING_PENALTY = 2
     WEAPON_DRAW_PENALTY = 2
+    BITE_ATTACK_PENALTY = 2
 
     REF_ATTRS_ALL = "All Attributes"
     REF_ATTRS = "attrs"
@@ -606,6 +619,8 @@ init 0 python in cfg:
 
     REF_DISC_POWER_TOGGLABLES = [POWER_POTENCE_FATALITY]
 
+    REF_DISC_TWO_ROUSE_POWERS = []
+
     REF_DISC_POWER_FREEBIES = [POWER_POTENCE_FATALITY, POWER_POTENCE_SUPERJUMP]
 
     REF_DISC_POWERS_SNEAKY = [POWER_OBFUSCATE_FADE, POWER_OBFUSCATE_SILENCE, POWER_OBFUSCATE_STEALTH]
@@ -670,7 +685,7 @@ init 0 python in cfg:
 
     REF_DISC_AMALGAM_REQS = {
         POWER_ANIMALISM_HIVE: (DISC_OBFUSCATE, 2),
-        POWER_DOMINATE_DEVOTION: (DISC_PRESENCE, 1),
+        POWER_DOMINATE_DEVOTION: (DISC_FORTITUDE, 1),  # Errata; was Presence 1
         POWER_OBFUSCATE_ILLUSION: (DISC_PRESENCE, 1),
         POWER_OBFUSCATE_HALLUCINATION: (DISC_PRESENCE, 2),
         POWER_POTENCE_RAGE: (DISC_PRESENCE, 3),
@@ -684,8 +699,6 @@ init 0 python in cfg:
         POWER_PROTEAN_FINALFORM: [POWER_PROTEAN_MOLD_SELF],
         POWER_PROTEAN_DRUID: [POWER_PROTEAN_BOO_BLEH]
     }
-
-
 
     SEM_HUB_MAIN = "haven-hub-default"
 
@@ -746,11 +759,17 @@ init 0 python in cfg:
 
     COD_SUN = "Sunlight"
     COD_FIRE = "Fire"
-    COD_PHYSICAL = "Physical Damage"
+    COD_PHYSICAL = "Physical damage"
     COD_DECAPITATION = "Decapitation"
+    COD_BITE = "Bite"
+    COD_DRAINED = "Vampire-induced blood loss"
 
     DP_DISCLAIMER = "This game was created as a part of Vampire: The Masquerade game jam. "  # TODO: update this for unbound
     DP_DISCLAIMER += "Events portrayed in this game are not canon within World of Darkness."
+
+    PULSE_ENC_MRT = {REF_VALUES: (None, "thugs"), REF_WEIGHTS: (1980, 20)}
+    PULSE_ENC_HNT = {REF_VALUES: (None, "amateurs", "si"), REF_WEIGHTS: (1950, 35, 15)}
+    PULSE_ENC_VMP = {REF_VALUES: (None, "local_ticks", "baron_enforcers", "sheriff_hounds"), REF_WEIGHTS: (1970, 15, 10, 5)}
 
     # renpy.music.register_channel("sound_aux", "sfx")
 
@@ -782,7 +801,7 @@ define audio.whoosh_1           = "audio/sound/461021__alanmcki__simple_whoosh_0
 define audio.dice_roll_many     = "audio/sound/220744__dermotte__dice-06.mp3"
 define audio.dice_roll_few      = "audio/sound/353975__nettimato__rolling-dice-1.mp3"
 define audio.fleeing_footsteps1 = "audio/sound/316924__rudmer-rotteveel__footsteps-running-away-fading.mp3"
-define audio.fast_footsteps_2   = "audio/sound/69296__abel_k__stairs-coming-up-ak2.mp3"
+define audio.fast_footsteps_2   = "audio/sound/69296__abel_k__stairs-coming-up-ak2_edited_v2.mp3"
 define audio.fluorescent_buzz   = "audio/sound/574540__moulaythami__buzzing-a.mp3"
 define audio.door_knock_1       = "audio/sound/412858__soundsforhim__knocking-three-times.mp3"
 define audio.heartbeat_faster   = "audio/sound/181805__klankbeeld__heart-beat-increasing-116642-excerpt02.mp3"
@@ -812,6 +831,7 @@ define audio.rifle_shot_1       = "audio/sound/427596__michorvath__ar15-rifle-sh
 define audio.uzi_full_auto      = "audio/sound/162436__ermfilm__uzi-serial-fire_96khz-24bit.mp3"
 define audio.single_cut_1       = "audio/sound/435238__aris621__nasty-knife-stab.mp3"
 define audio.multiple_cuts_2    = "audio/sound/512785__nekoninja__samurai-slash2.mp3"
+define audio.sword_cut_2        = "audio/sound/420674__sypherzent__deep-cut-slash-gash.mp3"
 define audio.stab_1             = "audio/sound/478145__aris621__nasty-knife-stab-2.mp3"
 define audio.sword_clash        = "audio/sound/440069__ethanchase7744__sword-block-combo.mp3"
 define audio.melee_miss_light_1 = "audio/sound/420668__sypherzent__basic-melee-swing-miss-whoosh.mp3"
@@ -832,6 +852,7 @@ define audio.rifle_ricochet     = "audio/sound/523403__c-v__22-caliber-with-rico
 define audio.auto_ricochet      = "audio/sound/523404__c-v__22-caliber-gunfire-with-ricochet.mp3"
 define audio.blunt_ricochet_1   = "audio/sound/234599__riddzy__hit-on-toilet-1.mp3"
 define audio.knife_ricochet_1   = "audio/sound/406557__anthousai__hit-metallic-metal-gate.mp3"
+define audio.thwarted_bite_1    = "audio/sound/321982__lerdavian__snarl.mp3"
 
 define audio.grunt_pain_masc_1  = "audio/sound/497713__miksmusic__punch-grunt-1.mp3"
 define audio.grunt_pain_masc_2  = "audio/sound/85553__maj061785__male-pain-grunt.mp3"

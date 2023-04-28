@@ -650,7 +650,8 @@
         "name":"SypherZent",
         "type":"sound_engineer",
         "works":[
-            {"name":"Cut Through Armor / Slice / Clang", "licenseUrl":"https://creativecommons.org/licenses/by/3.0/"}
+            {"name":"Cut Through Armor / Slice / Clang", "licenseUrl":"https://creativecommons.org/licenses/by/3.0/"},
+            {"name":"Deep Cut / Slash / Gash", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
         ],
         "website":"",
         "socials":[
@@ -1390,14 +1391,14 @@
         ]
     },
     {
-        "name":"",
+        "name":"Lerdavian",
         "type":"sound_engineer",
         "works":[
-            {"name":"asdfdsdfd", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+            {"name":"snarl.wav", "licenseUrl":"https://creativecommons.org/licenses/by/3.0//"}
         ],
         "website":"",
         "socials":[
-            {"site":"freesound.org", "handle":"sdfdfd", "url":"https://freesound.org/people/sdfdfd/"}
+            {"site":"freesound.org", "handle":"Lerdavian", "url":"https://freesound.org/people/Lerdavian/"}
         ]
     },
     {

@@ -12,7 +12,7 @@ label init_setup:
         Weapon = game.Weapon
 
         state.pc = game.PlayerChar(anames=state.attr_names, snames=state.skill_names, dnames=state.discipline_names)
-        state.pc.inventory = game.Inventory(owner_name=state.pc.label)
+        state.pc.inventory = game.Inventory(owner_name=str(state.pc))
         state.statusfx, state.staffing = state.StatusFX(pc=state.pc), game.TempAgency()
         # state.give_item(game.Item(game.Item.IT_MONEY, "Cash", key="Money", tier=0, num=15, desc="Cash on hand."))
         state.give_item(state.get_random_cash())

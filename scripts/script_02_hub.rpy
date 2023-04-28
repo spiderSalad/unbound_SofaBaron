@@ -3,8 +3,10 @@ label haven:
     label .hub_entry:
 
         python:
-            cfg, state = renpy.store.cfg, renpy.store.state
-            pc = state.pc
+            cfg, state, game = renpy.store.cfg, renpy.store.state, renpy.store.game
+            pc, WeightedPulse = state.pc, game.WeightedPulse
+            if not state.pulse_enc_mortals:
+                state.create_encounter_pulses_1()
 
         stop sound
         scene bg haven basic
@@ -103,6 +105,13 @@ label haven:
                     "You spend what remains of the night on the edge of madness. It's a mercy when the daysleep finally takes you."
 
                 call pass_time(None, in_shelter=True)
+
+            "--Trigger encounter pulse--" if cfg.DEV_MODE:
+                $ enc_pulse_str = state.encounter_pulse(force_enc=True)
+                "{size=24}[enc_pulse_str]{/size}"
+                if state.enc_opp_sets:
+                    "You hear a noise coming from outside..."
+                    call pulse_combat_encounter from dev_force_enc_1
 
         jump post_activity_main
 

@@ -41,16 +41,12 @@ init 1 python in game:
             for kwarg in kwargs:
                 setattr(self, kwarg, kwargs[kwarg])
 
-        @property
-        def label(self):
-            return self.name
-
         def __repr__(self):
             t_label = self.subtype if self.subtype else self.item_type
-            return "<{} #{}>".format(self.label, utils.truncate_string(self.key[7:], leng=len(t_label) + 5))
+            return "<{} #{}>".format(self.name, utils.truncate_string(self.key[7:], leng=len(t_label) + 5))
 
         def __str__(self):
-            return "<{}>".format(self.label)
+            return f'{self.name}'
 
         def copy(self, item_base=None):
             if item_base is None:
@@ -82,10 +78,12 @@ init 1 python in game:
         RWEPS = (RW_PISTOL, RW_SHOTGUN, RW_RIFLE, RW_AUTO, RW_THROWING)
 
         NO_WEAPON = "Unarmed"
+        MW_FANGS = "Fangs"
+        MW_DRAIN = "feeding"
 
         def __init__(self, type, name, subtype=None, key=None, num=1, desc=None, tier=1, dmg_bonus=None, lethality=None, **kwargs):
             t_type = type
-            if type in Weapon.MWEPS or type == Weapon.RW_THROWING:
+            if type in Weapon.MWEPS or type in (Weapon.RW_THROWING, Weapon.MW_FANGS, Weapon.MW_DRAIN):
                 t_type, subtype = Item.IT_WEAPON, type
             elif type in Weapon.RWEPS:
                 t_type, subtype = Item.IT_FIREARM, type
@@ -140,14 +138,14 @@ init 1 python in game:
             if not action:
                 return None
             if not action.weapon_used:
-                if action.action_type in CAction.OUCH:
+                if action.action_type in CombAct.OUCH:
                     return audio.throwing_hands_1 if hit else audio.brawl_struggle
-                elif action.action_type in (CAction.MELEE_ENGAGE, CAction.DODGE):
+                elif action.action_type in (CombAct.MELEE_ENGAGE, CombAct.DODGE):
                     if utils.caseless_in(cfg.POWER_POTENCE_SUPERJUMP, action.unarmed_power_used):
                         return audio.jump_liftoff_1, "<silence 0.3>", audio.jump_landing_1
                     elif utils.caseless_in(cfg.POWER_CELERITY_BLINK, action.unarmed_power_used):
                         return audio.whoosh_1
-                    return audio.fast_footsteps_2 if action.action_type == CAction.MELEE_ENGAGE else None
+                    return audio.fast_footsteps_2 if action.action_type == CombAct.MELEE_ENGAGE else None
                 return None
             wtype, subtype = action.weapon_used.item_type, action.weapon_used.subtype
             if hit:
@@ -170,6 +168,10 @@ init 1 python in game:
                 return cfg.DMG_SPF
             else:  # 0 = Non-lethal damage? (not implemented)
                 return cfg.DMG_NONE
+
+
+    USING_FANGS = Weapon(Weapon.MW_FANGS, "Fangs", key="bite_attack", desc="Chomp!", tier=3, lethality=4, dmg_bonus=0, concealable=True)
+    FEEDING_IN_COMBAT = Weapon(Weapon.MW_DRAIN, "feeding", key="feeding", desc="Gulp!", tier=3, lethality=0, dmg_bonus=0, concealable=True)
 
 
     class Inventory:
@@ -199,7 +201,7 @@ init 1 python in game:
                 ))
 
         def __str__(self):
-            return '\n'.join([itm.label for itm in self.items])
+            return '\n'.join([itm for itm in self.items])
 
         @property
         def items(self):
@@ -325,12 +327,12 @@ init 1 python in game:
         def equip(self, item, slot=None, force=False):
             equip_slot = self.get_free_equipment_slot(item.item_type, preferred_slot=slot)
             if equip_slot is None and not force:
-                utils.log("Could not equip item \"{}\"; there are no free valid slots.".format(item.label))
+                utils.log("Could not equip item \"{}\"; there are no free valid slots.".format(item))
             elif equip_slot is None:
                 valid_slots = self.get_valid_equipment_slots(item.item_type)
                 if valid_slots is None:
                     raise ValueError("Could not equip \"{}\"; \"{}\" is not a valid type.".format(
-                        item.label, item.item_type
+                        item, item.item_type
                     ))
                 self.equipped[valid_slots[0]] = item
             else:
@@ -338,11 +340,11 @@ init 1 python in game:
 
         def unequip(self, item, slot=None):
             if not self.is_equipped(item):
-                utils.log("Attempted to unequip item \"{}\", but it's not equipped.".format(item.label))
+                utils.log("Attempted to unequip item \"{}\", but it's not equipped.".format(item))
                 return
             valid_slots = self.get_valid_equipment_slots(item.item_type)
             if valid_slots is None:
-                raise ValueError("Could not equip \"{}\"; \"{}\" is not a valid type.".format(item.label, item.item_type))
+                raise ValueError("Could not equip \"{}\"; \"{}\" is not a valid type.".format(item, item.item_type))
             for slot in valid_slots:
                 if Inventory.item_match(item, self.equipped[slot]):
                     self.equipped[slot] = None

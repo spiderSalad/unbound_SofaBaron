@@ -9,12 +9,9 @@ label combat_test_scenario_1:
     python:
         cfg, utils, state, game = renpy.store.cfg, renpy.store.utils, renpy.store.state, renpy.store.game
         audio, flavor = renpy.store.audio, renpy.store.flavor
-        pc, CAction, Item, Weapon = state.pc, game.CAction, game.Item, game.Weapon
+        pc, CombAct, CombatAction, Item, Weapon = state.pc, game.CombAct, game.CombatAction, game.Item, game.Weapon
         Entity, NPCFighter = game.Entity, game.NPCFighter
         crew, opps = None, None
-
-        if not hasattr(state, "arena") or not state.arena:
-            state.arena = game.BattleArena()
 
         temp_names = {
             NPCFighter.FT_BRAWLER: ("Guard", "Hitter"),
@@ -40,13 +37,28 @@ label combat_test_scenario_1:
     return
 
 
+label pulse_combat_encounter:
+
+    $ num_encounters = 0
+    while state.enc_opp_sets:
+        $ opps, enc_num = state.enc_opp_sets.pop(), num_encounters + 1
+        $ opps_who, opps_team = opps
+        $ num_encounters += 1
+        $ print("\n\nHEY", state.current_party, opps_team)
+        call combat_encounter.battle_setup(state.current_party, opps_team) from encounter_pulse_battle_1
+
+    return
+
 label combat_encounter:
 
     label .battle_setup(crew, opps):
 
         python:
-            pc, CAction, Item, Weapon = state.pc, game.CAction, game.Item, game.Weapon
+            pc, CombAct, CombatAction, Item, Weapon = state.pc, game.CombAct, game.CombatAction, game.Item, game.Weapon
             Entity, NPCFighter = game.Entity, game.NPCFighter
+
+            if not hasattr(state, "arena") or not state.arena:
+                state.arena = game.BattleArena()
 
             state.arena.reset()
             state.arena.register_combatants(pc_team=crew, enemy_team=opps)  # TODO: update this to take optional starting positions
@@ -86,10 +98,10 @@ label combat_encounter:
             if atk_action.target and atk_action.target.is_pc:
                 jump .player_defense_menu
             $ roll_result = None
-            if atk_action.action_type == CAction.DISENGAGE:
+            if atk_action.action_type == CombAct.DISENGAGE:
                 call roll_control(atk_action.pool, "diff1", active_a=None) from combat_uncontested_disengage
                 $ roll_result = _return
-            $ non_action = CAction(CAction.NO_ACTION, None, user=None)
+            $ non_action = CombatAction(CombAct.NO_ACTION, None, user=None)
             call .handle_post_action(report=state.arena.process_new_result(roll_result, atk_action, non_action))
             $ chained_action = _return
         elif chained_action:
@@ -117,7 +129,7 @@ label combat_encounter:
             for i, item in enumerate(report):
                 if type(item) is str and not report_readout:
                     report_readout = item
-                elif type(item) is game.CAction:
+                elif isinstance(item, game.CombAct):
                     follow_up_action = item
                 elif isinstance(item, (game.NPCFighter, game.PlayerChar)):
                     if item.dead:
@@ -147,23 +159,33 @@ label combat_encounter:
                     close_enough.append(enemy)
                 else:
                     at_range.append(enemy)
-            can_attack_ranged = not pc.engaged and state.pc_has_ranged_attack()
+            can_attack_ranged = not pc.engaged_by and state.pc_has_ranged_attack()
             can_throw = can_attack_ranged and (pc.held.throwable or pc.sidearm.throwable)
             can_use_disc = not state.used_disc_this_turn
             can_use_2p_disc = can_use_disc and pc.can_rouse()
-            pc_cornered = state.arena.is_cornered(pc)
+            pc_cornered = state.arena.is_cornered(pc) or pc.grappled_by
+            grapple_prompt, grapple_confirm_txt = "Grab someone close by (grapple)", "You square yourself up to grab the nearest enemy..."
+            if pc.grappled_by:
+                at_range, close_enough, pc_cornered = [], pc.grappled_by, True
+                can_attack_ranged, can_throw = False, False
+                grapple_prompt, grapple_confirm_txt = "Get this motherfucker off me!", "You can't let yourself be manhandled like this."
+            elif pc.grappling_with:
+                grap_pns = pc.grappling_with[0].pronoun_set
+                if len(pc.grappling_with) > 1:
+                    grap_pns = cfg.PN_GROUP
+                grapple_prompt = f'I\'ve got {grap_pns.PN_HER_HIM_THEM}, now to...'
+                grapple_confirm_txt =  "So many possibilities, so little time."
             mend_prompt = "I should mend my wounds."
             if pc.crippled or pc.hp.agg_damage > 1:
                 mend_prompt = "I'm in bad shape. I need to mend my wounds while I still can."
             disengage_default_prompt = "I need to back up, find a better vantage point."
-            if pc.engaged:
+            if pc.engaged_by:
                 disengage_default_prompt = "I need to back out of this mess and reorient myself."
             state.menu_label_backref = "{}.player_attack_menu".format(cfg.COMBAT_LABEL_MAIN)
-
         menu:
             "What will you do?"
 
-            "Rush 'em!" if at_range and not pc.engaged:
+            "Rush 'em!" if at_range and not pc.engaged_by:
                 "you rush toward an enemy over yonder"
                 call .pc_attack_special_rush(None) from pc_rush_default
                 $ pc_atk = _return
@@ -179,7 +201,7 @@ label combat_encounter:
                 call .pc_attack_special_rush(cfg.POWER_CELERITY_BLINK) from pc_rush_blink
                 $ pc_atk = _return
 
-            "Melee Attack" if close_enough:
+            "Melee Attack" if close_enough and not pc.grappled_by:
                 python:
                     target = utils.get_random_list_elem(close_enough) #[0]
                     using_deadly_weapon, using_heavy_weapon = True, True  # TODO: add something for this
@@ -192,13 +214,27 @@ label combat_encounter:
                         pa_pool = "dexterity+combat/strength+combat"
                     else:
                         pa_pool = "strength+combat"
-                    pc_atk = CAction(CAction.MELEE_ATTACK, target, user=pc, pool=pa_pool)
+                    pc_atk = CombatAction(CombAct.MELEE_ATTACK, target, user=pc, pool=pa_pool)
                 "you attack a random target in melee"
+
+            "[grapple_prompt]" if close_enough:
+                "[grapple_confirm_txt]"
+                call .grapple_submenu from player_basic_grapple
+                $ grapple_choice = _return
+                if grapple_choice is None:
+                    jump expression state.menu_label_backref
+                python:
+                    targets = pc.engaged_by if pc.engaged_by else close_enough
+                    target, pa_pool = utils.get_random_list_elem(targets), "strength+combat"
+                    if grapple_choice in (CombAct.GRAPPLE_BITE, CombAct.GRAPPLE_BITE_PLUS) and target not in pc.grappling_with:
+                        pa_pool = f'{pa_pool}+-{abs(cfg.BITE_ATTACK_PENALTY)}'
+                    pc_atk = CombatAction(CombAct.MELEE_ATTACK, target, user=pc, pool=pa_pool, grapple_type=grapple_choice)
+                    # TODO: grapple defenses, breaking off on dodge?
 
             "Shoot at them" if at_range and can_attack_ranged:
                 $ target = utils.get_random_list_elem(at_range) #[0]
                 $ pa_pool = "dexterity+firearms"
-                $ pc_atk = CAction(CAction.RANGED_ATTACK, target, user=pc, pool=pa_pool)
+                $ pc_atk = CombatAction(CombAct.RANGED_ATTACK, target, user=pc, pool=pa_pool)
                 "you draw your gun and fire at a random enemy"
 
             "Throw something!" if at_range and can_throw:
@@ -206,8 +242,8 @@ label combat_encounter:
                     target = utils.get_random_list_elem(at_range) #[0]
                     pa_pool = "dexterity+athletics"
                     throw_sidearm = not pc.held.throwable and pc.sidearm.throwable
-                    pc_atk = CAction(
-                        CAction.RANGED_ATTACK, target, user=pc, pool=pa_pool,
+                    pc_atk = CombatAction(
+                        CombAct.RANGED_ATTACK, target, user=pc, pool=pa_pool,
                         use_sidearm=throw_sidearm
                     )
                 "you throw something, like maybe a knife"
@@ -232,14 +268,14 @@ label combat_encounter:
                 call .pc_attack_special_disengage(cfg.POWER_CELERITY_BLINK) from pc_disengage_blink
                 $ pc_atk = _return
 
-            "Pass turn":
+            "Pass turn" if not pc.grappled_by:
                 "Reckless haste will get you killed..."
                 if cfg.DEV_MODE and devtest.DEV_COMBAT_AUTO_PASS:
-                    $ pc_atk, roll_result = CAction(CAction.NO_ACTION, None, user=pc), None
+                    $ pc_atk, roll_result = CombatAction(CombAct.NO_ACTION, None, user=pc), None
                     jump .auto_pass
                 jump .pass_turn_submenu
 
-            "Run":
+            "Run" if not pc.grappled_by:
                 "run awaaaaaaaaaaaayyyyy"
                 jump .end
 
@@ -249,7 +285,7 @@ label combat_encounter:
         python:
             target = utils.get_random_list_elem(at_range) #[0]
             pa_pool = "strength+athletics/dexterity+athletics"
-            pc_atk = CAction(CAction.MELEE_ENGAGE, target, user=pc, pool=pa_pool)
+            pc_atk = CombatAction(CombAct.MELEE_ENGAGE, target, user=pc, pool=pa_pool)
             pc_atk.unarmed_power_used = utils.unique_append(pc_atk.unarmed_power_used, rush_power_used, sep=", ")
             free_blink = cfg.DEV_MODE and (cfg.FREE_BLINK or cfg.FREE_DISCIPLINES)
 
@@ -260,9 +296,9 @@ label combat_encounter:
 
     label .pc_attack_special_disengage(disengage_power_used=None):
         python:
-            target = pc.engaged[-1] if pc.engaged else None
+            target = pc.engaged_by[-1] if pc.engaged_by else None
             pa_pool = "wits+clandestine/dexterity+athletics"
-            pc_atk = CAction(CAction.DISENGAGE, target, user=pc, pool=pa_pool)
+            pc_atk = CombatAction(CombAct.DISENGAGE, target, user=pc, pool=pa_pool)
             pc_atk.unarmed_power_used = utils.unique_append(pc_atk.unarmed_power_used, disengage_power_used, sep=", ")
             free_blink = cfg.DEV_MODE and (cfg.FREE_BLINK or cfg.FREE_DISCIPLINES)
 
@@ -275,26 +311,27 @@ label combat_encounter:
 
         python:
             state.menu_label_backref = None
-            npc_def = target.defend(pc, pc_atk) if target else CAction(CAction.NO_ACTION, None, user=None)
+            npc_def = target.defend(pc, pc_atk) if target else CombatAction(CombAct.NO_ACTION, None, user=None)
             def_pool = "pool{}".format(npc_def.pool) if npc_def and npc_def.pool else None
-        call roll_control(pa_pool, def_pool, active_a=pc_atk, response_a=npc_def) from combat_pc_atk
+        # call roll_control(pa_pool, def_pool, active_a=pc_atk, response_a=npc_def) from combat_pc_atk
+        call roll_control(pc_atk.pool, def_pool, active_a=pc_atk, response_a=npc_def) from combat_pc_atk_v2
         $ roll_result = _return
         call .handle_post_action(report=state.arena.process_new_result(roll_result, pc_atk, npc_def)) from pc_atk_pnr
         $ chained_action = _return
 
         jump .turn_loop_start
 
-    label .pass_turn_submenu:
+    label .pass_turn_submenu:  # Only jump here.
 
         menu:
             "...but so will inaction. Better decide quickly."
 
             "I do nothing. (Passes the turn.)":
-                $ pc_atk, roll_result = CAction(CAction.NO_ACTION, None, user=pc), None
+                $ pc_atk, roll_result = CombatAction(CombAct.NO_ACTION, None, user=pc), None
                 "You bide your time and wait for a better opportunity to present itself."
 
             "I want to fall back into the shadows." if pc.current_pos > -2:
-                $ pc_atk, roll_result = CAction(CAction.DISENGAGE, None, user=pc), None
+                $ pc_atk, roll_result = CombatAction(CombAct.DISENGAGE, None, user=pc), None
                 beast "Planning something special?"
 
             "No, I can't let myself hesitate.":
@@ -307,16 +344,50 @@ label combat_encounter:
 
         jump .turn_loop_start
 
+    label .grapple_submenu:
+
+        $ would_combat_feed = pc.grappling_with and (pc.hunger > 0 or pc.humanity <= cfg.KILLHUNT_HUMANITY_MAX)
+        $ pc_grappled, megasuck = pc.grappled_by and len(pc.grappled_by), pc.has_disc_power(cfg.POWER_POTENCE_MEGASUCK, cfg.DISC_POTENCE)
+
+        menu:
+            "...and?"
+
+            "Hold" if not pc_grappled:
+                $ grapple_choice = CombAct.GRAPPLE_HOLD
+
+            "Break them." if not pc_grappled and pc.grappling_with:
+                $ grapple_choice = CombAct.GRAPPLE_DMG
+
+            "Break free!" if pc_grappled:
+                $ grapple_choice = CombAct.GRAPPLE_ACTIVE_ESCAPE
+
+            "Bite":  # Bite attacks can be used when grappling or grappled, tentatively.
+                $ grapple_choice = CombAct.GRAPPLE_BITE
+
+            "Bite... then drain them like a fucking slurpie!" if pc.grappling_with and megasuck:
+                $ grapple_choice = CombAct.GRAPPLE_BITE_PLUS
+
+            "Drink." if not pc_grappled and would_combat_feed:
+                $ grapple_choice = CombAct.GRAPPLE_DRINK
+
+            "Drain them like a fucking smoothie!" if not pc_grappled and would_combat_feed and megasuck:
+                $ grapple_choice = CombAct.GRAPPLE_DRINK_PLUS
+
+            "On second thought...":
+                $ grapple_choice = None
+
+        return grapple_choice
+
     label .player_defense_menu:
 
         python:
             atk_pool, attacker = "pool{}".format(atk_action.pool), atk_action.user
             can_use_melee_counter = attacker.current_pos == pc.current_pos
-            can_use_ranged_counter = not pc.engaged and state.pc_has_ranged_attack()
-            alt_ranged_counter = not pc.engaged and state.pc_has_ranged_attack(check_alt=True)
+            can_use_ranged_counter = not pc.engaged_by and state.pc_has_ranged_attack()
+            alt_ranged_counter = not pc.engaged_by and state.pc_has_ranged_attack(check_alt=True)
             can_throw = alt_ranged_counter and (pc.held.throwable or pc.sidearm.throwable)
             pns = attacker.pronoun_set
-            if atk_action.action_type in (CAction.MELEE_ENGAGE, CAction.MELEE_ATTACK):
+            if atk_action.action_type in (CombAct.MELEE_ENGAGE, CombAct.MELEE_ATTACK):
                 shoot_prompt = "Shoot {}.  (Dexterity + Firearms)".format(pns.PN_HER_HIM_THEM)
                 sideshoot_prompt = "Try to draw my sidearm and shoot!  (Dexterity/Wits + Firearms)"
             else:
@@ -327,54 +398,61 @@ label combat_encounter:
             can_flit = Entity.SE_FLEETY in pc.status_effects and not state.fleet_dodge_this_turn
             state.menu_label_backref = "{}.player_defense_menu".format(cfg.COMBAT_LABEL_MAIN)
             defend_prompt = flavor.prompt_combat_defense(atk_action)
+            counter_attack_prompt, no_action_prompt = "Counter-attack!", "Just take it."
+            if atk_action.action_type in (CombAct.DISENGAGE, CombAct.FALL_BACK, CombAct.ESCAPE_ATTEMPT):
+                counter_attack_prompt = f'Catch {pns.PN_HER_HIM_THEM}!'
+                no_action_prompt = f'Just let {pns.PN_HER_HIM_THEM} go.'
 
         menu:
             # TODO: specify attack type/weapon, for narrative use later and for user benefit
             "[defend_prompt]"
 
-            "Just take it." if cfg.DEV_MODE and devtest.DEV_FACETANK:
+            "[no_action_prompt]" if cfg.DEV_MODE and devtest.DEV_FACETANK:
                 $ pd_pool = "pool1"
-                $ pc_def = CAction(CAction.NO_ACTION, None, user=pc, defending=True, pool=pd_pool)
+                $ pc_def = CombatAction(CombAct.NO_ACTION, None, user=pc, defending=True, pool=pd_pool)
 
             "Dodge  (Dexterity + Athletics)":  # Only defense that's always available.
                 "you attempt to dodge"
                 call .pc_defend_special_dodge(None) from pc_dodge_default
                 $ pc_def = _return
+                $ print(f'\nbasic dodge | pc_def.pool = {pc_def.pool}')
 
             "Flit out of the way with supernatural speed  (Dexterity + Athletics + Celerity)" if can_flit:
                 "you get to flitting and fleeting"
                 # $ state.fleet_dodge_this_turn = True
                 call .pc_defend_special_dodge(cfg.POWER_CELERITY_SPEED) from pc_dodge_fleetness
                 $ pc_def = _return
+                $ print(f'\nfleet dodge | pc_def.pool = {pc_def.pool}')
 
-            # TODO: Blink should be usable here as an automatic DODGE with movement to different rank?
             "Blink out of the way!" if can_use_2p_disc and pc.has_disc_power(cfg.POWER_CELERITY_BLINK):
                 "blink evade/escape not implemented yet"
                 call .pc_defend_special_dodge(cfg.POWER_CELERITY_BLINK) from pc_dodge_blink
                 $ pc_def = _return
+                $ print(f'\nblink dodge | pc_def.pool = {pc_def.pool}')
 
             "Soaring leap out of the way!" if pc.has_disc_power(cfg.POWER_POTENCE_SUPERJUMP):
                 "soaring leap evade/escape not implemented yet"
                 call .pc_defend_special_dodge(cfg.POWER_POTENCE_SUPERJUMP) from pc_dodge_soaring_leap
                 $ pc_def = _return
+                $ print(f'\nsoaring leap dodge | pc_def.pool = {pc_def.pool}')
 
-            "Counterattack!\n(Dexterity + Combat / Strength + Combat)" if can_use_melee_counter:
+            "[counter_attack_prompt]\n(Dexterity + Combat / Strength + Combat)" if can_use_melee_counter:
                 $ pd_pool = "dexterity+combat/strength+combat"
-                $ pc_def = CAction(CAction.MELEE_ATTACK, atk_action.user, user=pc, defending=True, pool=pd_pool)
+                $ pc_def = CombatAction(CombAct.MELEE_ATTACK, atk_action.user, user=pc, defending=True, pool=pd_pool)
                 "you attempt a counterattack"
                 # jump .pc_defend_post
 
             "[shoot_prompt]" if can_use_ranged_counter:
                 $ pd_pool = "dexterity+firearms"
-                $ pc_def = CAction(CAction.RANGED_ATTACK, atk_action.user, user=pc, defending=True, pool=pd_pool)
+                $ pc_def = CombatAction(CombAct.RANGED_ATTACK, atk_action.user, user=pc, defending=True, pool=pd_pool)
                 "you bust back"
                 # jump .pc_defend_post
 
             "[sideshoot_prompt]" if alt_ranged_counter and pc.sidearm.item_type == Item.IT_FIREARM:
                 python:
                     pd_pool = "dexterity+firearms/wits+firearms"
-                    pc_def = CAction(
-                        CAction.RANGED_ATTACK, atk_action.user, user=pc, defending=True,
+                    pc_def = CombatAction(
+                        CombAct.RANGED_ATTACK, atk_action.user, user=pc, defending=True,
                         pool=pd_pool, use_sidearm=True
                     )
 
@@ -382,29 +460,27 @@ label combat_encounter:
                 python:
                     pd_pool = "dexterity+athletics"
                     throw_sidearm = not pc.held.throwable and pc.sidearm.throwable
-                    pc_def = CAction(
-                        CAction.RANGED_ATTACK, atk_action.user, user=pc, defending=True,
+                    pc_def = CombatAction(
+                        CombAct.RANGED_ATTACK, atk_action.user, user=pc, defending=True,
                         pool=pd_pool, use_sidearm=throw_sidearm
                     )
-
-            "test option":
-                "dafuq 3024343"
-                jump expression state.menu_label_backref
 
         jump .pc_defend_post
 
     label .pc_defend_special_dodge(dodge_power_used=None):
         python:
             pd_pool, rr_dodge = "dexterity+athletics", "dodge"
-            if CAction.attack_is_gunshot(attacker, atk_action):
+            if CombatAction.attack_is_gunshot(attacker, atk_action):
                 if pc.has_disc_power(cfg.POWER_CELERITY_TWITCH, cfg.DISC_CELERITY):
                     rr_dodge = "celerity-dodge"
-                    utils.log("Bullet-time! Gunshot dodging penalty waived for {}.".format(pc.name))
+                    utils.log(f'Bullet-time! Gunshot dodging penalty waived for {pc}.')
                 else:
-                    pd_pool += "+-{}".format(cfg.BULLET_DODGE_PENALTY)
-            pc_def = CAction(CAction.DODGE, None, user=pc, defending=True, pool=pd_pool)
+                    pd_pool += f'+-{cfg.BULLET_DODGE_PENALTY}'
+            pc_def = CombatAction(CombAct.DODGE, None, user=pc, defending=True, pool=pd_pool)
+            print(f'pc_def pool just after creation: {pc_def.pool}')
             pc_def.unarmed_power_used = utils.unique_append(pc_def.unarmed_power_used, dodge_power_used, sep=", ")
             free_blink = cfg.DEV_MODE and (cfg.FREE_BLINK or cfg.FREE_DISCIPLINES)
+            # Break grapple on Blink?
 
         if dodge_power_used == cfg.POWER_CELERITY_BLINK and not free_blink:
             call roll_control.rouse_check() from pc_dodge_blink_rouse
@@ -414,7 +490,8 @@ label combat_encounter:
     label .pc_defend_post:
 
         $ state.menu_label_backref = None
-        call roll_control(atk_pool, pd_pool, active_a=atk_action, response_a=pc_def) from combat_pc_def
+        # call roll_control(atk_pool, pd_pool, active_a=atk_action, response_a=pc_def) from combat_pc_def
+        call roll_control(atk_pool, pc_def.pool, active_a=atk_action, response_a=pc_def) from combat_pc_def_v2
         $ roll_result = _return
         call .handle_post_action(report=state.arena.process_new_result(roll_result, atk_action, pc_def)) from pc_def_pnr
         $ chained_action = _return

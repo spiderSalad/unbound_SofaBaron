@@ -285,8 +285,6 @@ init 1 python in game:
 init python in state:
     # diceroller = None
     pc_roll, active_roll, response_roll = None, None, None
-    print("1. active_roll: ", active_roll)
-    print("1. response_roll", response_roll)
     roll_config, pool_readout = None, None
 
     cfg, utils = renpy.store.cfg, renpy.store.utils
@@ -295,9 +293,6 @@ init python in state:
     skill_names = [getattr(cfg, sname) for sname in gdict if str(sname).startswith("SK_")]
     discipline_names = [getattr(cfg, dname) for dname in gdict if str(dname).startswith("DISC_")]
 
-    def available_pc_will_2():  # TODO why is this defined twice and why isn't Ren'py throwing an error without the '_2'?
-        return pc.will.boxes - (pc.will.spf_damage + pc.will.agg_damage)
-
     def roll_bones(primary_rc, secondary_rc=None, difficulty=None, pc_defending=False):
         global pc_roll
         global active_roll
@@ -305,7 +300,7 @@ init python in state:
         global active_rc
 
         if active_roll:
-            del active_roll  # TODO: added response_roll, check this
+            active_roll = None
         # if response_roll:
             # del response_roll
 
@@ -408,12 +403,12 @@ init python in state:
         if hidden.is_pc:
             hide_pool = hidden.attrs[cfg.AT_WIT] + hidden.disciplines.levels[cfg.DISC_OBFUSCATE]
         else:
-            obfu_stats = [sk for sk in hidden.special_skills if sk in CAction.SNEAK_VARIANTS]
+            obfu_stats = [sk for sk in hidden.special_skills if sk in CombAct.SNEAK_VARIANTS]
             hide_pool = max(obfu_stats)
         if seer.is_pc:
             seek_pool = seer.attrs[cfg.AT_WIT] + seer.disciplines.levels[cfg.DISC_AUSPEX]
         else:
-            ausp_stats = [sk for sk in seer.special_skills if sk in CAction.DETECTION_VARIANTS]
+            ausp_stats = [sk for sk in seer.special_skills if sk in CombAct.DETECTION_VARIANTS]
             seek_pool = max(ausp_stats)
         sense_roll, hide_roll = diceroller.contest(pool1=seek_pool, pool2=hide_pool, hunger=pc.hunger, include_hunger=seer.is_pc)
         return sense_roll.margin > 0
@@ -438,7 +433,7 @@ label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=
         active_user_pc = active_a is True or (hasattr(active_a, "user") and active_a.user and active_a.user.is_pc)
         if active_a is True:
             active_a = None
-        response_user_pc = response_a is True or hasattr(response_a, "user") and response_a.user.is_pc
+        response_user_pc = response_a is True or (hasattr(response_a, "user") and response_a.user and response_a.user.is_pc)
         if response_a is True:
             response_a = None
 
@@ -446,7 +441,7 @@ label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=
             pc_defending = False
         elif response_user_pc:
             pc_defending = True
-        contesting_response = hasattr(response_a, "action_type") and response_a.action_type not in game.CAction.NO_CONTEST
+        contesting_response = hasattr(response_a, "action_type") and response_a.action_type not in game.CombAct.NO_CONTEST
         if pc_defending or contesting_response or (test_or_contest and cfg.ROLL_CONTEST in test_or_contest):
             is_contest, primary_pool, opp_pool = True, active_pool, test_or_contest
         elif test_or_contest is None or cfg.ROLL_TEST in test_or_contest:

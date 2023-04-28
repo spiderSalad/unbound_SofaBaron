@@ -235,6 +235,23 @@ init 1 python in utils:
             return collection[0]
         return collection
 
+    def list_minus(collec, item):
+        collec_copy = collec[:]
+        try:
+            collec.remove(item)
+            return collec
+        except ValueError:
+            log("[utils.remove_from]: {} was not found in collection:\n{}".format(item, collec))
+            return collec_copy
+        except Exception as e:
+            log("[utils.remove_from]: Unexplained exception: {}".format(e))
+            return collec_copy
+
+    def list_plus_nodup(collec, item):
+        if item not in collec:
+            collec.append(item)
+        return collec
+
     def get_random_list_elem(collection, num_elems=1):
         elem_set = random.choices(collection, k=num_elems)
         return oneify_list(elem_set)
@@ -260,7 +277,7 @@ init 1 python in utils:
                 cum_weights.append(w8)
         return cum_weights
 
-    def generate_random_id_str(leng=6, label: str = None):
+    def generate_random_id_str(leng=4, label: str = None):
         return "{}_{}".format(label if label else "rid", ''.join(random.choices(ascii_letters, k=leng)))
 
     def make_dice_roll(max_val, num_dice):

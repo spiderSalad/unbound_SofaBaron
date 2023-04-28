@@ -21,18 +21,20 @@ label hunt_preroute(hunt_type):
 
 label hunt_confirm(hunt_warning, pool_desc_1, pool_desc_2, situational_mod=None):
     python:
-        pool_desc_raw = "{},{}".format(pool_desc_1, pool_desc_2)
-        pool_org, pool_tokens = renpy.store.utils.parse_pool_string(pool_desc_raw, situational_mod=situational_mod), []
-        for phase in pool_org:
-            phase_str = "/".join(phase)
-            pool_tokens.append(phase_str)
-        final_text = ", then ".join(pool_tokens)
-
+        final_text = ""
+        if pool_desc_1 and pool_desc_2:
+            pool_desc_raw = "{},{}".format(pool_desc_1, pool_desc_2)
+            pool_org, pool_tokens = renpy.store.utils.parse_pool_string(pool_desc_raw, situational_mod=situational_mod), []
+            for phase in pool_org:
+                phase_str = "/".join(phase)
+                pool_tokens.append(phase_str)
+            final_text = ", then ".join(pool_tokens)
+            final_text = f'\n\n{final_text}'
 
     menu:
         beast "[hunt_warning]"
 
-        "Let's do it.\n\n[final_text]":
+        "Let's do it.[final_text]":
             $ state.tried_hunt_tonight = True
             return True
 
@@ -70,6 +72,10 @@ label hunt_alley_cat(status):
             if _return:
                 jump hunt_alley_cat.plaza
             jump hunt_alley_cat.options
+
+        "Maybe I should just order takeout...":
+            call blood_purchase(cfg.PT_ALLEYCAT) from purchase_blood_instead_alley_cat
+            return
 
         "Actually, I'd rather not hunt right now.":
             $ state.outside_haven = False
@@ -136,6 +142,10 @@ label hunt_bagger(status):
             if _return:
                 jump hunt_bagger.clinic
             jump hunt_bagger.options
+
+        "Maybe I should just order takeout...":
+            call blood_purchase(cfg.PT_BAGGER) from purchase_blood_instead_bagger
+            return
 
         "Actually, I'd rather not hunt right now.":
             $ state.outside_haven = False
@@ -239,6 +249,10 @@ label hunt_farmer(status):
                 jump hunt_farmer.killshelter
             jump hunt_farmer.options
 
+        "Maybe I should just order takeout...":
+            call blood_purchase(cfg.PT_FARMER) from purchase_blood_instead_farmer
+            return
+
         "Actually, I'd rather not hunt right now.":
             $ state.outside_haven = False
             return
@@ -336,6 +350,10 @@ label hunt_siren(status):
             if retval:
                 jump hunt_siren.houseparty
             jump hunt_siren.options
+
+        "Maybe I should just order takeout...":
+            call blood_purchase(cfg.PT_SIREN) from purchase_blood_instead_siren
+            return
 
         "Actually, I'd rather not hunt right now.":
             $ state.outside_haven = False
@@ -494,6 +512,22 @@ label get_prey_gender:
         $ desired = state.siren_orientation
 
     return desired
+
+
+label blood_purchase(hunt_type):
+    "You know of a few shady licks - shady by {i}vampire{/i} standards, even - who operate a \"menagerie\" of sorts."
+
+    "For a reasonable price you could skip all the hard work and danger and just pay to chow down on whichever local kine are desperate or unlucky enough to find themselves there."
+
+    if state.setite_blood_buys < 1:
+        "The first time's always free."
+
+    call hunt_confirm("...Pathetic. Predators don't beg for food.", None, None) from blood_purchase_root
+    if _return:
+        "(not fully implemented yet, so it's free. lucky lick, you.)"
+        $ state.set_hunger("-=5")
+        $ state.setite_blood_buys += 1
+    return
 
 
 label hunger_frenzy:

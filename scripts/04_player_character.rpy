@@ -214,7 +214,6 @@ init 1 python in game:
             self.hp, self.will = PC_V5Tracker(self, 3, cfg.TRACK_HP), PC_V5Tracker(self, 3, cfg.TRACK_WILL)
             # self.crippled, self.shocked = False, False
             self.frenzied_bc_hunger, self.frenzied_bc_fear = False, False
-            # self.dead, self.cause_of_death = False, None
             # self._status = "(All clear)"
             self.clan_blurbs = {}
             self.anames, self.snames, self.dnames = anames, snames, dnames
@@ -229,10 +228,8 @@ init 1 python in game:
             self.sense_creature_types = False
             self.reset_charsheet_stats()
 
-        @property
-        def label(self):
-            return "You"
-            # return self.nickname
+        def __repr__(self):
+            return "(You)"
 
         @property
         def status(self):
@@ -252,22 +249,6 @@ init 1 python in game:
             else:
                 return ", ".join(status_list)
             # return self._status
-
-        @property
-        def hunger(self):
-            return self._hunger
-
-        @hunger.setter
-        def hunger(self, new_hunger):
-            self._hunger = max(0, min(new_hunger, cfg.HUNGER_MAX + 1))
-            if self.hunger > cfg.HUNGER_MAX:
-                print("Hunger tested at 5; frenzy check?")  # TODO: frenzy check
-                self.frenzied_bc_hunger = True
-                self.hunger = cfg.HUNGER_MAX
-            else:
-                utils.log("Hunger now set at {}".format(self.hunger))
-                if self.frenzied_bc_hunger and self.hunger < cfg.HUNGER_MAX_CALM:
-                    self.frenzied_bc_hunger = False
 
         @property
         def humanity(self):
@@ -461,8 +442,6 @@ init 1 python in game:
             self.disciplines.unlock(disc, access)
 
         def handle_demise(self, tracker_type, damage_source):
-            # self.dead = True
-            # self.cause_of_death = damage_source
             super().handle_demise(tracker_type=tracker_type, damage_source=damage_source)
             renpy.jump("end")
 

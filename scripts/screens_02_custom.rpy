@@ -32,7 +32,7 @@ screen dev_panel(*args):
                     text "[stack_string]" text_align 0.0 align (0.1, 0.1) size 16
             vbar value YScrollValue("call_stack_list")
 
-    frame id "second_dev_readout" align (0.0, 0.3) xysize (700, 250) background Frame("gui/frame.png"):
+    frame id "second_dev_readout" align (0.0, 0.3) xysize (800, 250) background Frame("gui/frame.png"):
         margin (5, 0)
         padding (7, 5)
         xfill False
@@ -40,7 +40,7 @@ screen dev_panel(*args):
         python:
             state, ro_text_main, ao_r, rosters_r = renpy.store.state, "", "", ""
 
-            # ent_format = lambda ent: " {}   {}".format(">" if state.arena.get_up_next() is ent else " ", ent.label)
+            # ent_format = lambda ent: " {}   {}".format(">" if state.arena.get_up_next() is ent else " ", ent)
             def ent_format(ent, show_stats=False):
                 if ent.dead:
                     key = "X"
@@ -48,7 +48,9 @@ screen dev_panel(*args):
                     key = ">"
                 else:
                     key = "  "
-                status_l, status_r, eng = " [ {} ] ".format(ent.current_pos), "", "[e]" if ent.engaged else ""
+                status_l, status_r, eng = " [ {} ] ".format(ent.current_pos), "", "[e]" if ent.engaged_by else ""
+                grap = "[g<]" if ent.grappled_by else "[g>]" if ent.grappling_with else ""
+                atkd = f'{ent.times_attacked_this_turn}x<-'
                 if show_stats:
                     if ent.dead:
                         status_r = "  (dead)"
@@ -57,8 +59,8 @@ screen dev_panel(*args):
                         # status_r = "  ({} spf + {} agg/{} hp)  [ {} ]{}".format(
                             # spf, agg, total, ent.current_pos, eng
                         # )
-                        status_r = "  (hp: {})   {}".format(ent.hp, eng)
-                return " {0}{1}   {2: <8}{3}".format(key, status_l, ent.label, status_r)
+                        status_r = f'  (hp: {ent.hp})   {eng}{grap}{atkd}'
+                return " {0}{1}   {2: <8}{3}".format(key, status_l, utils.truncate_string(str(ent), leng=17), status_r)
 
             pc_append = "  (pc={}/{}".format(pc.pronoun_set.PN_SHE_HE_THEY, pc.pronoun_set.PN_HER_HIM_THEM)
             pc_append += ", scream={})".format(utils.truncate_string(pc.scream, leng=20, reverse=True))
@@ -114,7 +116,7 @@ screen bl_corner_panel(*args):
                     use hovertext("{}".format(surge_prompt), tooltip=surge_tooltip, _action=bs_action, activated=state.blood_surge_active)
                     for item_slot in equipped:  # Add quickbar later
                         $ item, qb_key, sw_tt = equipped[item_slot] if equipped[item_slot] else None, "", None
-                        # $ print("we have item {} at slot {}".format(item.label if item else None, item_slot))
+                        # $ print("we have item {} at slot {}".format(item if item else None, item_slot))
                         if item and item_slot in [Inventory.EQ_CONSUMABLE_1, Inventory.EQ_CONSUMABLE_2]:
                             $ qb_key = " (x{})".format(equipped[item_slot].quantity)
                             $ sw_tt = item.desc if state.is_their_turn(pc) else sw_tooltip
@@ -124,7 +126,7 @@ screen bl_corner_panel(*args):
                                 qb_key = "{b}At hand{/b}: " if item_slot == Inventory.EQ_WEAPON else "At side: "
                                 sw_tt = item_desc if state.is_their_turn(pc) else sw_tooltip
                         if item:
-                            use hovertext("{}{}".format(qb_key, item.label), tooltip=sw_tt, _action=item_action)
+                            use hovertext("{}{}".format(qb_key, item), tooltip=sw_tt, _action=item_action)
                     for disc in pc.disciplines.get_unlocked():
                         for pow_level in pc.disciplines.pc_powers[disc]:
                             python:
@@ -558,12 +560,12 @@ screen codexCasefilesPage(*args):
                         frame style style.utility_frame:
                             python:
                                 color_str = game.Item.ITEM_COLOR_KEYS[item.item_type]
-                                title = item.label
+                                title = item
                                 tooltip = item.desc
                                 itype = item.item_type
 
                                 if itype == game.Item.IT_MONEY:
-                                    title = "{}: ${:.2f}".format(item.label, item.quantity)
+                                    title = "{}: ${:.2f}".format(item, item.quantity)
                                 elif itype == game.Item.IT_WEAPON or itype == game.Item.IT_FIREARM:
                                     if item.concealable:
                                         concealed = "You have your trusty forged CCW permit, just in case."
