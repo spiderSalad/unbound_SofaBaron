@@ -74,13 +74,13 @@
         "name":"pfranzen",
         "type":"sound_engineer",
         "works":[
-            {"name":"Human impression of cat hacking up hairball", "licenseUrl":"https://creativecommons.org/licenses/by/3.0/"}
+            {"name":"Human impression of cat hacking up hairball", "licenseUrl":"https://creativecommons.org/licenses/by/3.0/"},
             {"name":"Shapeshifter shifting shapes", "licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"}
         ],
         "website":"",
         "socials":[
             {"site":"Steam", "handle":"Cat President - A More Purrfect Union", "url":"http://store.steampowered.com/app/474980/Cat_President_A_More_Purrfect_Union/"},
-            {"site":"freesound.org", "handle":"pfranzen", "url": "https://freesound.org/people/pfranzen/"},
+            {"site":"freesound.org", "handle":"pfranzen", "url": "https://freesound.org/people/pfranzen/"}
         ]
     },
     {
@@ -809,7 +809,8 @@
         "name":"EFlexMusic",
         "type":"sound_engineer",
         "works":[
-            {"name":"Body fall 3 (mixed)", "licenseUrl":"https://creativecommons.org/licenses/by/3.0/"}
+            {"name":"Body fall 3 (mixed)", "licenseUrl":"https://creativecommons.org/licenses/by/3.0/"},
+            {"name":"Hard Kick to Gut (No Effects Only Mixing)", "licenseUrl":"https://creativecommons.org/licenses/by/3.0/"}
         ],
         "website":"http://bit.ly/EFlexBandcamp",
         "socials":[
@@ -1165,7 +1166,8 @@
         "name":"Coral_Island_Studios",
         "type":"sound_engineer",
         "works":[
-            {"name":"Woman in Pain.mp3", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+            {"name":"Woman in Pain.mp3", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"},
+            {"name":"Moolah! Counting Out Bills.wav", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
         ],
         "website":"",
         "socials":[
@@ -1177,7 +1179,7 @@
         "type":"sound_engineer",
         "works":[
             {"name":"Person Knocked Down", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"},
-            {"name":"Jump Landing [remix MentalSanityOff's jumping 148796]", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
+            {"name":"Jump Landing (remix MentalSanityOff's jumping 148796)", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
         ],
         "website":"",
         "socials":[
@@ -1356,7 +1358,7 @@
         "name":"Drake Stafford",
         "type":"musician",
         "works":[
-            {"name":"Excogitate", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"},
+            {"name":"Excogitate", "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
         ],
         "website":"https://www.drakestafford.com/",
         "socials":[
@@ -1387,7 +1389,7 @@
         "website":"",
         "socials":[
             {"site":"Freemusicarchive.org", "handle":"10 Echo", "url":"https://freemusicarchive.org/music/10-echo/contact"},
-            {"site":"Bandcamp", "handle":"10 Echo", "url":"https://10echo.bandcamp.com/"},
+            {"site":"Bandcamp", "handle":"10 Echo", "url":"https://10echo.bandcamp.com/"}
         ]
     },
     {
@@ -1402,25 +1404,25 @@
         ]
     },
     {
-        "name":"",
+        "name":"deleted_user_3277771",
         "type":"sound_engineer",
         "works":[
-            {"name":"asdfdsdfd", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+            {"name":"VERY LOUD Eviscerating 2.wav", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
         ],
         "website":"",
         "socials":[
-            {"site":"freesound.org", "handle":"sdfdfd", "url":"https://freesound.org/people/sdfdfd/"}
+            {"site":"freesound.org", "handle":"deleted_user_3277771", "url":"https://freesound.org/people/deleted_user_3277771/"}
         ]
     },
     {
-        "name":"",
+        "name":"Julia Rehfeldt",
         "type":"sound_engineer",
         "works":[
-            {"name":"asdfdsdfd", "licenseUrl":"http://creativecommons.org/licenses/by/3.0/"}
+            {"name":" 20131119_Receipt printer at checkout_ZoomH6YX.wav", "licenseUrl":"http://creativecommons.org/publicdomain/zero/1.0/"}
         ],
         "website":"",
         "socials":[
-            {"site":"freesound.org", "handle":"sdfdfd", "url":"https://freesound.org/people/sdfdfd/"}
+            {"site":"freesound.org", "handle":"Soundscape_Leuphana", "url":"https://freesound.org/people/Soundscape_Leuphana/"}
         ]
     },
     {

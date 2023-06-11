@@ -71,12 +71,12 @@ init 1 python in game:
                     bsk_value = max(1, int(bsk_value) - cfg.BULLET_DODGE_PENALTY)
             return CombatAction(def_atype, target, user=defender, defending=True, pool=bsk_value, subtype=bsk_name)
 
-        @staticmethod
+        @staticmethod  # NOTE: Actions returned from here do not have defending flag set to True. Check back on that later.
         def npc_possible_pursuit(pursuer, fleer, flight_action):
             ftype = pursuer.ftype
             if ftype == NPCFighter.FT_ESCORT or (ftype == NPCFighter.FT_FTPC and not fleer.is_pc):
                 return CombatAction(CombAct.NO_ACTION, None, user=pursuer)
-            if flight_action.skip_contest or pursuer.grappled_by:
+            if flight_action.autowin or pursuer.grappled_by:
                 print(f'{pursuer} can\'t do anything to stop {fleer}!')
                 return CombatAction(CombAct.NO_ACTION, None, user=pursuer)
             fleer_atk_m, fleer_atk_r = FightBrain.can_attack_target(pursuer, fleer)
@@ -125,7 +125,8 @@ init 1 python in game:
                 for grappler in attacker.grappled_by:
                     if grappler in high_priority:
                         close_grapplers.append(grappler)
-                target = utils.get_random_list_elem(close_grapplers) if close_grapplers else utils.get_random_list_elem(attacker.grappled_by)
+                if close_grapplers: target = utils.get_random_list_elem(close_grapplers)
+                else: utils.get_random_list_elem(attacker.grappled_by)
                 lethality = None if close_grapplers else 0
                 print(f'\n{attacker}, a brawler, is struggling in the grip of {target}!\n')
                 return CombatAction(CombAct.MELEE_ATTACK, target, user=attacker, pool=atk_pool, subtype=atk_label)
@@ -189,16 +190,15 @@ init 1 python in game:
             if grappled.creature_type in (cfg.CT_VAMPIRE, cfg.CT_LUPINE):
                 if (using_sidearm and sidearm_penalty > cfg.BITE_ATTACK_PENALTY) or (held_penalty > cfg.BITE_ATTACK_PENALTY):
                     chosen_weapon, using_sidearm = USING_FANGS, False
-            if chosen_weapon.subtype in Weapon.MWEPS or chosen_weapon.subtype in (Weapon.MW_FANGS, Weapon.MW_DRAIN):
-                print(f' \nMELEE -- chosen_weapon = {chosen_weapon} ({chosen_weapon.subtype})')
+            break_action_type = CombAct.MELEE_ATTACK
+            if chosen_weapon and (chosen_weapon.subtype in Weapon.MWEPS or chosen_weapon.subtype in (Weapon.MW_FANGS, Weapon.MW_DRAIN)):
                 break_action_type = CombAct.MELEE_ATTACK
-            else:
-                print(f' \nRANGED -- chosen_weapon = {chosen_weapon} ({chosen_weapon.subtype})')
+            elif chosen_weapon:
                 break_action_type = CombAct.RANGED_ATTACK
             ranked_attacks = FightBrain.grucs_v2(grappled, break_action_type)
             atk_label, atk_pool = ranked_attacks[0]
             target = utils.get_random_list_elem(targets)
-            gtype = CombAct.GRAPPLE_BITE if chosen_weapon.subtype == Weapon.MW_FANGS else CombAct.GRAPPLE_ACTIVE_ESCAPE
+            gtype = CombAct.GRAPPLE_BITE if chosen_weapon and chosen_weapon.subtype == Weapon.MW_FANGS else CombAct.GRAPPLE_ESCAPE_DMG
             return CombatAction(
                 break_action_type, target, user=grappled, pool=atk_pool,
                 subtype=atk_label, grapple_type=gtype, use_sidearm=using_sidearm
@@ -268,7 +268,6 @@ init 1 python in game:
         @staticmethod
         def grucs_v2(user, action_type, anywhere_actions_only=False):
             ranking = FightBrain.get_r_ranked_usable_combat_skills_v2(user, action_type, anywhere_actions_only=anywhere_actions_only)
-            print("\n >> RANKING for {}, action type is {}:".format(user.name, action_type))
             utils.log("get_r_ranked_usable_combat_skills_v2() returns:\n\n{}\n".format(
                 '\n'.join(["{}: {}".format(rsk[0], rsk[1]) for rsk in ranking]) if ranking else "--empty action list--"
             ))
@@ -282,7 +281,6 @@ init 1 python in game:
             available_skills, possibly_usable = list(user.special_skills.items()), []
             if bc_stat:
                 available_skills += (bc_stat,)
-                print("avail skillz", available_skills)
             if not action_type:
                 return sorted(available_skills + [bc_stat], key=lambda skill_opt: skill_opt[1])
             if anywhere_actions_only:

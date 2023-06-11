@@ -86,7 +86,13 @@ init 1 python in game:
         def damage(self, dtype, amount, source_what=None, source_who=None):
             if not utils.is_number(amount) or amount < 0:
                 raise ValueError("Damage should always be an integer of zero or more.")
+            elif amount > 0 and not source_what:
+                source_what = "Combat"
 
+            print(f'\n --> {amount} {dtype} damage from {source_who if source_who else "(unknown)"} via {source_what}\n')
+            if dtype == cfg.DMG_NONE:
+                utils.log(f'{amount} "clear" damage (i.e. type of DMG_NONE) sent; all zeroes returned.')
+                return 0, 0, 0, 0
             total_boxes = self.boxes + self.bonus
 
             temp_armor = self.armor if self.armor_active else 0
@@ -109,8 +115,10 @@ init 1 python in game:
 
             for point in range(int(true_amount)):
                 clear_boxes = total_boxes - (self.spf_damage + self.agg_damage)
+                if self.char.dead:
+                    break
                 if clear_boxes > 0:  # Clear spaces get filled first.
-                    self.char.impair(False, self.tracker_type)
+                    # self.char.impair(False, self.tracker_type)
                     if dtype in [cfg.DMG_SPF, cfg.DMG_FULL_SPF]:
                         self.spf_damage += 1
                         pt_symbol = "|/|"
@@ -126,13 +134,14 @@ init 1 python in game:
                         pt_symbol = "|X|"
                     utils.log("  |_| > {} :: Damage point #{}, filling a clear space.".format(pt_symbol, point+1))
                 elif self.spf_damage > 0:  # If there are no clear boxes, tracker is filled with mix of damage types.
-                    self.char.impair(True, self.tracker_type)
+                    # self.char.impair(True, self.tracker_type)
                     self.spf_damage -= 1
                     self.agg_damage += 1  # If there's any Superficial damage left, turn it into a Aggravated.
                     utils.log("  |/| > |X| :: Damage point #{}, replacing a Superficial with Aggravated.".format(point+1))
                 if self.agg_damage >= total_boxes:
                     # A tracker completely filled with Aggravated damage = game over, i.e.
                     # torpor, death, or a total loss of faculties, face and status.
+                    self.last_damage_source = {"what": source_what, "who": source_who}
                     self.char.handle_demise(self.tracker_type, self.last_damage_source)
                     utils.log("  RIP :: Damage point #{}, the final point.".format(point+1))
 
@@ -211,8 +220,6 @@ init 1 python in game:
             else:
                 ent_label = "unknown"
 
-            # print(f'NAMAE WA {self.name if self.name else "no name"}')
-
             if state.pc and (self.is_animate or state.pc.sense_creature_types):
                 beast_check = "BEAST, " if self.has_Beast else ""
                 if state.pc.using_sense_the_beast and state.pc.sense_creature_types:
@@ -225,7 +232,7 @@ init 1 python in game:
             return f'{id_tag}{ent_label}'
 
         def __str__(self):
-            return self.__repr__()
+            return repr(self)
 
 
     class Person(NarrativeObject):
@@ -240,9 +247,7 @@ init 1 python in game:
             if self.creature_type not in cfg.REF_SAPIENT_SPECIES and not sapience:
                 self.sapient = False  # All persons are sentient, but not all animals are sapient
             self.scream = None  # For now.
-            self.pronoun_set = pronoun_set
-            if pronoun_set is None:
-                self.pronoun_set = Person.random_pronouns()
+            self.pronoun_set = pronoun_set if pronoun_set is not None else Person.random_pronouns()
             self.apparent_age = apparent_age
             if apparent_age is None:
                 self.apparent_age = utils.get_wrs(Person.RAND_AGES, cum_weights=Person.AGE_CUM_WEIGHTS[:len(Person.RAND_AGES)])
@@ -293,6 +298,10 @@ init 1 python in game:
             return None
 
 
+    class PoliticalActor(Person):
+        pass
+
+
     class Entity(Person):
         STATUS_LASTING = -1
 
@@ -301,22 +310,24 @@ init 1 python in game:
         SE_CRIPPLED = "hp_impaired"
         SE_AUSPEX_ESP = "auspex_detector"
         SE_FLEETY = "fleetness_boost"
+        SE_WEAVING = "weaving_boost"
         SE_TOUGHNESS = "toughness_armor"
         SE_ANTIBANE = "bane_armor"
         SE_OBFU_ROOTED = "stealth_mode"
         SE_OBFU_MOBILE = "stealth_mobile"
         SE_HULKING = "prowess_strength"
+        SE_FERAL_WEPS = "feral_weapons_on"
         SE_FLESHCRAFT_WEAPON = "vicissitude_weapons"
         SE_FLESHCRAFTED_STACK = "vicissitude_effects"
 
-        LASTING_STATUS_FX = [SE_SHOCKED, SE_CRIPPLED, SE_FLESHCRAFT_WEAPON, SE_FLESHCRAFTED_STACK]
+        LASTING_STATUS_FX = [SE_SHOCKED, SE_CRIPPLED, SE_FLESHCRAFT_WEAPON, SE_FLESHCRAFTED_STACK, SE_FERAL_WEPS]
 
         def __init__(self, ctype=cfg.CT_HUMAN, pronoun_set=None, **kwargs):
             super().__init__(ctype=ctype, pronoun_set=pronoun_set, **kwargs)
             self.hp = self.will = None
             self.dead, self.cause_of_death, self.killer = False, None, None
             self.appears_dead = self.dead
-            self.shocked = self.crippled = False
+            # self.shocked = self.crippled = False
             self.last_rolled_init = None
             self.engaged_by = []  # Melee engagement is no longer mutual.
             self.grappling_with, self.grappled_by = [], []  # Grappling is explicitly not mutual.
@@ -326,6 +337,7 @@ init 1 python in game:
             self.inventory, self.equipped = [], []
             self.mortal = False
             self._status_effects = {}
+            self.beast_eyes_active, self.featherweight_active = False, False
             self.always_detector, self.detector_tech = False, False
             self.stealth_ignore_tech = False
             self.shapeshift_form = None
@@ -335,9 +347,50 @@ init 1 python in game:
             # for kwarg in kwargs:
             #     setattr(self, kwarg, kwargs[kwarg])
 
+        def __str__(self):
+            return repr(self)
+
+        def summarize(self):
+            rep_str = repr(self)
+            ln = "\n"
+            rep_str += (
+                f'    ({self.creature_type})  {"(Dead)" if self.dead else ""}'
+                f'{("  (Hunger:  " + str(self.hunger) + ")" + ln) if (utils.is_number(self.hunger) and not self.dead) else ln}'
+                f'{ln}  Health:  {self.hp}'
+                f'{ln}  Willpower:  {self.will}'
+                f'{ln}  - {"Engaged by: " + ", ".join([str(ent) for ent in self.engaged_by]) if self.engaged_by else "Not engaged"}'
+            )
+            if self.grappling_with:
+                rep_str += f'{ln}  - Grappling --> {", ".join([str(ent) for ent in self.grappling_with])}'
+            elif self.grappled_by:
+                rep_str += f'{ln}  - Being grappled by: {", ".join([str(ent) for ent in self.grappled_by])}'
+            else:
+                rep_str += f'{ln}  - Not grappled, not grappling anyone'
+            times_atkd, inventory_str = self.times_attacked_this_turn, "\n" + str(self.inventory) if self.inventory else "(Nothing)"
+            rep_str += (
+                f'{ln}  - Attacked {times_atkd} {"times" if times_atkd != 1 else "time"} this turn'
+                f'{ln}  Inventory: {inventory_str}{ln}'
+            )
+            if self.held or self.sidearm:
+                rep_str += f'{ln}'
+                rep_str += f'Held: {self.held}{ln}Sidearm: {self.sidearm}'
+            else:
+                rep_str += f'{ln}(Nothing equipped)'
+            rep_str += f'{ln}{ln}'
+
+            return rep_str
+
         @property
         def status_effects(self):
             return self._status_effects
+
+        @property
+        def crippled(self):
+            return self.hp.undamaged < 1
+
+        @property
+        def shocked(self):
+            return self.will.undamaged < 1
 
         @property
         def held(self):
@@ -417,16 +470,11 @@ init 1 python in game:
         def defend(self, attacker, atk_action):
             pass
 
-        def impair(self, impaired, tracker_type):
-            if tracker_type == cfg.TRACK_HP:
-                self.crippled = impaired
-            elif tracker_type == cfg.TRACK_WILL:
-                self.shocked = impaired
-
         def handle_demise(self, tracker_type, damage_source):
             self.dead = True
             self.cause_of_death = damage_source["what"]
             self.killer = damage_source["who"]
+            print(f'Entity.handle_demise: who={self.killer}, what={self.cause_of_death}')
 
 
     class NPCFighter(Entity):
@@ -443,8 +491,8 @@ init 1 python in game:
                 self.name = "{} {}".format(self.creature_type, self.ftype)
                 self.name = f'{self.ftype}'
             self.physical, self.social, self.mental = physical, social, mental
-            self.hp = V5Tracker(self, self.physical + 3, cfg.TRACK_HP)
-            self.will = V5Tracker(self, self.mental + self.social, cfg.TRACK_WILL)
+            self.hp = V5Tracker(self, math_ceil(self.physical / 2) + 3, cfg.TRACK_HP)
+            self.will = V5Tracker(self, math_ceil((self.mental + self.social) / 2), cfg.TRACK_WILL)
             self._special_skills = {}  # Skills or discipline ratings
             self.base_combat_stat = bcs
             if bcs is None:
@@ -461,6 +509,20 @@ init 1 python in game:
                     self._special_skills[kwarg] = kwargs[kwarg]
                 elif not hasattr(self, kwarg):
                     setattr(self, kwarg, kwargs[kwarg])
+
+        def summarize(self):
+            rep_str = super().summarize()
+            ln = "\n"
+            rep_str += f'Physical: {self.physical}  Social: {self.social}  Mental: {self.mental}{ln}'
+            if self.special_skills:
+                rep_str += f'{ln}Special Skills:{ln}'
+                rep_str += ln.join([f'  {itm[0]}: {itm[1]}' for itm in self.special_skills.items()])
+                rep_str += ln
+            if self.passive_powers:
+                rep_str += f'{ln}Passive Powers:{ln}'
+                rep_str += ln.join([f'  {itm}' for itm in self.passive_powers])
+                rep_str += ln
+            return rep_str
 
         @property
         def special_skills(self):

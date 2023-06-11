@@ -15,6 +15,9 @@ default state.menu_label_backref    = None
 default state.tried_hunt_tonight    = False
 default state.hunted_tonight        = False
 default state.mended_agg_tonight    = False
+default state.mended_spf_tonight    = False
+default state.extra_lives           = 1
+default state.pc_torpor_event       = True
 
 default state.intro_man_drank       = False
 default state.intro_man_killed      = False
@@ -42,6 +45,7 @@ default state.hunt_locale          = ""
 default state.baseline_hunt_diff    = cfg.VAL_BASE_HUNTING_DIFF  # + ...?
 default state.setite_blood_buys     = 0
 default state.camarilla_blood_buys  = 0
+default state.blood_market_price    = 150  # Per Hunger slaked, subject to variance.
 
 default state.opinions              = {}
 default state.masquerade            = 60  # 0 - 100
@@ -384,7 +388,7 @@ init 1 python in state:
         if len(stack) <= 0:
             return stack_str + "(empty)"
         for i, stack_layer in enumerate(stack):
-            stack_str += "{}. {}\n".format(i+1, stack_layer)
+            stack_str += f'{i+1}. {stack_layer}' + '\n'
         return stack_str
 
     def is_their_turn(who):
@@ -412,31 +416,52 @@ init 1 python in state:
                 shuffle_sound = renpy.store.audio.get_item_1_gun
             else:
                 shuffle_sound = renpy.store.audio.get_item_2
-            renpy.play(shuffle_sound, "sound")
+            renpy.play(shuffle_sound, "audio")
         if reload_menu and who is pc and menu_label_backref:
             renpy.jump(menu_label_backref)
 
-    def give_item(supply, *supplies, copy=True, equip_it=False, gift_sound=True):
-        if pc.inventory is None:
-            raise ValueError("No valid inventory to add items to.")
-        gift = supply.copy() if copy else supply
-        pc.inventory.add(gift)
+    def play_item_transfer_audio(supply=None, gift_sound=True):
+        if not supply and type(gift_sound) not in (str,):
+            raise ValueError(f'This method requires either an item or a specific audio track.')
+        audio = renpy.store.audio
+        if type(gift_sound) in (str,):
+            renpy.play(gift_sound, "audio")
+        elif supply.item_type == Item.IT_FIREARM: renpy.play(audio.get_item_1_gun, "audio")
+        elif supply.item_type == Item.IT_MONEY: renpy.play(audio.cash_handoff, "audio")
+        else: renpy.play(audio.get_item_2, "audio")
+
+    def give_item(supply, *supplies, who=None, copy=True, equip_it=False, gift_sound=True):
+        if who is None: who = pc
+        if not hasattr(who, "inventory") or who.inventory is None:
+            raise ValueError(f'"{who}" has no valid inventory to add items to.')
+        for item in ((supply,) + supplies):
+            gift = item.copy() if copy else item
+            if copy and gift.item_type == Item.IT_MONEY:
+                pc.inventory.add_money(gift.quantity)
+            else:
+                pc.inventory.add_item(gift)
+        # Equip and sound options are limited to first supply parameter.
         if supply.item_type in [Item.IT_FIREARM, Item.IT_WEAPON] and equip_it:
             pc.inventory.equip(gift, force=True)
-        if gift_sound:
-            if gift.item_type == Item.IT_FIREARM:
-                renpy.play(renpy.store.audio.get_item_1_gun, "sound")
-            else:
-                renpy.play(renpy.store.audio.get_item_2, "sound")
+        if gift_sound: play_item_transfer_audio(supply=supply, gift_sound=gift_sound)
 
-    def take_item(ikey=None, itype=None, intended=False):
+    def give_money(amount, copy=True, gift_sound=True):
+        give_item(Item(Item.IT_MONEY, num=amount, name="Cash gift"), copy=copy, gift_sound=gift_sound)
+
+    def take_item(ikey=None, itype=None, intended=False, gift_sound=None):
+        if type(gift_sound) in (str,):
+            play_item_transfer_audio(gift_sound=gift_sound)
         pc.inventory.lose(ikey=ikey, itype=itype, intended=intended)
 
-    def lose_cash(amount):
-        pc.inventory.lose(cash_amount=amount, intended=False)
+    def lose_cash(amount, intended=False, gift_sound=True):
+        if gift_sound is True:
+            gift_sound = audio.cash_handoff
+        if gift_sound:
+            play_item_transfer_audio(gift_sound=gift_sound)
+        pc.inventory.lose(cash_amount=amount, intended=intended)
 
     def spend_cash(amount):
-        pc.inventory.lose(cash_amount=amount, intended=True)
+        lose_cash(amount, intended=True)
 
     def apply_test_build(backstory, clan, pred_type, pt_disc):
         pc.mortal_backstory = backstory
@@ -469,7 +494,7 @@ label sun_threat:
 
     beast "You idiot. You goddamned fool. YOU ABSOLUTELY WORTHLESS BRAINDEAD FUCKING-"
 
-    play sound audio.sun_threat_1
+    play audio audio.sun_threat_1
 
     scene bg sunrise sky with dissolve
 
@@ -568,14 +593,17 @@ label mend:
 
     label .superficial:
 
-        if utils.percent_chance(0.45):
-            "Kindred can recover from almost anything, given enough blood and time."
+        if state.in_combat:
+            if utils.percent_chance(0.45):
+                "Kindred can recover from almost anything, given enough blood and time."
 
-            "You channel stolen life into your wounds, willing away your injuries."
-        else:
-            "There's no time to waste, but fortunately you can multitask."
+                "You channel stolen life into your wounds, willing away your injuries."
+            else:
+                $ spf_heal_dialogue = "There's no time to waste, but fortunately you can multitask. "
+                $ spf_heal_dialogue += "Your flesh begins to knit itself back together, bones heave and pop back into place..."
+                "[spf_heal_dialogue]"
 
-            "Your flesh begins to knit itself back together, bones heave and pop back into place..."
+        $ print("\n\n", f'|> state.in_combat = {state.in_combat}', "\n")
 
         call roll_control.rouse_check(1) from mend_spf_rouse_check
 

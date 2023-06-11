@@ -60,6 +60,13 @@ init 0 python in cfg:
     REF_UNDEAD = [CT_VAMPIRE]
     REF_HAS_SUPERNATURAL_BEAST = [CT_VAMPIRE, CT_LUPINE]
 
+    REF_BASIC_ORDINALS = (  # Shouldn't need to go higher than twelfth or thirteenth with these.
+        ("zeroth", "0th"),
+        ("first", "1st"), ("second", "2nd"), ("third", "3rd"), ("fourth", "4th"), ("fifth", "5th"), ("sixth", "6th"),
+        ("seventh", "7th"), ("eighth", "8th"), ("ninth", "9th"), ("tenth", "10th"), ("eleventh", "11th"),
+        ("twelfth", "12th"), ("thirteenth", "13th")
+    )
+
     # Pronouns
     PN_SHE_HE_THEY = "pn_subjective"
     PN_HER_HIM_THEM = "pn_objective"
@@ -221,8 +228,10 @@ init 0 python in cfg:
     DMG_AGG = "aggravated_dmg"
     DMG_NONE = "clear"
 
+    IMPAIRMENT_PENALTY = 2
+    REF_IMPAIRMENT_PARAM = "Impaired"
     BULLET_DODGE_PENALTY = 2
-    DODGE_WHILE_GRAPPLING_PENALTY = 2
+    FIGHTING_OTHERS_WHILE_GRAPPLING_PENALTY = 2
     WEAPON_DRAW_PENALTY = 2
     BITE_ATTACK_PENALTY = 2
 
@@ -275,9 +284,10 @@ init 0 python in cfg:
     ROLL_CONTEST = "pool"
     # ROLL_NPC_COMBAT_ACTION = "enemy"  # Special contest in which NPC action gets run through
     REF_ROLL_BONUS_PREFIX = "bonus_"
-    REF_ROLL_EVENT_BONUS = "bonus_current_event"
+    REF_ROLL_EVENT_BONUS = REF_ROLL_BONUS_PREFIX + "current_event"
+    REF_ROLL_MULTI_DEFEND_MALUS = REF_ROLL_BONUS_PREFIX + "times_attacked_this_turn"
     # REF_ROLL_BLOOD_SURGE_BONUS
-    REF_BLOOD_SURGE = "Blood Surge"
+    REF_BLOOD_SURGE = "Blood_Surge"
     REF_ROLL_LOOKS = "Looks"
     REF_BG_NAME = "background_name"
 
@@ -293,6 +303,7 @@ init 0 python in cfg:
     BG_IRON_GULLET = "Iron Gullet"
     BG_ENEMY = "Enemy"
     BG_BEAUTIFUL = "Beautiful"
+    BG_STUNNING = "Stunning"
     BG_UGLY = "Ugly"
     BG_REPULSIVE = "Repulsive"
 
@@ -350,6 +361,11 @@ init 0 python in cfg:
     RINT_FLEETING = RINT_BALANCED * 1.5
     RINT_INTENSE = RINT_FLEETING * 2
     RINT_ACUTE = RINT_INTENSE * 2.5
+
+    COLOR_BONUS_MAIN = "#23ed23"
+    COLOR_MALUS_OLD = "#631919"
+    COLOR_MALUS_MAIN = "#87a296"
+    COLOR_BLOOD_SURGE = "#ed2323"
 
     DISC_ANIMALISM = "Animalism"
     DISC_AUSPEX = "Auspex"
@@ -431,9 +447,13 @@ init 0 python in cfg:
                 DISC_PRESENCE, DISC_DOMINATE, DISC_ANIMALISM, DISC_FORTITUDE, DISC_CELERITY, DISC_POTENCE, DISC_OBFUSCATE
             ]
         },
+        BG_STUNNING: {
+            REF_TYPE: REF_BG_MERIT, REF_DOTS: 4, REF_SUBTYPE: REF_BG_LOOKS,
+            REF_DESC: "You've got beguiling, head-turning good looks."
+        },
         BG_BEAUTIFUL: {
             REF_TYPE: REF_BG_MERIT, REF_DOTS: 2, REF_SUBTYPE: REF_BG_LOOKS,
-            REF_DESC: "You've got beguiling, head-turning looks."
+            REF_DESC: "You're very easy on the eyes."
         },
         BG_UGLY: {
             REF_TYPE: REF_BG_FLAW, REF_DOTS: 1, REF_SUBTYPE: REF_BG_LOOKS,
@@ -553,6 +573,7 @@ init 0 python in cfg:
     POWER_CELERITY_TWITCH = "Rapid Reflexes"
     POWER_CELERITY_SPEED = "Fleetness"
     POWER_CELERITY_BLINK = "Blink"
+    POWER_CELERITY_MATRIX_DODGE = "Weaving"
 
     POWER_DOMINATE_FORGET = "Cloud Memory"
     POWER_DOMINATE_COMPEL = "Compel"
@@ -606,7 +627,7 @@ init 0 python in cfg:
     ]
 
     REF_DISC_POWER_BUFFS = [
-        POWER_CELERITY_SPEED,
+        POWER_CELERITY_SPEED, POWER_CELERITY_MATRIX_DODGE,
         POWER_FORTITUDE_TOUGH, POWER_FORTITUDE_BANE,
         POWER_OBFUSCATE_FADE, POWER_OBFUSCATE_SILENCE, POWER_OBFUSCATE_STEALTH,
         POWER_POTENCE_FATALITY, POWER_POTENCE_PROWESS,
@@ -615,13 +636,15 @@ init 0 python in cfg:
 
     REF_DISC_POWER_SHAPESHIFT = [POWER_PROTEAN_BOO_BLEH, POWER_PROTEAN_DRUID, POWER_PROTEAN_FINALFORM]
 
-    REF_DISC_POWER_MENU_ONLY = [POWER_CELERITY_BLINK, POWER_POTENCE_SUPERJUMP]
+    REF_DISC_POWER_MENU_ONLY = [POWER_CELERITY_BLINK, POWER_POTENCE_SUPERJUMP, POWER_POTENCE_MEGASUCK]
 
-    REF_DISC_POWER_TOGGLABLES = [POWER_POTENCE_FATALITY]
+    REF_DISC_POWER_TOGGLABLES = [POWER_POTENCE_FATALITY, POWER_PROTEAN_FLOAT, POWER_PROTEAN_REDEYE, POWER_PROTEAN_TOOTH_N_CLAW]
 
     REF_DISC_TWO_ROUSE_POWERS = []
 
-    REF_DISC_POWER_FREEBIES = [POWER_POTENCE_FATALITY, POWER_POTENCE_SUPERJUMP]
+    REF_DISC_POWER_FREEBIES = [POWER_POTENCE_FATALITY, POWER_POTENCE_SUPERJUMP, POWER_PROTEAN_FLOAT, POWER_PROTEAN_REDEYE]
+
+    REF_DISC_POWER_FREE_ON_DEACTIVATE = [POWER_PROTEAN_TOOTH_N_CLAW]
 
     REF_DISC_POWERS_SNEAKY = [POWER_OBFUSCATE_FADE, POWER_OBFUSCATE_SILENCE, POWER_OBFUSCATE_STEALTH]
 
@@ -637,7 +660,7 @@ init 0 python in cfg:
         DISC_CELERITY: [
             [POWER_CELERITY_GRACE, POWER_CELERITY_TWITCH],
             [POWER_CELERITY_SPEED],
-            [POWER_CELERITY_BLINK],
+            [POWER_CELERITY_BLINK, POWER_CELERITY_MATRIX_DODGE],
             [], []
         ],
         DISC_DOMINATE: [
@@ -694,6 +717,7 @@ init 0 python in cfg:
     }
 
     REF_DISC_POWER_PREREQS = {
+        POWER_CELERITY_MATRIX_DODGE: [POWER_CELERITY_TWITCH],
         POWER_OBFUSCATE_VANISH: [POWER_OBFUSCATE_FADE],
         POWER_PROTEAN_MOLD_OTHERS: [POWER_PROTEAN_MOLD_SELF],
         POWER_PROTEAN_FINALFORM: [POWER_PROTEAN_MOLD_SELF],
@@ -778,7 +802,8 @@ image bg haven basic            = "images/bg_haven.jpg"
 image bg domain basic           = "images/bg_domain.jpg"
 image bg sunrise sky            = "images/bg_sunrise.jpg"
 
-define audio.main_theme         = "audio/music/Darkstar83 - Shadow Walker.mp3"  # can't use; remove
+#define audio.main_theme         = "audio/music/Darkstar83 - Shadow Walker.mp3"  # can't use; remove
+define audio.main_theme         = "audio/music/10 Echo - Volcano.mp3"
 define audio.excogitate         = "audio/music/Drake Stafford - Excogitate.mp3"  # main theme?
 define audio.creepydelta        = "audio/music/Sro - Creepy Delta Ship.mp3"  # hunting/intrigue/horror?
 define audio.Volcano            = "audio/music/10 Echo - Volcano.mp3"  # outside/hunting?
@@ -817,8 +842,12 @@ define audio.sun_threat_1       = "audio/sound/484461__nowism__fx-long-meepf.mp3
 define audio.sun_threat_2_burn  = "audio/sound/440857__iainmccurdy__frying09.mp3"
 define audio.get_item_1_gun     = "audio/sound/177054__woodmoose__lowerguncock.mp3"
 define audio.get_item_2         = "audio/sound/630021__flem0527__shuffling-backpack.mp3"
+define audio.cash_receipt       = "audio/sound/210094__soundscape_leuphana__20131119_receipt-printer-at-checkout_zoomh6yx.mp3"
+define audio.cash_handoff       = "audio/sound/459546__coral_island_studios__moolah-counting-out-bills.mp3"
+
 define audio.mending_1          = "audio/sound/659959__legand569__flesh-wound-removing-bulletowi.mp3"
-define audio.rending_1          = "sound/sound/563491__magnuswaker__gore-rend.mp3"
+define audio.rending_1          = "audio/sound/563491__magnuswaker__gore-rend.mp3"
+define audio.evisceration_slurp = "audio/sound/176546__deleted_user_3277771__very-loud-eviscerating-2.mp3"
 define audio.flesh_shifting_1   = "audio/sound/505932__pfranzen__shapeshifter-shifting-shapes.ogg"
 define audio.pulled_taut_1      = "audio/sound/460382__dnaudiouk__creaky-cardboard-box.mp3"
 define audio.decapitation_1     = "audio/sound/580233__silverillusionist__decapitation-earlier-blood-spurt.mp3"
@@ -845,6 +874,7 @@ define audio.bashing_1_light    = "audio/sound/319590__hybrid_v__shield-bash-imp
 define audio.bashing_2_heavy    = "audio/sound/165196__swimignorantfire__skull-crack-on-porcelain-tub.mp3"
 define audio.brawl_struggle     = "audio/sound/235681__jsburgh__struggle-between-two-people.mp3"
 define audio.toughness_armor    = "audio/sound/129073__harha__hardstyle-kick-01-nustyle-harha.mp3"
+define audio.grab_1             = "audio/sound/369595__eflexmusic__hard-kick-to-gut-no-effects-only-mixing.mp3"
 
 define audio.shotgun_ricochet   = "audio/sound/423107__ogsoundfx__guns-explosions-album-bullet-impact-14.mp3"
 define audio.pistol_ricochet    = "audio/sound/521370__cetsoundcrew__pistol-shot-ricochet-clean.mp3"

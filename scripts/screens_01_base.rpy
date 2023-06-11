@@ -589,12 +589,12 @@ screen about():
                         vbox spacing 5:
                             for wk in cred["works"]:
                                 hbox spacing 20:
-                                    text "{}".format(wk["name"]) align(0.0, 0.5)
+                                    text f'{wk["name"]}' align(0.0, 0.5)  # NOTE: Square brackets in text fields may break this.
                                     textbutton "(License)" action OpenURL(wk["licenseUrl"]) align (0.0, 0.5)
                             if "website" in cred and cred["website"]:
                                 textbutton "(Website Link)" action OpenURL(cred["website"]) xalign 0.2
                             for soc in cred["socials"]:
-                                textbutton "{sms}: ({hdl})".format(sms=soc["site"], hdl=soc["handle"]) action OpenURL(soc["url"])
+                                textbutton f'{soc["site"]}: ({soc["handle"]})' action OpenURL(soc["url"])
 
 
 style about_label is gui_label

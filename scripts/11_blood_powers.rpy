@@ -14,6 +14,7 @@ init 1 python in game:
 
             if action is None:
                 return BuffPipeline.noncombat_test(who, contest_params, base_pool)
+            who, action, base_pool = BuffPipeline.any_combat_action(who, action, base_pool)
             if action.action_type == CombAct.MELEE_ATTACK:
                 return BuffPipeline.melee_attack(who, action, base_pool)
             if action.action_type == CombAct.RANGED_ATTACK:
@@ -44,6 +45,35 @@ init 1 python in game:
             return contest_params, new_pool
 
         @staticmethod
+        def any_combat_action(user, action, base_pool):
+            is_physical_pool, is_mental_social_pool = False, False
+            updated_pool = base_pool
+            if user.crippled:
+                is_physical_pool = any([
+                    # Exempt: Stamina & Traversal
+                    utils.caseless_in(cfg.AT_STR, base_pool), utils.caseless_in(cfg.AT_DEX, base_pool),
+                    utils.caseless_in(cfg.SK_ATHL, base_pool), utils.caseless_in(cfg.SK_COMB, base_pool),
+                    utils.caseless_in(cfg.SK_FIRE, base_pool), utils.caseless_in(cfg.SK_CLAN, base_pool)
+                ])
+            if user.shocked:
+                is_mental_social_pool = any([
+                    utils.caseless_in(cfg.AT_CHA, base_pool), utils.caseless_in(cfg.AT_MAN, base_pool),
+                    utils.caseless_in(cfg.AT_COM, base_pool), utils.caseless_in(cfg.AT_INT, base_pool),
+                    utils.caseless_in(cfg.AT_WIT, base_pool), utils.caseless_in(cfg.AT_RES, base_pool),
+                    # Exempt: Streetwise, Occult
+                    utils.caseless_in(cfg.SK_DIPL, base_pool), utils.caseless_in(cfg.SK_INTI, base_pool),
+                    utils.caseless_in(cfg.SK_INTR, base_pool), utils.caseless_in(cfg.SK_LEAD, base_pool),
+                    utils.caseless_in(cfg.SK_ACAD, base_pool), utils.caseless_in(cfg.SK_INSP, base_pool),
+                    utils.caseless_in(cfg.SK_SCIE, base_pool), utils.caseless_in(cfg.SK_TECH, base_pool)
+                ])
+
+            if is_physical_pool or is_mental_social_pool:
+                # updated_pool += f'+-{cfg.IMPAIRMENT_PENALTY}'
+                updated_pool += f'+{cfg.REF_IMPAIRMENT_PARAM}'
+
+            return user, action, updated_pool
+
+        @staticmethod
         def melee_attack(user, action, base_pool):
             target, weapon_used = action.target, action.weapon_used
             new_pool = str(base_pool)
@@ -56,7 +86,7 @@ init 1 python in game:
 
             # Lethal Body
             if not weapon_used and user.has_disc_power(cfg.POWER_POTENCE_FATALITY, cfg.DISC_POTENCE):
-                if user.lethal_body_active and target.mortal:
+                if user.lethal_body_active and target.mortal and action.lethality > 0:
                     action.dmg_type = cfg.DMG_AGG
                     action.armor_piercing = user.disciplines.levels[cfg.DISC_POTENCE]
                     action.unarmed_power_used = utils.unique_append(action.unarmed_power_used, cfg.POWER_POTENCE_FATALITY, sep=", ")
@@ -66,9 +96,13 @@ init 1 python in game:
             if user.has_disc_power(cfg.POWER_POTENCE_PROWESS, cfg.DISC_POTENCE) and Entity.SE_HULKING in fx:
                 # Either get Potence rank as feat-of-strength pool bonus or combat damage bonus, but not both.
                 user_gat = action.grapple_action_type
-                # You get feat-of-strength bonus if you're trying to escape a grapple or melee-attacking someone you've already got grappled.
-                if (user_gat and user_gat in (CombAct.GRAPPLE_ACTIVE_ESCAPE,)) or (user.grappling_with and target in user.grappling_with):
-                    new_pool += f'+{cfg.DISC_POTENCE}'
+                # You get feat-of-strength bonus if you're trying to escape a grapple or melee-attacking someone you've already grappled.
+                if user_gat:
+                    bite_actions = (CombAct.GRAPPLE_BITE, CombAct.GRAPPLE_BITE_PLUS)
+                    if user_gat in (CombAct.GRAPPLE_ESCAPE,) or (user.grappling_with and target in user.grappling_with):
+                        new_pool += f'+{cfg.DISC_POTENCE}'
+                    elif user_gat in bite_actions and (target in user.grappling_with or target in user.grappled_by):
+                        new_pool += f'+{cfg.DISC_POTENCE}'
                 else:
                     potence_rank = user.disciplines.levels[cfg.DISC_POTENCE]
                     prowess_dmg = math_ceil(potence_rank / 2) if weapon_used else potence_rank
@@ -77,20 +111,21 @@ init 1 python in game:
 
             # Feral Weapons and Vicissitude weapons
             feral_weapons = user.has_disc_power(cfg.POWER_PROTEAN_TOOTH_N_CLAW, cfg.DISC_PROTEAN)
-            feral_weapons = feral_weapons and hasattr(user, "feral_weapons_active") and user.feral_weapons_active
+            # feral_weapons = feral_weapons and hasattr(user, "feral_weapons_active") and user.feral_weapons_active
+            feral_weapons = state.StatusFX.has_buff(user, Entity.SE_FERAL_WEPS)
             fleshcraft = user.has_disc_power(cfg.POWER_PROTEAN_MOLD_SELF, cfg.DISC_PROTEAN)
             fc_weapons = fleshcraft and Entity.SE_FLESHCRAFT_WEAPON in fx
             if not weapon_used and feral_weapons:  # NOTE: Feral and Vicissitude weapons are counted as unarmed attacks here.
                 utils.log("--- Buff Pipeline --- | Feral Weapons{}".format(" (with Vicissitude-flavor)" if fc_weapons else ""))
                 action.lethality = max(action.lethality, 3)
-                action.attack_sound = Weapon.WEAPON_SOUNDS[Weapon.MW_KNIFE]
+                # action.attack_sound = Weapon.WEAPON_SOUNDS[Weapon.MW_KNIFE]
                 BuffPipeline.apply_damage_bonus(action, 2, cfg.POWER_PROTEAN_TOOTH_N_CLAW)
                 ferwep_str = "Feral Weapons{}".format(" (Vicis)" if fc_weapons else "")
                 action.unarmed_power_used = utils.unique_append(action.unarmed_power_used, ferwep_str, sep=", ")
             elif not weapon_used and fc_weapons:
                 utils.log("--- Buff Pipeline --- | Vicissitude weapons")
                 action.lethality = max(action.lethality, 2)
-                action.attack_sound = Weapon.WEAPON_SOUNDS[Weapon.MW_SWORD]
+                # action.attack_sound = Weapon.WEAPON_SOUNDS[Weapon.MW_SWORD]
                 BuffPipeline.apply_damage_bonus(action, 2, cfg.POWER_PROTEAN_MOLD_SELF)
                 action.unarmed_power_used = utils.unique_append(action.unarmed_power_used, cfg.POWER_PROTEAN_MOLD_SELF, sep=", ")
 
@@ -115,7 +150,7 @@ init 1 python in game:
             # Blink (rush)
             blink = cfg.POWER_CELERITY_BLINK
             if user.has_disc_power(blink, cfg.DISC_CELERITY) and utils.caseless_in(blink, action.unarmed_power_used):
-                action.skip_contest = True
+                action.autowin = True
 
             # Soaring Leap (rush)
             superjump = cfg.POWER_POTENCE_SUPERJUMP
@@ -147,20 +182,28 @@ init 1 python in game:
             # NOTE: Code implementing this is in script_05_battles.rpy for PC and 10_behavior.rpy for NPCs, considering moving it.
 
             # Fleetness (dodging)
-            can_flit = Entity.SE_FLEETY in fx and not state.fleet_dodge_this_turn
+            can_flit = Entity.SE_FLEETY in fx and action.defending and not state.fleet_dodge_this_turn
+            flit_this_action = False
             # can_flit = user.has_disc_power(cfg.POWER_CELERITY_SPEED, cfg.DISC_CELERITY)
             if can_flit and utils.caseless_in(cfg.POWER_CELERITY_SPEED, action.unarmed_power_used):
-                if utils.caseless_in(cfg.AT_DEX, base_pool) and utils.caseless_in(cfg.SK_ATHL, base_pool):
+                # if utils.caseless_in(cfg.AT_DEX, base_pool) and utils.caseless_in(cfg.SK_ATHL, base_pool):
+                if utils.caseless_in(cfg.SK_ATHL, base_pool):
                     new_pool += "+{}".format(cfg.DISC_CELERITY)
-                    state.fleet_dodge_this_turn = True
-                elif (user.shapeshift_form and utils.caseless_in(cfg.SK_ATHL, base_pool)):
-                    new_pool += "+{}".format(cfg.DISC_CELERITY)
-                    state.fleet_dodge_this_turn = True
+                    flit_this_action, state.fleet_dodge_this_turn = True, True
+                # elif (user.shapeshift_form and utils.caseless_in(cfg.SK_ATHL, base_pool)):
+                #     new_pool += "+{}".format(cfg.DISC_CELERITY)
+                #     state.fleet_dodge_this_turn = True
 
             # Blink (dodge)
             blink = cfg.POWER_CELERITY_BLINK
             if user.has_disc_power(blink, cfg.DISC_CELERITY) and utils.caseless_in(blink, action.unarmed_power_used):
-                action.skip_contest = True
+                action.autowin = True
+
+            # Weaving (dodging ranged)
+            can_weave = not flit_this_action and state.StatusFX.weaving_power_is_valid(user, action)  # Fleetness and Weaving don't stack.
+            if can_weave and utils.caseless_in(cfg.POWER_CELERITY_MATRIX_DODGE, action.unarmed_power_used):
+                if utils.caseless_in(cfg.SK_ATHL, base_pool):
+                    new_pool += "+{}".format(cfg.DISC_CELERITY)
 
             # Soaring Leap (dodge)
             superjump = cfg.POWER_POTENCE_SUPERJUMP
@@ -168,6 +211,13 @@ init 1 python in game:
                 new_pool += "+{}".format(cfg.DISC_POTENCE)
 
             # Potence power for dodging while grapples?
+            if user.has_disc_power(cfg.POWER_POTENCE_PROWESS, cfg.DISC_POTENCE) and Entity.SE_HULKING in fx:
+                user_gat = action.grapple_action_type
+                # You get feat-of-strength bonus if you're trying to escape a grapple or melee-attacking someone you've already grappled.
+                if (user_gat and user_gat in (CombAct.GRAPPLE_ESCAPE,)):
+                    new_pool += f'+{cfg.DISC_POTENCE}'
+                elif user.grappled_by or ((user.grappling_with) and action.target in user.grappling_with):
+                    new_pool += f'+{cfg.DISC_POTENCE}'
 
             return action, new_pool
 
@@ -221,8 +271,6 @@ init 1 python in state:
             for bf in buffs:
                 if StatusFX.has_buff(who, bf):
                     return True
-                else:
-                    print("do not have {}".format(bf))
             return False
 
         @staticmethod
@@ -233,9 +281,18 @@ init 1 python in state:
             return True
 
         @staticmethod
+        def weaving_power_is_valid(who, def_action):
+            weaving_buff = StatusFX.has_buff(who, Entity.SE_WEAVING)
+            if def_action:
+                return all([weaving_buff, def_action.vs_ranged, def_action.defending])
+            return False
+
+        @staticmethod
         def power_is_active(who, power):  # TODO: come back to this regularly
             if power == cfg.POWER_CELERITY_SPEED:
                 return StatusFX.has_buff(who, Entity.SE_FLEETY)
+            if power == cfg.POWER_CELERITY_MATRIX_DODGE:
+                return StatusFX.has_buff(who, Entity.SE_WEAVING)
             if power == cfg.POWER_FORTITUDE_TOUGH:
                 return StatusFX.has_buff(who, Entity.SE_TOUGHNESS)
             if power == cfg.POWER_FORTITUDE_BANE:
@@ -248,6 +305,12 @@ init 1 python in state:
                 return hasattr(who, "lethal_body_active") and who.lethal_body_active
             if power == cfg.POWER_POTENCE_PROWESS:
                 return StatusFX.has_buff(who, Entity.SE_HULKING)
+            if power == cfg.POWER_PROTEAN_FLOAT:
+                return hasattr(who, "featherweight_active") and who.featherweight_active
+            if power == cfg.POWER_PROTEAN_REDEYE:
+                return hasattr(who, "beast_eyes_active") and who.beast_eyes_active
+            if power == cfg.POWER_PROTEAN_TOOTH_N_CLAW:
+                return StatusFX.has_buff(who, Entity.SE_FERAL_WEPS)
             utils.log("Power \"{}\" not accounted for in StatusFX.power_is_active().".format(power))
             return False
 
@@ -261,29 +324,32 @@ init 1 python in state:
             return None, None
 
         @staticmethod
-        def get_num_rouse_checks(power_name):
+        def get_num_rouse_checks(power_name, who=None, active=False):
+            if who is None: who = self.pc
             if power_name in cfg.REF_DISC_POWER_PASSIVES + cfg.REF_DISC_POWER_TOGGLABLES:
+                return 0, None
+            if active and power_name in cfg.REF_DISC_POWER_FREE_ON_DEACTIVATE:
                 return 0, None
             p_disc, p_level = StatusFX.find_power_in_disc_tree(power_name)
             if p_level <= 1:  # TODO: revisit when Blood Sorcery added.
                 return 0, None
-            reroll_cap = utils.get_bp_disc_reroll_level(p_level)
+            reroll_cap = utils.get_bp_disc_reroll_level(who.blood_potency)
             gets_reroll = p_level <= reroll_cap
             if power_name in cfg.REF_DISC_TWO_ROUSE_POWERS:  # Empty list for now.
                 return 2, gets_reroll
             return 1, gets_reroll
 
         def use_disc_power(self, power_name, who=None):
-            if who is None:
-                who = self.pc
-            dp_name = str(power_name).lower().replace(' ', '_').replace("'", "")
+            if who is None: who = self.pc
+            dp_name, power_active = str(power_name).lower().replace(' ', '_').replace("'", ""), False
+            if any([
+                power_name == cfg.POWER_PROTEAN_TOOTH_N_CLAW and StatusFX.has_buff(who, Entity.SE_FERAL_WEPS),
+                False
+            ]):
+                power_active = True
             if dp_name and hasattr(self, dp_name):
-                num_rouse_checks, reroll = StatusFX.get_num_rouse_checks(power_name)
+                num_rouse_checks, reroll = StatusFX.get_num_rouse_checks(power_name, who, active=power_active)
                 hungrier = False
-                print("\n\nUSING DISCIPLINE POWER: {}\nRouse checks: {}\nReroll: {}".format(
-                    dp_name, num_rouse_checks, reroll
-                ))
-                # rouse_check(num_checks=num_rouse_checks, reroll=reroll)
                 if num_rouse_checks > 0 and who.can_rouse():
                     if not cfg.DEV_MODE or not cfg.FREE_DISCIPLINES:
                         hungrier = renpy.call_in_new_context("roll_control.rouse_check", num_checks=num_rouse_checks, reroll=reroll)
@@ -316,6 +382,11 @@ init 1 python in state:
                 self.apply_buff(who, Entity.SE_FLEETY, 12)
                 renpy.play(audio.fleeing_footsteps1, "sound")
 
+        def weaving(self, who=None):
+            if who.has_disc_power(cfg.POWER_CELERITY_MATRIX_DODGE, cfg.DISC_CELERITY):
+                self.apply_buff(who, Entity.SE_WEAVING, 12)
+                renpy.play(audio.fleeing_footsteps1, "sound")
+
         # Fortitude
 
         def toughness(self, who=None):
@@ -334,13 +405,23 @@ init 1 python in state:
 
         def lethal_body(self, who=None):
             if hasattr(who, "lethal_body_active"):
-                who.lethal_body_active = not who.lethal_body_active
+                has_lb = who.has_disc_power(cfg.POWER_POTENCE_FATALITY, cfg.DISC_POTENCE)
+                who.lethal_body_active = not who.lethal_body_active and has_lb
                 renpy.play(audio.knuckle_crack_1, "audio")
 
         def prowess(self, who=None):
             if who.has_disc_power(cfg.POWER_POTENCE_PROWESS, cfg.DISC_POTENCE):
                 self.apply_buff(who, Entity.SE_HULKING, 9)
                 renpy.play(audio.pulled_taut_1, "audio")
+
+        # Protean
+
+        def feral_weapons(self, who=None):
+            if StatusFX.has_buff(who, Entity.SE_FERAL_WEPS):
+                self.remove_buff(who, Entity.SE_FERAL_WEPS)
+            elif who.has_disc_power(cfg.POWER_PROTEAN_TOOTH_N_CLAW, cfg.DISC_PROTEAN):
+                self.apply_buff(who, Entity.SE_FERAL_WEPS, 15)
+                renpy.play(audio.beastgrowl2, "audio")
 
 
 init 1 python in state:
@@ -360,7 +441,9 @@ init 1 python in state:
             usable = False if pc.current_pos > -2 else can_use_disc  # Only usable in the back rank.
             return usable, StatusFX.power_is_active(pc, ability)
         if ability in cfg.REF_DISC_POWER_BUFFS:
-            return can_use_disc, StatusFX.power_is_active(pc, ability)
+            power_active = StatusFX.power_is_active(pc, ability)
+            relevance = can_use_disc or (power_active and ability in cfg.REF_DISC_POWER_FREE_ON_DEACTIVATE)
+            return relevance, power_active
         if in_combat and ability in game.CombAct.NPC_COMBAT_DISC_POWERS:
             return can_use_disc, False
         return None, None  # TODO: come back to this regularly

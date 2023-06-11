@@ -150,14 +150,15 @@ init 1 python in game:
             ent_params = {"creature_type": cr_type, "ftype": f_type}
 
             # Represents generic Attribute + Skill combo of that type.
-            ent_params[cfg.NPCAT_PHYS] = utils.random_int_range(3+diff_adjust, 5+diff_adjust)
-            ent_params[cfg.NPCAT_SOCL] = utils.random_int_range(3+diff_adjust, 6+diff_adjust)
-            ent_params[cfg.NPCAT_MENT] = utils.random_int_range(2+diff_adjust, 5+diff_adjust)
-            ent_params[cfg.SK_ATHL] = utils.random_int_range(4, 5+diff_adjust)
+            ent_params[cfg.NPCAT_PHYS] = utils.random_int_range(3+diff_adjust, 4+diff_adjust)
+            ent_params[cfg.NPCAT_SOCL] = utils.random_int_range(3+diff_adjust, 5+diff_adjust)
+            ent_params[cfg.NPCAT_MENT] = utils.random_int_range(2+diff_adjust, 4+diff_adjust)
+            ent_params[cfg.SK_ATHL] = utils.random_int_range(4, 4+diff_adjust)
             powerset = TempAgency.get_random_npc_powerset(cr_type, f_type, diff_adjust=diff_adjust)
             if f_type == NPCFighter.FT_BRAWLER:
-                ent_params[cfg.SK_COMB] = max(ent_params[cfg.NPCAT_PHYS], utils.random_int_range(5+diff_adjust, 7+diff_adjust))
+                ent_params[cfg.SK_COMB] = max(ent_params[cfg.NPCAT_PHYS], utils.random_int_range(4+diff_adjust, 6+diff_adjust))
                 npc_weapon, npc_weapon_alt = state.gift_weapon(key=None), None
+                # npc_weapon, npc_weapon_alt = state.gift_weapon(key="black_blade_true_hand"), None
             elif f_type == NPCFighter.FT_SHOOTER:
                 ent_params[cfg.SK_FIRE] = utils.random_int_range(5+diff_adjust, 6+diff_adjust)
                 # TODO: come back to this when .lose() method is less ass.
@@ -173,7 +174,7 @@ init 1 python in game:
                             continue
                         ent_params[p] = powerset[d][p]
             else:
-                utils.log("Generated creatue of type {}; no powers to speak of.".format(cr_type))
+                utils.log("Generated creature of type {}; no powers to speak of.".format(cr_type))
             new_challenger = NPCFighter(name=utils.generate_random_id_str(label="{}#".format(f_type), leng=4), **ent_params)
             new_challenger.npc_weapon, new_challenger.npc_weapon_alt = npc_weapon, npc_weapon_alt
             self.creatures_generated += 1

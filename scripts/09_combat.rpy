@@ -9,11 +9,11 @@ init 1 python in game:
             use_sidearm=False, lethality=None, grapple_type=None
         ):
             self.action_type = action_type  # Should be one of above types; subtype should be a discipline power or similar or None.
-            self.pool, self.num_dice, self.using_sidearm = pool, None, None
-            self.target, self.defending = target, defending
+            self.pool, self.num_dice, self.using_sidearm, self.dmg_type = pool, None, None, None
+            self.target, self.defending, self.vs_ranged = target, defending, None
             self.user = user
             self.action_label, self.grapple_action_type = subtype, grapple_type
-            self.weapon_used, self.skip_contest, self.lost_to_trump_card = None, False, False
+            self.weapon_used, self.autowin, self.lost_to_trump_card, self.no_contest = None, False, False, False
             self.use_sidearm = use_sidearm
             if self.user and self.use_sidearm:
                 self.using_sidearm = True
@@ -23,18 +23,16 @@ init 1 python in game:
             self.unarmed_power_used, self.power_used = None, None
             if self.action_type is None and self.action_label is None:
                 raise ValueError("At least one of 'action_type' and 'action_label' must be defined; they can't both be empty!")
-            elif self.action_type is None:
-                self.action_type = self.evaluate_type()
             # ---
-            self.dmg_bonus, self.lethality = 0, 1
-            self.dmg_bonus_labels = {}
-            weapon, weapon_alt = None, None
-            grapple_weapon_set = False
+            self.dmg_bonus, self._lethality, self.dmg_amount_override = 0, 1, None
+            self.dmg_bonus_labels, self.dmg_what_override = {}, None
+            weapon, weapon_alt, grapple_weapon_set = None, None, False
             if self.grapple_action_type:
                 if self.grapple_action_type in (CombAct.GRAPPLE_BITE, CombAct.GRAPPLE_BITE_PLUS):
                     weapon, weapon_alt, grapple_weapon_set = USING_FANGS, None, True
                 elif self.grapple_action_type in (CombAct.GRAPPLE_DRINK, CombAct.GRAPPLE_DRINK_PLUS):
-                    weapon, weapon_alt, grapple_weapon_set = FEEDING_IN_COMBAT, None, True
+                    weapon_alt, grapple_weapon_set = None, True
+                    weapon = FEEDING_IN_COMBAT if self.grapple_action_type == CombAct.GRAPPLE_DRINK else DEVOURING_IN_COMBAT
             if self.user and not grapple_weapon_set:
                 if hasattr(self.user, "npc_weapon"):
                     weapon = self.user.npc_weapon
@@ -42,6 +40,7 @@ init 1 python in game:
                     weapon_alt = self.user.npc_weapon_alt
                 if self.user.is_pc or hasattr(self.user, "inventory"):
                     weapon, weapon_alt = self.user.held, self.user.sidearm
+            self.weapon_used = weapon if grapple_weapon_set else None
             if CombatAction.attack_weapon_match(weapon, self):
                 self.weapon_used = weapon
             elif CombatAction.attack_weapon_match(weapon_alt, self):
@@ -50,9 +49,6 @@ init 1 python in game:
                 utils.log("Off-hand weapon penalty applied to attack type {} by {}, who has {} at hand and {} at side".format(
                     self.action_type, self.user, weapon, weapon_alt
                 ))
-            else:
-                self.weapon_used = None
-
             self.dmg_bonus = 0
             self.armor_piercing = 0
             if self.user:
@@ -62,47 +58,55 @@ init 1 python in game:
                     self.dmg_bonus, self.lethality = self.weapon_used.dmg_bonus, self.weapon_used.lethality
             if lethality is not None:  # If lethality value is passed it overrides other sources.
                 self.lethality = lethality
-            # ---
-            if not self.target or self.action_type in CombAct.NONVIOLENT:
+            if self.action_type in CombAct.NO_CONTEST:
+                self.no_contest = True
+            # NOTE: GRAPPLE_ESCAPE and GRAPPLE_ESCAPE_DMG are two different values. The latter is always used by AI.
+            # self.dmg_type = cfg.DMG_SPF
+            if not self.target or self.action_type in CombAct.NONVIOLENT or self.grapple_action_type == CombAct.GRAPPLE_ESCAPE:
                 self.dmg_type = cfg.DMG_NONE
-            else:
-                self.dmg_type = Weapon.get_damage_type(self.lethality, target.creature_type)
+            # else:
+            #     self.dmg_type = Weapon.get_damage_type(self.lethality, self.target.creature_type)
             if self.action_type in (CombAct.NO_ACTION,):
                 self.grapple_action_type = CombAct.GRAPPLE_MAINTAIN
-            elif self.action_type in (CombAct.DODGE,) and (self.user.grappling_with or self.user.grappled_by):
-                self.grapple_action_type = None if self.user.grappled_by else CombAct.GRAPPLE_MAINTAIN
-                self.pool = f'{self.pool}+-{cfg.DODGE_WHILE_GRAPPLING_PENALTY}'  # Or while grappled.
+            elif (self.user.grappling_with and self.target not in self.user.grappling_with):
+                self.grapple_action_type = CombAct.GRAPPLE_MAINTAIN if self.defending else None
+                self.pool = f'{self.pool}+-{cfg.FIGHTING_OTHERS_WHILE_GRAPPLING_PENALTY}'
+            elif (self.user.grappled_by and self.target not in self.user.grappled_by):
+                # NOTE: Should grapple_action_type be adjusted here?
+                self.pool = f'{self.pool}+-{cfg.FIGHTING_OTHERS_WHILE_GRAPPLING_PENALTY}'
 
         def __repr__(self):
-            return "< {} action, label {} >".format(self.action_type, self.action_label)
+            # return "< {} action, label {} >".format(self.action_type, self.action_label)
+            return f'<ACT {self.action_type}, "{self.grapple_action_type if self.grapple_action_type else self.action_label}">'
 
-        def evaluate_type(self):
-            if self.defending and self.action_label in CombAct.DODGE_VARIANTS:
-                return CombAct.DODGE
-            elif self.action_label in CombAct.RANGED_ACTIONS:
-                return CombAct.RANGED_ATTACK
-            elif self.action_label in CombAct.MELEE_ACTIONS:
-                return CombAct.MELEE_ATTACK
-            elif self.action_label in CombAct.ANYWHERE_ACTIONS:
-                if self.target is None:
-                    return CombAct.ESCAPE_ATTEMPT if self.defending else CombAct.SPECIAL_ATTACK
-                if self.target.current_pos == self.user.current_pos:
-                    return CombAct.MELEE_ATTACK
-                return CombAct.RANGED_ATTACK
-            return CombAct.NO_ACTION
+        @property
+        def lethality(self):
+            return self._lethality
+
+        @lethality.setter
+        def lethality(self, new_lethl):
+            self._lethality, creature_type = new_lethl, self.target.creature_type if self.target else None
+            self.dmg_type = Weapon.get_damage_type(self.lethality, creature_type) if self.target else cfg.DMG_NONE
+            utils.log(f'Lethality of {self} has changed to {self.lethality}; damage type recalculated to {self.dmg_type}.')
+
+        @property
+        def used_melee_weapon(self):
+            return self.weapon_used and self.weapon_used.is_melee_weapon
+
+        @property
+        def used_gun(self):
+            return self.weapon_used and self.weapon_used.is_gun
 
         @staticmethod
         def attack_weapon_match(weapon, action):
             if not weapon or not action:
-                print(f'AWM - 1 weapon = {weapon} and action = {action}')
+                return False
+            if weapon in (USING_FANGS, FEEDING_IN_COMBAT, DEVOURING_IN_COMBAT):
                 return False
             if weapon.item_type == Item.IT_FIREARM:
-                print(f'AWM - 2')
                 return action.action_type == CombAct.RANGED_ATTACK
             if weapon.item_type == Item.IT_WEAPON:
-                print(f'AWM - 3')
                 return action.action_type == CombAct.MELEE_ATTACK or weapon.throwable
-            print(f'AWM - 4')
             return False
 
         @staticmethod
@@ -169,7 +173,7 @@ init 1 python in game:
             record.pov_margin = (abs(margin) if margin != 0 else 1) + record.dmg_bonus
             actual_dealt_dmg, unhalved_dmg, prevented_dmg, mitigated_dmg = 0, 0, 0, 0
             damaging_attack = True
-            if record.dmg_type in [cfg.DMG_NONE, None]:
+            if record.dmg_type in (cfg.DMG_NONE, None):
                 damaging_attack = False
             if damaging_attack and record.actual_dmg_tup:
                 actual_dealt_dmg, unhalved_dmg, prevented_dmg, mitigated_dmg = record.actual_dmg_tup
@@ -236,13 +240,21 @@ init 1 python in game:
             pc_defending = state.arena.attack_on_pc(atk_action)
             r1, r2, r3, r4, r5 = roll.margin, roll.num_successes, roll.pool, roll.opp_ws, def_action.num_dice  # def_action.pool
             atype = ClashRecord.DEV_LOG_FLAGS[atk_action.action_type]
+            if atk_action.grapple_action_type:
+                atype += " Grapple"
             dtype = ClashRecord.DEV_LOG_FLAGS[def_action.action_type]
+            if def_action.grapple_action_type:
+                dtype += " Grapple"
             rep_atk_str, rep_def_str = "", ""
             if self.attack_record and self.attack_record.log_str and not atk_action.lost_to_trump_card:
+                # NOTE TODO: This will never not be the case (ignoring trump card) IF MARGIN == 0 due to code in
+                # combat_log.set_action_params(). There's an if/else block where log_str will always be set in every contingency,
+                # since set_action_params() is called for both attack and defend records if margin is zero (0).
                 rep_atk_str = "atk: {}".format(self.attack_record.log_str)
             elif def_action.lost_to_trump_card:
                 rep_atk_str = "atk: failed successfully"
             else:
+                # NOTE So wrt above THIS line will never fire anymore, same with defend equivalents.
                 fail_weap = atk_action.weapon_used if atk_action.weapon_used else "unarmed"
                 rep_atk_str = "atk: ({}) failed to connect".format(fail_weap)
             if self.defend_record and self.defend_record.log_str and not def_action.lost_to_trump_card:
@@ -354,6 +366,7 @@ init 1 python in game:
         def get_next_contest(self, preset_atk_action=None):
             if self.round >= self.actual_num_rounds:
                 return self.post_battle_cleanup()
+            # NOTE: PC extra life torpor event was here originally.
             if preset_atk_action:
                 atk_action, up_next = preset_atk_action, preset_atk_action.user
             else:
@@ -381,10 +394,11 @@ init 1 python in game:
             return atk_action, def_action
 
         def process_new_result(self, roll_result, atk_action, def_action):
-            # margin_threshold = 0
             just_went = self.get_up_next()
             if roll_result is None:
                 if just_went.dead:
+                    if state.pc.dead and state.pc_torpor_event:
+                        return self.post_battle_cleanup()
                     self.increment()
                     return "{} is dead.".format(just_went)
                 elif atk_action.action_type in CombAct.NO_CONTEST:
@@ -392,6 +406,7 @@ init 1 python in game:
                     if just_went.is_pc:
                         return "..."
                     pns = just_went.pronoun_set
+                    print(f'action type is {atk_action.action_type}')
                     if just_went.engaged_by:
                         return "{} is unable to act while {} cornered by {} attackers.".format(
                             just_went, pns.PN_SHES_HES_THEYRE, pns.PN_HER_HIS_THEIR
@@ -459,10 +474,10 @@ init 1 python in game:
             if rolled.num_successes and rolled.outcome != V5DiceRoll.RESULT_BESTIAL_FAIL:
                 atk_action.user.current_pos = atk_action.target.current_pos
                 self.engage_by(atk_action.user, atk_action.target)
-                fuiwin = atk_action.skip_contest
+                fuiwin = atk_action.autowin
             fuiwin = fuiwin and (rolled.num_successes or atk_action.user.has_disc_power(cfg.POWER_CELERITY_GRACE, cfg.DISC_CELERITY))
             # In a blink vs blink contest, the defender wins, i.e. "fuulose" trumps "fuiwin".
-            fuulose = def_action.skip_contest and rolled.outcome not in (V5DiceRoll.RESULT_CRIT, V5DiceRoll.RESULT_MESSY_CRIT)
+            fuulose = def_action.autowin and rolled.outcome not in (V5DiceRoll.RESULT_CRIT, V5DiceRoll.RESULT_MESSY_CRIT)
             fuulose = fuulose and bool(def_action.lifted_num_successes)
             if def_action.action_type == CombAct.DODGE and fuulose:
                 utils.log("Failed ranged attack against teleporting target.")
@@ -491,13 +506,16 @@ init 1 python in game:
             # margin = rolled.margin * (-1 if self.attack_on_pc(atk_action) else 1)
             margin = rolled.margin
             # Blink dodgers can only be hit with a crit (and you still have to win), or if they totally fail.
-            fuulose = def_action.skip_contest and rolled.outcome not in (V5DiceRoll.RESULT_CRIT, V5DiceRoll.RESULT_MESSY_CRIT)
+            fuulose = def_action.autowin and rolled.outcome not in (V5DiceRoll.RESULT_CRIT, V5DiceRoll.RESULT_MESSY_CRIT)
             fuulose = fuulose and bool(def_action.lifted_num_successes)
             if def_action.action_type == CombAct.DODGE and fuulose:
                 utils.log("Failed ranged attack against teleporting target.")
                 atk_action.lost_to_trump_card = True
                 return None
-            #
+            elif atk_action.grapple_action_type:
+                perform_damage_step = self.handle_grapple_clash(rolled, atk_action, def_action)
+                if not perform_damage_step:
+                    return None
             if margin > 0:  # If a ranged attack lands nothing else matters.
                 self.damage_step(margin, atk_action, def_action)
             else:  # If it fails, it may matter if the response is a ranged attack.
@@ -509,6 +527,9 @@ init 1 python in game:
                     self.damage_step(margin, atk_action, def_action, force_zero=True)
                 else:
                     utils.log("Failed ranged attack with non-damaging response.")
+                if margin < 0 and def_action.grapple_action_type:
+                    if def_action.grapple_action_type == CombAct.GRAPPLE_HOLD:
+                        self.a_grapples_b(def_action.user, atk_action.user)
             return None
 
         def handle_melee_attack(self, rolled, atk_action, def_action):
@@ -518,7 +539,7 @@ init 1 python in game:
                 utils.log("Melee attack launched against out-of-position target. This shouldn't ever be reached.")
                 return
             # Blink dodgers can only be hit with a crit (and you still have to win), or if they totally fail.
-            fuulose = def_action.skip_contest and rolled.outcome not in (V5DiceRoll.RESULT_CRIT, V5DiceRoll.RESULT_MESSY_CRIT)
+            fuulose = def_action.autowin and rolled.outcome not in (V5DiceRoll.RESULT_CRIT, V5DiceRoll.RESULT_MESSY_CRIT)
             fuulose = fuulose and bool(def_action.lifted_num_successes)
             if def_action.action_type == CombAct.DODGE and fuulose:
                 utils.log("Failed melee attack against teleporting target.")
@@ -533,6 +554,7 @@ init 1 python in game:
                     return None
             elif atk_action.user.grappling_with:  # A non-grapple action means abandoning all grapples in your favor.
                 self.abandon_grapples(atk_action.user)
+            # elif def_action.grapple_type
             if margin > 0:  # Successful melee attack engages both user and target.
                 self.engage_by(atk_action.target, atk_action.user, mutual=True)
                 self.damage_step(margin, atk_action, def_action)
@@ -542,42 +564,68 @@ init 1 python in game:
                 self.damage_step(margin, atk_action, def_action)
             else:
                 utils.log("Failed melee attack with non-damaging response.")
+            if margin < 0 and def_action.grapple_action_type:
+                if def_action.grapple_action_type == CombAct.GRAPPLE_HOLD:
+                    self.a_grapples_b(def_action.user, atk_action.user)
             return None
 
         def handle_grapple_clash(self, rolled, atk_action, def_action):  # TODO set ai grapple behavior, test grapple clashes
             margin, user, target = rolled.margin, atk_action.user, atk_action.target
-            grapple_type = atk_action.grapple_action_type
+            grapple_type, winning_dmg_type = atk_action.grapple_action_type, atk_action.dmg_type
+            xx = atk_action
+            print(
+                f'\n--- GRAPPLE_ CLASH ---\n',
+                f'\nXX1 = | atype = {xx.action_type}, target = {xx.target}, user = {xx.user},',
+                f' subtype = {xx.action_label}, using sidearm? {xx.using_sidearm}\n'
+            )
             if margin < 0:
-                self.a_escapes_b_grapple(target, user)
-                return True
+                grapple_type, winning_dmg_type = def_action.grapple_action_type, def_action.dmg_type
+                if not grapple_type:
+                    self.a_escapes_b_grapple(target, user)
+                    return True
+                temp, user = user, target
+                target = temp
+            print(f'\nXX2 = | target = {target}, user = {user},',)
             self.engage_by(target, user, mutual=True)
             self.a_grapples_b(user, target)
             self.a_escapes_b_grapple(user, target)
             # self.abandon_grapples(target)
-            if grapple_type in (CombAct.GRAPPLE_DMG, CombAct.GRAPPLE_MAINTAIN):
+            if grapple_type in (CombAct.GRAPPLE_DMG, CombAct.GRAPPLE_MAINTAIN, CombAct.GRAPPLE_ESCAPE):
                 return True
-            elif grapple_type in (CombAct.GRAPPLE_HOLD, CombAct.GRAPPLE_ACTIVE_ESCAPE):  # TODO: Revisit these.
+            elif grapple_type in (CombAct.GRAPPLE_HOLD,):  # TODO: Revisit these.
+                print(f' -- hold or escape, returning False --')
                 return False
             elif grapple_type in (CombAct.GRAPPLE_BITE, CombAct.GRAPPLE_BITE_PLUS):
                 # target.hp.damage(cfg.DMG_AGG, 2, source_who=user)
                 if grapple_type == CombAct.GRAPPLE_BITE_PLUS:
-                    self.handle_combat_feeding_turn(target, user, CombAct.GRAPPLE_DRINK_PLUS)
-                return True
+                    return self.handle_combat_feeding(
+                        atk_action, def_action, CombAct.GRAPPLE_DRINK_PLUS, defender_feeding=user is not atk_action.user
+                    )
+                # return True
             elif grapple_type in (CombAct.GRAPPLE_DRINK, CombAct.GRAPPLE_DRINK_PLUS):
-                self.handle_combat_feeding_turn(target, user, grapple_type)
-                return False
+                    return self.handle_combat_feeding(
+                        atk_action, def_action, grapple_type, defender_feeding=user is not atk_action.user
+                    )
+                # return False
+            return True
             # TODO: still need to implement AI grappling, at least responses
 
-        def handle_combat_feeding_turn(self, target, user, grapple_type):
+        def handle_combat_feeding(self, atk_action, def_action, grapple_type, defender_feeding=False):
+            biter_action, target_action, target = atk_action, def_action, atk_action.target
+            if defender_feeding:
+                biter_action, target_action, target = def_action, atk_action, atk_action.user
+            if not target or not biter_action:
+                raise ValueError("Combat feeding requires at least an attack action, its user, and a target.")
             if target.mortal:
                 drain_dmg, dmg_type = True, cfg.DMG_AGG
             else:
-                drain_dmg = grapple_type == CombAct.GRAPPLE_DRINK_PLUS
+                drain_dmg = grapple_type == Combat.GRAPPLE_DRINK_PLUS
                 dmg_type = cfg.DMG_SPF
             dmg_amount = 5 if grapple_type == CombAct.GRAPPLE_DRINK_PLUS else 1
-            if drain_dmg:
-                target.hp.damage(dmg_type, dmg_amount, source_who=user)
-            state.set_hunger(f'-={dmg_amount}', who=user, killed=target.dead)
+            state.set_hunger(f'-={dmg_amount}', who=biter_action.user, killed=target.dead)
+            biter_action.dmg_type, biter_action.dmg_amount_override = dmg_type, dmg_amount
+            biter_action.dmg_what_override = cfg.COD_DRAINED
+            return True
 
         def handle_special_attack(self, rolled, atk_action, def_action):
             # margin = rolled.margin * (-1 if self.attack_on_pc(atk_action) else 1)
@@ -595,7 +643,7 @@ init 1 python in game:
                     user, user.pronoun_set.PN_HER_HIM_THEM
                 ))
                 return None
-            fuiwin = atk_action.skip_contest
+            fuiwin = atk_action.autowin
             fuiwin = fuiwin and (rolled.num_successes or user.has_disc_power(cfg.POWER_CELERITY_GRACE, cfg.DISC_CELERITY))
             if rolled.margin >= 0 or fuiwin:
                 self.disengage(user)
@@ -620,7 +668,7 @@ init 1 python in game:
                 for i in range(len(ent.engaged_by) - 1, -1, -1):
                     opp = ent.engaged_by[i]
                     if opp.current_pos != ent.current_pos or opp.dead or opp.crippled or opp.shocked:
-                        utils.log("Disengaging {} from {}.".format(ent, opp))
+                        utils.log(f'Disengaging: {ent} should no longer be engaged by {opp}.')
                         self.disengage(ent, opp, mutual=True)
                 for i in range(len(ent.grappled_by) - 1, -1, -1):
                     opp, ungrapple = ent.grappled_by[i], False
@@ -632,77 +680,72 @@ init 1 python in game:
                     if ent.killer and isinstance(ent.killer, Entity) and ent.killer.creature_type == cfg.CT_VAMPIRE:  # Killed by a vampire!
                         if ent.cause_of_death and ent.cause_of_death in (cfg.COD_BITE, cfg.COD_DRAINED):
                             killed, slaked = bool(ent.killer.hunger < 2), 2 if ent.killer.hunger > 1 else 1
+                            if ent.killer.has_disc_power(cfg.POWER_POTENCE_MEGASUCK, cfg.DISC_POTENCE):
+                                killed, slaked = True, 4
                             state.set_hunger(f'-={slaked}', who=ent.killer, killed=killed)
             # Other regular housekeeping
             for action in (atk_action, def_action):  # If an off-hand weapon was used for an attack, it's now the main held weapon.
                 if action.using_sidearm:
                     state.switch_weapons(who=action.user, reload_menu=action.user.is_pc, as_effect=True)
+                    # TODO: this is firing on grabs, fix that
             #
 
         def play_clash_audio(self, margin, atk_action, def_action):
-            # There should always be an atk_action, but there isn't always a def_action.
-            win_sound, loss_sound, reaction_sound, extra_sound = audio.brawl_struggle, None, None, None
             attacker, defender = atk_action.user, (def_action.user if def_action else None)
-            attacker_scream, defender_scream = attacker.set_scream(), None
-            if defender:
-                defender_scream = defender.set_scream()
-
-            if margin >= 0 and (not def_action or not def_action.skip_contest or atk_action.skip_contest):
-                winning_action, losing_action = atk_action, def_action
-                loser_scream = defender_scream
+            atk_strike_sound, atk_scream, def_strike_sound, def_scream = None, None, None, None
+            atk_dt_tup = self.combat_log.attack_record.actual_dmg_tup if self.combat_log.attack_record else None
+            def_dt_tup = self.combat_log.defend_record.actual_dmg_tup if self.combat_log.defend_record else None
+            adt_actual, adt_mitigated = None, None
+            print(f'atk_dt_tup: {atk_dt_tup}\ndef_dt_tup: {def_dt_tup}')
+            if atk_dt_tup:
+                adt_actual, adt_mitigated = atk_dt_tup[0], (atk_dt_tup[2] > 0 or atk_dt_tup[3] > 0)
+            ddt_actual, ddt_mitigated = None, None
+            if def_dt_tup:
+                ddt_actual, ddt_mitigated = def_dt_tup[0], (def_dt_tup[2] > 0 or def_dt_tup[3] > 0)
+            # Set audio variables
+            if adt_actual and defender: atk_scream = defender.set_scream()
+            if defender and ddt_actual: def_scream = attacker.set_scream()
+            # Sounds based on damage dealt, if any. Exception: grapples.
+            if adt_actual and ddt_actual: as_param, ds_param = True, True
+            elif adt_actual: as_param, ds_param = True, False
+            elif ddt_actual: as_param, ds_param = False, True
+            elif atk_action.used_melee_weapon and def_action and def_action.used_melee_weapon: as_param, ds_param = None, None
             else:
-                winning_action, losing_action = def_action, atk_action
-                loser_scream = attacker_scream
-            if winning_action is None:
-                winning_action = losing_action
-                losing_action = None
-            win_weapon, loss_weapon = winning_action.weapon_used, (losing_action.weapon_used if losing_action else None)
+                as_param, ds_param = False, False
+                if margin > 0 and atk_action.grapple_action_type:
+                    as_param = True
+                elif margin < 0 and def_action.grapple_action_type:
+                    ds_param = True
+            print(f'\npre sound fetch: atk_action.weapon_used = {atk_action.weapon_used}, param = {as_param}')
+            print(f'def_action{".weapon_used = " + str(def_action.weapon_used) if def_action else "? No."}, param = {ds_param}\n')
+            atk_strike_sound = Weapon.get_fight_sound(atk_action, as_param)
+            def_strike_sound = Weapon.get_fight_sound(def_action, ds_param)
+            print(f'post-fetch: atk = {atk_strike_sound}, def = {def_strike_sound}')
+            extra_sound_atk, extra_sound_def = None, None
+            if as_param and atk_action.used_gun:
+                extra_sound_atk = Weapon.get_fight_sound(atk_action, None)
+                print("\n", f'Gunshot on the attack! Dealt {adt_actual} damage, so we use the None sound, {extra_sound_atk}.')
+            if ds_param and def_action.used_gun:
+                extra_sound_def = Weapon.get_fight_sound(def_action, None)
+                print("\n", f'Gunshot on the defend! Dealt {ddt_actual} damage, so we use the None sound, {extra_sound_def}.')
+            print(f'-----extra sound afterward!')
+            # Check which ones are set, then play them.
+            sounds_to_play, possible_sounds = [], (atk_strike_sound, atk_scream, def_strike_sound, def_scream)
+            for possible_sound in possible_sounds:
+                # Only play the default brawl struggle if there isn't a more interesting weapon sound to play.
+                if possible_sound and possible_sound not in (audio.brawl_struggle,):
+                    sounds_to_play.append(possible_sound)
+                elif possible_sound and (not atk_strike_sound or not def_strike_sound):
+                    sounds_to_play.append(possible_sound)
+            if extra_sound_atk and extra_sound_atk not in sounds_to_play:
+                sounds_to_play.append(extra_sound_atk)
+            if extra_sound_def and extra_sound_def not in sounds_to_play:
+                sounds_to_play.append(extra_sound_def)
 
-            # TODO: bite attack sound!
-            if margin != 0:  # CLEAR WIN/LOSS
-                win_sound = Weapon.get_fight_sound(winning_action, True)  # impact of winning weapon always plays
-                if win_weapon and win_weapon.item_type == Item.IT_FIREARM:
-                    extra_sound = Weapon.get_fight_sound(winning_action, None)  # gun reports always go off if winner uses gun
-                    if loss_weapon and loss_weapon.item_type == Item.IT_FIREARM:
-                        loss_sound = Weapon.get_fight_sound(losing_action, False)
-                elif not win_weapon and winning_action and winning_action.action_type in CombAct.OUCH:
-                    win_sound = audio.throwing_hands_1  # if winner uses fisticuffs it's assumed loser was interrupted
-                    loss_sound = loser_scream
-                elif winning_action and winning_action.action_type == CombAct.MELEE_ENGAGE:
-                    win_sound = Weapon.get_fight_sound(winning_action, True)
-                    loss_sound = Weapon.get_fight_sound(losing_action, False)
-                else:
-                    win_sound = Weapon.get_fight_sound(winning_action, True)
-                    loss_sound = Weapon.get_fight_sound(losing_action, False)
-            else:  # CLASHES ENDING IN TIE, no scream
-                loser_scream = None
-                if win_weapon:
-                    win_sound = Weapon.get_fight_sound(winning_action, None)  # clash for melee, bang for guns
-                else:  #elif winning_action.action_type == CombAct.MELEE_ENGAGE:
-                    win_sound = Weapon.get_fight_sound(winning_action, True)
-                # else:
-                    # win_sound = audio.brawl_struggle  # struggle sound for weaponless attacks (and default)
-                if loss_weapon:
-                    loss_sound = Weapon.get_fight_sound(losing_action, None)
-                    if loss_weapon.item_type == Item.IT_FIREARM:
-                        loss_sound = Weapon.get_fight_sound(losing_action, False)
-                elif not win_sound or win_sound != audio.brawl_struggle:
-                    loss_sound = audio.brawl_struggle
-
-            if winning_action.action_type not in CombAct.OUCH:
-                loser_scream = None
-            if not loss_sound:
-                loss_sound = loser_scream
-            elif loss_sound != loser_scream:
-                reaction_sound = loser_scream
-
-            # renpy.play(win_sound, "audio")
-            utils.renpy_play(win_sound)
-            if extra_sound:
-                renpy.play(extra_sound, "audio")
-            renpy.play(loss_sound, "audio")
-            if reaction_sound:
-                renpy.play(reaction_sound, "audio")  # was sound_aux
+            print(f'sounds-to-play::{sounds_to_play}')
+            stp_str_tup = [f'  #{i}: {str(stp) if type(stp) in (list, tuple) else stp}' for i, stp in enumerate(sounds_to_play)]
+            print(f'|sounds|:|{chr(10)}{chr(10).join(stp_str_tup)}{chr(10)}|/sounds|')
+            utils.renpy_play(*sounds_to_play, at_once=True)
 
         def attack_on_pc(self, atk_action):
             if not atk_action:
@@ -725,13 +768,17 @@ init 1 python in game:
         def damage_step(self, margin, atk_action, def_action, track=cfg.TRACK_HP, force_zero=False):
             self.combat_log.reset()
             self.combat_log.attack_record = ClashRecord(atk_action.user)
-            self.combat_log.defend_record =  ClashRecord(def_action.user if def_action else None)
+            self.combat_log.defend_record = ClashRecord(def_action.user if def_action else None)
             dmg_what = "Combat"
             if margin >= 0 and atk_action.action_type in CombAct.OUCH:# and attack:
                 damage_val = margin if margin != 0 or force_zero else 1
                 damage_val += atk_action.dmg_bonus
                 if atk_action.weapon_used and atk_action.weapon_used.key == USING_FANGS.key:
                     damage_val, atk_action.dmg_type, dmg_what = 2, cfg.DMG_AGG, cfg.COD_BITE
+                if atk_action.dmg_amount_override is not None:
+                    damage_val = atk_action.dmg_amount_override
+                if atk_action.dmg_what_override:
+                    dmg_what = atk_action.dmg_what_override
                 self.combat_log.attack_record.actual_dmg_tup = state.deal_damage(
                     track, atk_action.dmg_type, damage_val, source_what=dmg_what, source_who=atk_action.user, target=atk_action.target
                 )
@@ -740,6 +787,10 @@ init 1 python in game:
                 damage_val += def_action.dmg_bonus
                 if def_action.weapon_used and def_action.weapon_used.key == USING_FANGS.key:
                     damage_val, def_action.dmg_type, dmg_what = 2, cfg.DMG_AGG, cfg.COD_BITE
+                if def_action.dmg_amount_override is not None:
+                    damage_val = def_action.dmg_amount_override
+                if def_action.dmg_what_override:
+                    dmg_what = def_action.dmg_what_override
                 self.combat_log.defend_record.actual_dmg_tup = state.deal_damage(
                     track, def_action.dmg_type, damage_val, source_what=dmg_what, source_who=def_action.user, target=def_action.target
                 )
@@ -791,21 +842,22 @@ init 1 python in game:
                 actor.grappling_with = utils.list_plus_nodup(actor.grappling_with, acted_upon)
 
         def a_grapples_b(self, actor, acted_upon, mutual=False):
-            print(f'\n{actor} should soon be grappled by {acted_upon}')
             self.set_grapple_status(False, actor, acted_upon=acted_upon, mutual=mutual)
-            print(f'---end of a_grapples_b---')
+            if mutual: utils.log(f'{actor} and {acted_upon} should now be locked in a mutual grapple.')
+            else: utils.log(f'{acted_upon} should now be grappled by {actor}.')
 
         def a_escapes_b_grapple(self, actor, acted_upon=None, mutual=False):
-            print(f'\n{actor} should soon be free from {acted_upon}')
             self.set_grapple_status(True, actor, acted_upon=acted_upon, mutual=mutual)
-            print(f'---end of a_escapes_b_grapple---')
+            if mutual: utils.log(f'{actor} and {acted_upon} should each be free of each other.')
+            else: utils.log(f'{actor} should no longer be grappled by {acted_upon}.')
 
         def abandon_grapples(self, grappler):
             if grappler and grappler.grappling_with:
                 for ent in grappler.grappling_with:
                     self.a_escapes_b_grapple(ent, grappler, mutual=False)
+            utils.log(f'{grappler} should now have released anyone they were grappling.')
 
-        def post_battle_cleanup(self):
+        def post_battle_cleanup(self, block_healing=False):
             self.combat_log.reset()
             self.battle_end = True
             for entity in (self.pc_team + self.enemies):
@@ -821,7 +873,7 @@ init 1 python in game:
                         entity.will.spf_damage, entity.will.agg_damage = 0, 0
                         entity.dead = False
                 entity.appears_dead = False
-                if entity.is_pc and cfg.DEV_MODE:
+                if entity.is_pc and cfg.DEV_MODE and not block_healing:
                     entity.hp.spf_damage, entity.hp.agg_damage = 0, 0
                     entity.will.spf_damage, entity.will.agg_damage = 0, 0
                 # del entity (?)
@@ -831,6 +883,11 @@ init 1 python in game:
             state.blood_surge_active = False
             state.mended_this_turn, state.used_disc_this_turn = False, False
             state.fleet_dodge_this_turn = False
+            if state.pc.dead and state.pc_torpor_event:  # TODO left off here as of 2023/05/18
+                print(" \|/ \|/ |||| ---- PC TORPOR EVENT, you got fucked up bruh")
+                state.mend_damage(None, cfg.TRACK_HP, cfg.DMG_AGG, state.pc.hp.agg_damage - 1)
+                state.pc.hp.spf_damage, state.pc.will.spf_damage, state.pc.will.agg_damage = 0, 0, 0
+                state.pc.dead = False
             return None, None
 
 

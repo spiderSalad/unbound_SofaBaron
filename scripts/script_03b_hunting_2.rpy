@@ -812,7 +812,8 @@ label hunting_tl_strike_bestial_failure(*args):
 label hunting_tl_swill_strike_success(*args):
     python:
         feeding_penalty = utils.get_feeding_penalty_swill(pc.blood_potency, False)
-        slaked_hunger = min(cfg.VAL_SWILL_SLAKE_MAX, max(1, state.active_roll.margin)) * feeding_penalty
+        slaked_hunger_initial = min(cfg.VAL_SWILL_SLAKE_MAX, max(1, state.active_roll.margin))
+        slaked_hunger = utils.math_floor(slaked_hunger_initial * feeding_penalty)
         state.set_hunger("-={}".format(slaked_hunger))  # Can bagged blood be innocent or guilty? We may never know.
         if state.current_hunt_type == cfg.PT_FARMER:
             state.feed_resonance(boost=-1, reso=cfg.RESON_EMPTY)

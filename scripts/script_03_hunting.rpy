@@ -519,14 +519,36 @@ label blood_purchase(hunt_type):
 
     "For a reasonable price you could skip all the hard work and danger and just pay to chow down on whichever local kine are desperate or unlucky enough to find themselves there."
 
+    "They also sell bagged blood for the same price, if that's more your speed."
+
+    $ price_of_one = state.blood_market_price * 1
+    if f'${price_of_one}' not in pc.inventory:
+        "Unfortunately for you, you can't afford the going rate. You know you'll need at least $[price_of_one]."
+
+        $ broke_ass = f'And you\'ve only got ${pc.inventory.wallet}.' if pc.inventory.wallet > 0 else "And you're flat fuckin' broke."
+        "[broke_ass] You'll have to think of something else."
+        beast "..."
+        return
+
     if state.setite_blood_buys < 1:
         "The first time's always free."
 
     call hunt_confirm("...Pathetic. Predators don't beg for food.", None, None) from blood_purchase_root
     if _return:
-        "(not fully implemented yet, so it's free. lucky lick, you.)"
-        $ state.set_hunger("-=5")
-        $ state.setite_blood_buys += 1
+        $ hunger_slaked = min(pc.hunger, 4, utils.math_floor(pc.inventory.wallet / pc.hunger))
+        $ total_price = price_of_one * hunger_slaked
+        python:
+            state.set_hunger(f'-={hunger_slaked}')
+            state.setite_blood_buys += 1
+            # pc.inventory.lose(cash_amount=total_price)
+            state.lose_cash(total_price)
+        red_minister "That will be $[total_price]. Always a pleasure doing business with fine Kindred such as yourself."
+        if pc.hunger > 1:
+            "And after shelling out all that cash, you're still hungry."
+        else:
+            "Expensive. But oh, what a relief."
+        beast "..."
+        call pass_time(1) from hunting_but_not_really_setites
     return
 
 

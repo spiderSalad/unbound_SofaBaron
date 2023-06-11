@@ -61,7 +61,10 @@ init 1 python in state:
         ),
         Weapon(Weapon.MW_BLUNT_HEAVY, "Wooden Baseball Bat", key="woodbat", tier=2, desc="A true American classic."),
         Weapon(Weapon.MW_AXE, "Fire Axe", tier=3, desc="About as dangerous to licks as its name might imply."),
-        Weapon(Weapon.MW_SWORD, "Black Blade of the Tal'Mahe'Ra", dmg_bonus=4, tier=7, lethality=4, desc="How did you get this?!")
+        Weapon(
+            Weapon.MW_SWORD, "Black Blade of the Tal'Mahe'Ra", key="black_blade_true_hand",
+            dmg_bonus=4, tier=7, lethality=4, desc="How did you get this?!"
+        )
     )
 
 
@@ -119,7 +122,8 @@ init 1 python in game:
         GRAPPLE_DMG = "damaging_grapple"
         GRAPPLE_DRINK = "combat_feeding"
         GRAPPLE_DRINK_PLUS = "brutal_combat_feeding"
-        GRAPPLE_ACTIVE_ESCAPE = "get_off_me_bro"
+        GRAPPLE_ESCAPE = "get_off_me_bro"
+        GRAPPLE_ESCAPE_DMG = "i_said_get_off_me_bro"
         GRAPPLE_MAINTAIN = "maintain_grip_while"  # For non-grapple actions that shouldn't break grapple, e.g. Arms of Ahriman.
 
         # Not necessarily attacks, but abilities that can be actively used in combat, not including
@@ -192,6 +196,7 @@ init 1 python in flavor:
         Weapon.MW_AXE: audio.axe_cleave_2,
         Weapon.MW_FANGS: audio.feed_bite1,
         Weapon.MW_DRAIN: audio.feed_heartbeat,
+        Weapon.MW_MEGADRAIN: audio.evisceration_slurp,
         Weapon.RW_THROWING: audio.stab_1
     }
 
@@ -202,7 +207,8 @@ init 1 python in flavor:
         Weapon.MW_BLUNT_HEAVY: audio.melee_miss_heavy_1,
         Weapon.MW_AXE: audio.melee_miss_heavy_1,
         Weapon.MW_FANGS: audio.thwarted_bite_1,
-        Weapon.MW_DRAIN: audio.thwarted_bite_1
+        Weapon.MW_DRAIN: audio.thwarted_bite_1,
+        Weapon.MW_MEGADRAIN: audio.thwarted_bite_1
     }
 
     FIRING_SOUNDS = {
@@ -227,6 +233,7 @@ init 1 python in flavor:
         Weapon.MW_AXE: audio.blunt_ricochet_1,
         Weapon.MW_FANGS: audio.feed_bite1,
         Weapon.MW_DRAIN: None,
+        Weapon.MW_MEGADRAIN: None,
         Weapon.RW_THROWING: None,
 
         Weapon.RW_PISTOL: audio.pistol_ricochet,
@@ -256,6 +263,10 @@ init 1 python in flavor:
             audio.grunt_pain_masc_3,
             audio.grunt_pain_masc_4
         ]
+    }
+
+    GRAPPLE_SOUNDS = {
+        CombAct.GRAPPLE_HOLD: audio.grab_1
     }
 
     ## NOTE: Only flavor components that get re-used in multiple contexts, e.g. how dice rolls are used in combat and open-world script,
@@ -394,13 +405,13 @@ init 1 python in flavor:
             Weapon.NO_WEAPON: ["{NPC_NAME} is preparing to throw... something, at you."]
         },
         Weapon.RW_AUTO: ["{NPC_NAME} points a {WEAPON_NAME} in your direction, ready to spray you (and anyone close to you)."],
-        CombAct.GRAPPLE_ACTIVE_ESCAPE: {
+        CombAct.GRAPPLE_ESCAPE: {
             cfg.REF_ADROIT: [
                 "{NPC_NAME} wrestles against your grip, trying to point {PN_HER_HIS_THEIR} {WEAPON_NAME} at you for a point-blank shot!"
             ],
             cfg.REF_CLUMSY: [
                 ("{NPC_NAME} is trying to shoot you point-blank with {PN_HER_HIS_THEIR} {WEAPON_NAME},"
-                " but is clearly having trouble pointing it at you.")
+                " but {PN_SHES_HES_THEYRE} clearly having trouble pointing it at you.")
             ]
         }
     }
@@ -433,7 +444,7 @@ init 1 python in flavor:
         Weapon.MW_BLUNT_HEAVY: [
             "{NPC_NAME} swings a {WEAPON_NAME} wildly at you, hoping to beat you into the dirt."
         ],
-        CombAct.GRAPPLE_ACTIVE_ESCAPE: {
+        CombAct.GRAPPLE_ESCAPE: {
             Weapon.NO_WEAPON: [
                 "{NPC_NAME} thrashes in your grip, intent on breaking free."
             ],
@@ -471,11 +482,11 @@ init 1 python in flavor:
 
         base_blurbs = C_ATK_BLURBS[action_type]
         if action_type == CombAct.RANGED_ATTACK:
-            if atk_action.grapple_action_type and atk_action.grapple_action_type == CombAct.GRAPPLE_ACTIVE_ESCAPE:
+            if atk_action.grapple_action_type and atk_action.grapple_action_type == CombAct.GRAPPLE_ESCAPE:
                 bf_key = cfg.REF_CLUMSY
                 if weap_type in (Weapon.NO_WEAPON,) or weapon.concealable:
                     bf_key = cfg.REF_ADROIT
-                return flavor_format(base_blurbs[CombAct.GRAPPLE_ACTIVE_ESCAPE][bf_key], subject=attacker, action=atk_action)
+                return flavor_format(base_blurbs[CombAct.GRAPPLE_ESCAPE][bf_key], subject=attacker, action=atk_action)
             if not weapon or weap_type in (Weapon.RW_AUTO,):
                 return flavor_format(base_blurbs[weap_type], subject=attacker, action=atk_action)
             elif weapon.item_type != Item.IT_FIREARM and weapon.throwable:
@@ -484,12 +495,12 @@ init 1 python in flavor:
                 return flavor_format(base_blurbs[Weapon.RW_THROWING][Weapon.NO_WEAPON], subject=attacker, action=atk_action)
             return flavor_format(base_blurbs[cfg.REF_DEFAULT], subject=attacker)
         elif action_type == CombAct.MELEE_ATTACK:
-            if atk_action.grapple_action_type and atk_action.grapple_action_type == CombAct.GRAPPLE_ACTIVE_ESCAPE:
+            if atk_action.grapple_action_type and atk_action.grapple_action_type == CombAct.GRAPPLE_ESCAPE:
                 if weap_type in (Weapon.NO_WEAPON, Weapon.MW_FANGS, Weapon.MW_KNIFE):
                     bf_key = weap_type
                 else:
                     bf_key = cfg.REF_ADROIT if weapon.concealable else cfg.REF_CLUMSY
-                return flavor_format(base_blurbs[CombAct.GRAPPLE_ACTIVE_ESCAPE][bf_key], subject=attacker, action=atk_action)
+                return flavor_format(base_blurbs[CombAct.GRAPPLE_ESCAPE][bf_key], subject=attacker, action=atk_action)
             if not weapon and not atk_action.unarmed_power_used:
                 mortality_desig = cfg.CT_HUMAN if attacker.creature_type in cfg.REF_MORTALS else cfg.CT_VAMPIRE
                 return flavor_format(base_blurbs[Weapon.NO_WEAPON][mortality_desig], subject=attacker, action=atk_action)

@@ -163,7 +163,7 @@ label combat_encounter:
             can_throw = can_attack_ranged and (pc.held.throwable or pc.sidearm.throwable)
             can_use_disc = not state.used_disc_this_turn
             can_use_2p_disc = can_use_disc and pc.can_rouse()
-            pc_cornered = state.arena.is_cornered(pc) or pc.grappled_by
+            pc_cornered, grap_pns = state.arena.is_cornered(pc) or pc.grappled_by, None
             grapple_prompt, grapple_confirm_txt = "Grab someone close by (grapple)", "You square yourself up to grab the nearest enemy..."
             if pc.grappled_by:
                 at_range, close_enough, pc_cornered = [], pc.grappled_by, True
@@ -181,7 +181,7 @@ label combat_encounter:
             disengage_default_prompt = "I need to back up, find a better vantage point."
             if pc.engaged_by:
                 disengage_default_prompt = "I need to back out of this mess and reorient myself."
-            state.menu_label_backref = "{}.player_attack_menu".format(cfg.COMBAT_LABEL_MAIN)
+            state.menu_label_backref = f'{cfg.COMBAT_LABEL_MAIN}.player_attack_menu'
         menu:
             "What will you do?"
 
@@ -218,6 +218,10 @@ label combat_encounter:
                 "you attack a random target in melee"
 
             "[grapple_prompt]" if close_enough:
+                $ pain_check = not pc.grappled_by
+                # call .combat_pain_points(crippled_check=pain_check, shocked_check=pain_check) from combat_pc_attack_menu_grapple_1
+                # if not _return:
+                #     jump expression state.menu_label_backref
                 "[grapple_confirm_txt]"
                 call .grapple_submenu from player_basic_grapple
                 $ grapple_choice = _return
@@ -228,6 +232,7 @@ label combat_encounter:
                     target, pa_pool = utils.get_random_list_elem(targets), "strength+combat"
                     if grapple_choice in (CombAct.GRAPPLE_BITE, CombAct.GRAPPLE_BITE_PLUS) and target not in pc.grappling_with:
                         pa_pool = f'{pa_pool}+-{abs(cfg.BITE_ATTACK_PENALTY)}'
+                    print(f'grapple_choice = {grapple_choice}')
                     pc_atk = CombatAction(CombAct.MELEE_ATTACK, target, user=pc, pool=pa_pool, grapple_type=grapple_choice)
                     # TODO: grapple defenses, breaking off on dodge?
 
@@ -276,7 +281,12 @@ label combat_encounter:
                 jump .pass_turn_submenu
 
             "Run" if not pc.grappled_by:
-                "run awaaaaaaaaaaaayyyyy"
+                # TODO: test for escaping
+                if True:
+                    "run awaaaaaaaaaaaayyyyy"
+                    $ state.arena.post_battle_cleanup(block_healing=True)
+                else:
+                    "But you can't get away, can you?"
                 jump .end
 
         jump .pc_attack_post
@@ -316,6 +326,7 @@ label combat_encounter:
         # call roll_control(pa_pool, def_pool, active_a=pc_atk, response_a=npc_def) from combat_pc_atk
         call roll_control(pc_atk.pool, def_pool, active_a=pc_atk, response_a=npc_def) from combat_pc_atk_v2
         $ roll_result = _return
+        $ print(f'pc_atk.grapple_action_type = {pc_atk.grapple_action_type}')
         call .handle_post_action(report=state.arena.process_new_result(roll_result, pc_atk, npc_def)) from pc_atk_pnr
         $ chained_action = _return
 
@@ -344,34 +355,57 @@ label combat_encounter:
 
         jump .turn_loop_start
 
+    label .combat_pain_points(crippled_check=True, shocked_check=True):
+        if crippled_check and pc.crippled:
+            "The moment the idea enters your mind, sharp spasms of pain run through your limbs as if in contemptuous response."
+
+            "Your body is too broken to try anything like that. You'll need to mend yourself first."
+            return False
+        if shocked_check and pc.shocked:
+            "Ringing ears, blurred vision... Whatever idea you just had isn't going to work while you're like this."
+            return False
+        return True
+
     label .grapple_submenu:
 
-        $ would_combat_feed = pc.grappling_with and (pc.hunger > 0 or pc.humanity <= cfg.KILLHUNT_HUMANITY_MAX)
-        $ pc_grappled, megasuck = pc.grappled_by and len(pc.grappled_by), pc.has_disc_power(cfg.POWER_POTENCE_MEGASUCK, cfg.DISC_POTENCE)
+        python:
+            would_combat_feed = pc.grappling_with and (pc.hunger > 0 or pc.humanity <= cfg.KILLHUNT_HUMANITY_MAX)
+            pc_grappled = pc.grappled_by and len(pc.grappled_by)
+            megasuck = pc.has_disc_power(cfg.POWER_POTENCE_MEGASUCK, cfg.DISC_POTENCE)
+            if not grap_pns:
+                if pc.grappling_with and len(pc.grappling_with) > 1:
+                    grap_pns = cfg.PN_GROUP
+                elif pc.grappling_with:
+                    grap_pns = pc.grappling_with[0].pronoun_set
+                else:
+                    grap_pns = cfg.PN_PERSON
 
         menu:
             "...and?"
 
-            "Hold" if not pc_grappled:
-                $ grapple_choice = CombAct.GRAPPLE_HOLD
-
-            "Break them." if not pc_grappled and pc.grappling_with:
+            "Break [grap_pns.PN_HER_HIM_THEM]." if not pc_grappled and pc.grappling_with:
                 $ grapple_choice = CombAct.GRAPPLE_DMG
 
             "Break free!" if pc_grappled:
-                $ grapple_choice = CombAct.GRAPPLE_ACTIVE_ESCAPE
+                $ grapple_choice = CombAct.GRAPPLE_ESCAPE
+
+            "Make [grap_pns.PN_HER_HIM_THEM] regret putting [grap_pns.PN_HER_HIS_THEIR] hands on me." if pc_grappled:
+                $ grapple_choice = CombAct.GRAPPLE_ESCAPE_DMG
 
             "Bite":  # Bite attacks can be used when grappling or grappled, tentatively.
                 $ grapple_choice = CombAct.GRAPPLE_BITE
 
-            "Bite... then drain them like a fucking slurpie!" if pc.grappling_with and megasuck:
+            "Bite... then drain [grap_pns.PN_HER_HIM_THEM] like a fucking slurpie!" if pc.grappling_with and megasuck:
                 $ grapple_choice = CombAct.GRAPPLE_BITE_PLUS
 
             "Drink." if not pc_grappled and would_combat_feed:
                 $ grapple_choice = CombAct.GRAPPLE_DRINK
 
-            "Drain them like a fucking smoothie!" if not pc_grappled and would_combat_feed and megasuck:
+            "Drain [grap_pns.PN_HER_HIM_THEM] like a fucking smoothie!" if not pc_grappled and would_combat_feed and megasuck:
                 $ grapple_choice = CombAct.GRAPPLE_DRINK_PLUS
+
+            "Just hold [grap_pns.PN_HER_HIM_THEM] in place." if not pc_grappled:
+                $ grapple_choice = CombAct.GRAPPLE_HOLD
 
             "On second thought...":
                 $ grapple_choice = None
@@ -395,8 +429,12 @@ label combat_encounter:
                 sideshoot_prompt = "Try to draw my sidearm and return fire!  (Dexterity/Wits + Firearms)"
             can_use_disc = not state.used_disc_this_turn
             can_use_2p_disc = can_use_disc and pc.can_rouse()
-            can_flit = Entity.SE_FLEETY in pc.status_effects and not state.fleet_dodge_this_turn
-            state.menu_label_backref = "{}.player_defense_menu".format(cfg.COMBAT_LABEL_MAIN)
+            can_flit = state.StatusFX.has_buff(pc, Entity.SE_FLEETY) and not state.fleet_dodge_this_turn #in pc.status_effects
+            can_weave = state.StatusFX.has_buff(pc, Entity.SE_WEAVING) and atk_action.action_type in (CombAct.RANGED_ATTACK,)
+            weaving_prompt = "Dance out of the way. Bullets can't touch me unless I let them."
+            if can_weave and atk_action.weapon_used and atk_action.weapon_used.item_type != Item.IT_FIREARM:
+                weaving_prompt = "Nonchalantly dance out of the way."
+            state.menu_label_backref = f'{cfg.COMBAT_LABEL_MAIN}.player_defense_menu'
             defend_prompt = flavor.prompt_combat_defense(atk_action)
             counter_attack_prompt, no_action_prompt = "Counter-attack!", "Just take it."
             if atk_action.action_type in (CombAct.DISENGAGE, CombAct.FALL_BACK, CombAct.ESCAPE_ATTEMPT):
@@ -409,7 +447,7 @@ label combat_encounter:
 
             "[no_action_prompt]" if cfg.DEV_MODE and devtest.DEV_FACETANK:
                 $ pd_pool = "pool1"
-                $ pc_def = CombatAction(CombAct.NO_ACTION, None, user=pc, defending=True, pool=pd_pool)
+                $ pc_def = CombatAction(CombAct.NO_ACTION, None, user=pc, defending=True, pool=None)
 
             "Dodge  (Dexterity + Athletics)":  # Only defense that's always available.
                 "you attempt to dodge"
@@ -424,6 +462,12 @@ label combat_encounter:
                 $ pc_def = _return
                 $ print(f'\nfleet dodge | pc_def.pool = {pc_def.pool}')
 
+            "[weaving_prompt]" if can_weave:
+                "there is no spoon, neo"
+                call .pc_defend_special_dodge(cfg.POWER_CELERITY_MATRIX_DODGE) from pc_dodge_weaving
+                $ pc_def = _return
+                $ print(f'\nweaving dodge | pc_def.pool = {pc_def.pool}')
+
             "Blink out of the way!" if can_use_2p_disc and pc.has_disc_power(cfg.POWER_CELERITY_BLINK):
                 "blink evade/escape not implemented yet"
                 call .pc_defend_special_dodge(cfg.POWER_CELERITY_BLINK) from pc_dodge_blink
@@ -437,10 +481,46 @@ label combat_encounter:
                 $ print(f'\nsoaring leap dodge | pc_def.pool = {pc_def.pool}')
 
             "[counter_attack_prompt]\n(Dexterity + Combat / Strength + Combat)" if can_use_melee_counter:
-                $ pd_pool = "dexterity+combat/strength+combat"
-                $ pc_def = CombatAction(CombAct.MELEE_ATTACK, atk_action.user, user=pc, defending=True, pool=pd_pool)
+                python:
+                    pd_pool = "dexterity+combat/strength+combat"
+                    pc_gat = CombAct.GRAPPLE_DMG if atk_action.user in pc.grappling_with else None
+                    pc_def = CombatAction(CombAct.MELEE_ATTACK, atk_action.user, user=pc, defending=True, pool=pd_pool, grapple_type=pc_gat)
                 "you attempt a counterattack"
                 # jump .pc_defend_post
+
+            # TODO: later, add version of these for Arms of Ahriman.
+            "Grab [pns.PN_HER_HIM_THEM]! (Grapple)" if can_use_melee_counter and not pc.grappled_by and attacker not in pc.grappling_with:
+                # call .combat_pain_points from combat_pc_defend_menu_grapple_1
+                # if not _return:
+                #     jump expression state.menu_label_backref
+                python:
+                    pd_pool = "strength+combat"
+                    pc_def = CombatAction(
+                        CombAct.MELEE_ATTACK, atk_action.user, user=pc, defending=True, pool=pd_pool,
+                        grapple_type=CombAct.GRAPPLE_HOLD, lethality=0
+                    )
+                "you try to grab your attacker"
+
+            "But while [pns.PN_SHES_HES_THEYRE] in my grip, I can..." if atk_action.user in pc.grappling_with:
+                # call .combat_pain_points from combat_pc_defend_menu_grapple_2
+                # if not _return:
+                #     jump expression state.menu_label_backref
+                "defending grapple against grappled opponent"
+                call .grapple_submenu from player_basic_grapple_2_defend
+                $ grapple_choice = _return
+                if grapple_choice is None:
+                    jump expression state.menu_label_backref
+                python:
+                    target, pd_pool = atk_action.user, "strength+combat"
+                    pc_def = CombatAction(CombAct.MELEE_ATTACK, target, user=pc, pool=pd_pool, grapple_type=grapple_choice)
+
+            "Bite [pns.PN_HER_HIM_THEM]!" if can_use_melee_counter and not pc.grappled_by and attacker in pc.grappling_with:
+                python:
+                    pd_pool = f'strength+combat+-{cfg.BITE_ATTACK_PENALTY}'
+                    pc_def = CombatAction(
+                        CombAct.MELEE_ATTACK, atk_action.user, user=pc, defending=True, pool=pd_pool, grapple_type=CombAct.GRAPPLE_BITE
+                    )
+                "as your attacker tries to overpower you, you try to bite"
 
             "[shoot_prompt]" if can_use_ranged_counter:
                 $ pd_pool = "dexterity+firearms"
@@ -482,8 +562,12 @@ label combat_encounter:
             free_blink = cfg.DEV_MODE and (cfg.FREE_BLINK or cfg.FREE_DISCIPLINES)
             # Break grapple on Blink?
 
-        if dodge_power_used == cfg.POWER_CELERITY_BLINK and not free_blink:
-            call roll_control.rouse_check() from pc_dodge_blink_rouse
+        if not free_blink:
+            if dodge_power_used == cfg.POWER_CELERITY_BLINK:
+                call roll_control.rouse_check() from pc_dodge_blink_rouse
+            elif dodge_power_used == cfg.POWER_CELERITY_MATRIX_DODGE and not state.StatusFX.has_buff(pc, Entity.SE_WEAVING):
+                $ state.statusfx.weaving(pc)
+                call roll_control.rouse_check() from pc_dodge_weaving_rouse
 
         return pc_def
 
@@ -500,7 +584,14 @@ label combat_encounter:
 
     label .end:
 
-        "Returning...?"
+        "Returning...? (post-battle marker a01)"
+
+    return
+
+
+label battle_aftermath(*args):
+
+    ""
 
     return
 

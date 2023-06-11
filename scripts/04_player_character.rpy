@@ -130,11 +130,15 @@ init 1 python in game:
 
         def power_prereqs_met(self, dname, power):
             if power in cfg.REF_DISC_POWER_PREREQS:
-                prereq_power = cfg.REF_DISC_POWER_PREREQS[power]
-                if not self.power_unlocked(prereq_power, dname):
-                    return False, "Should not be able to choose power \"{}\" without prerequisite power \"{}\"".format(
-                        power, prereq_power
-                    )
+                all_prereq_powers, missing_any = cfg.REF_DISC_POWER_PREREQS[power], False
+                if not all_prereq_powers:
+                    return True, f'Power "{power}" is listed as having prerequisites, but we' + " can't find any!"
+                for prereq_power in all_prereq_powers:
+                    if not self.power_unlocked(prereq_power, dname):
+                        missing_any = True
+                        break
+                if missing_any:
+                    return False, f'You cannot choose power "{power}" without prerequisite power "{prereq_power}"'
             return True, None
 
         def amalgam_reqs_met(self, dname, power):
@@ -347,12 +351,6 @@ init 1 python in game:
         def defend(self, attacker, atk_action):
             pass
 
-        # def impair(self, impaired, tracker_type):
-        #     if tracker_type == cfg.TRACK_HP:
-        #         self.crippled = impaired
-        #     elif tracker_type == cfg.TRACK_WILL:
-        #         self.shocked = impaired
-
         def get_fort_resilience_bonus(self):
             if not self.has_disc_power(cfg.POWER_FORTITUDE_HP, cfg.DISC_FORTITUDE):
                 return 0
@@ -443,7 +441,11 @@ init 1 python in game:
 
         def handle_demise(self, tracker_type, damage_source):
             super().handle_demise(tracker_type=tracker_type, damage_source=damage_source)
-            renpy.jump("end")
+            print(f'EXTRA LIVES REMAINING: {state.extra_lives}')
+            if state.extra_lives < 1:
+                return renpy.jump("end")
+            state.extra_lives -= 1
+            state.pc_torpor_event = True
 
 
 #

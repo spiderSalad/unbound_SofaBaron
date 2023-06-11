@@ -62,6 +62,13 @@ label haven:
                 relax_menu_text = "It's almost sunrise. Time to turn in for the day."
             elif pc.hunger > cfg.HUNGER_MAX_CALM:
                 relax_menu_text = "I think I'd better stay in for the rest of the night."
+            # if pc.can_rouse():
+            spf_mending_menu_text = "I want to fix myself up a bit."
+            if state.mended_spf_tonight: spf_mending_menu_text = "I've still got some damage I want to fix."
+            if pc.hp.spf_damage > 3 or pc.hp.spf_damage >= (pc.hp.total - 2):
+                spf_mending_menu_text = "I'm practically falling apart at the seams. I need to fix that."
+                if state.mended_spf_tonight: spf_mending_menu_text = "I'm still beat to shit. Need to do some more mending."
+
 
         menu:
             "What do you want to do?"
@@ -90,7 +97,12 @@ label haven:
                 call haven.submenu_sorties from main_hub_sortie
                 # call pass_time(2) from sortie_test1
 
-            # TODO: Option for mending here
+            "[spf_mending_menu_text]" if pc.can_rouse() and pc.hp.spf_damage > 0:
+                "No point in enduring painful, debilitating injuries if you don't have to. Best thing about being dead."
+
+                "You can just... will the pain away. But then comes the Hunger. Always the Hunger."
+
+                call mend.superficial from spf_mending_hub_1
 
             "[relax_menu_text]" if must_shelter or not must_hunt:
                 if pc.hunger > 2:
@@ -112,6 +124,11 @@ label haven:
                 if state.enc_opp_sets:
                     "You hear a noise coming from outside..."
                     call pulse_combat_encounter from dev_force_enc_1
+
+            "--Make it rain (+$1,000.00)--" if cfg.DEV_MODE:
+                $ state.give_money(1000, gift_sound=audio.cash_receipt)
+                # $ pc.inventory.add_money(1000)
+                "cha-ching"
 
         jump post_activity_main
 

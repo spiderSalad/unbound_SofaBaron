@@ -29,10 +29,9 @@ init 1 python in game:
                 self.tier = 0
             self.subtype = subtype
             self.color_key = Item.ITEM_COLOR_KEYS[self.item_type]
-            self.key = key
-            if self.key is None:
-                label_suffix = self.subtype if self.subtype else self.item_type
-                self.key = utils.generate_random_id_str(label="supply#{}".format(label_suffix))
+            self.key = key  # Should uniquely identify a kind of item, e.g. an iPhone 14.
+            label_suffix = self.subtype if self.subtype else self.item_type
+            self.item_id = utils.generate_random_id_str(label=f'supply#{label_suffix}')  # Uniquely identifies an item.
             self.name = name
             if desc:
                 self.desc = desc
@@ -43,10 +42,18 @@ init 1 python in game:
 
         def __repr__(self):
             t_label = self.subtype if self.subtype else self.item_type
-            return "<{} #{}>".format(self.name, utils.truncate_string(self.key[7:], leng=len(t_label) + 5))
+            return f'<{self.name} #{utils.truncate_string(self.item_id[7:], leng=len(t_label) + 5)}>'
 
         def __str__(self):
             return f'{self.name}'
+
+        @property
+        def is_melee_weapon(self):
+            return False
+
+        @property
+        def is_gun(self):
+            return False
 
         def copy(self, item_base=None):
             if item_base is None:
@@ -79,11 +86,13 @@ init 1 python in game:
 
         NO_WEAPON = "Unarmed"
         MW_FANGS = "Fangs"
-        MW_DRAIN = "feeding"
+        MW_DRAIN, MW_MEGADRAIN = "feeding", "blender_feeding"
+
+        ALT_MWEPS = (NO_WEAPON, MW_FANGS, MW_DRAIN, MW_MEGADRAIN)
 
         def __init__(self, type, name, subtype=None, key=None, num=1, desc=None, tier=1, dmg_bonus=None, lethality=None, **kwargs):
             t_type = type
-            if type in Weapon.MWEPS or type in (Weapon.RW_THROWING, Weapon.MW_FANGS, Weapon.MW_DRAIN):
+            if type in Weapon.MWEPS or type in Weapon.ALT_MWEPS or type in (Weapon.RW_THROWING,):
                 t_type, subtype = Item.IT_WEAPON, type
             elif type in Weapon.RWEPS:
                 t_type, subtype = Item.IT_FIREARM, type
@@ -125,6 +134,15 @@ init 1 python in game:
                     self.attack_sound = Weapon.WEAPON_SOUNDS[self.weapon_type]
                 else:
                     self.attack_sound = None
+        @property
+        def is_melee_weapon(self):
+            if self.item_type == Item.IT_WEAPON and (not hasattr(self, "throwable") or not self.throwable):
+                return True
+            return False
+
+        @property
+        def is_gun(self):
+            return self.item_type == Item.IT_FIREARM
 
         def copy(self):
             weapon_copy_base = Weapon(
@@ -135,29 +153,54 @@ init 1 python in game:
 
         @staticmethod
         def get_fight_sound(action, hit=False):  # True = hit/success, False = miss/failure, None = inconclusive/always
+            print(f'GET_FIGHT_SOUND | CALL | action = {action}, hit = {hit}, weapon_used = {action.weapon_used}')
             if not action:
                 return None
-            if not action.weapon_used:
+            if action.action_type in (CombAct.MELEE_ENGAGE, CombAct.DODGE):
+                if utils.caseless_in(cfg.POWER_POTENCE_SUPERJUMP, action.unarmed_power_used):
+                    return audio.jump_liftoff_1, "<silence 0.5>", audio.jump_landing_1
+                elif utils.caseless_in(cfg.POWER_CELERITY_BLINK, action.unarmed_power_used):
+                    return audio.whoosh_1
+                return audio.fast_footsteps_2 if action.action_type == CombAct.MELEE_ENGAGE else None
+            if action.grapple_action_type:
+                if action.grapple_action_type in (CombAct.GRAPPLE_HOLD, CombAct.GRAPPLE_MAINTAIN):
+                    print(f'GRAPPLE TYPE 1 |> {action}')
+                    return flavor.GRAPPLE_SOUNDS[CombAct.GRAPPLE_HOLD] if hit else audio.brawl_struggle
+                elif action.grapple_action_type in (CombAct.GRAPPLE_ESCAPE,):
+                    print(f'GRAPPLE TYPE 2 |> {action}')
+                    return flavor.GRAPPLE_SOUNDS[CombAct.GRAPPLE_HOLD] if hit else audio.brawl_struggle
+                print(f'GRAPPLE TYPE 3 |> {action}')
+            if action.unarmed_power_used:
+                if utils.caseless_in(cfg.POWER_PROTEAN_TOOTH_N_CLAW, action.unarmed_power_used):
+                    wtype, subtype = Item.IT_WEAPON, Weapon.MW_SWORD
+                else:
+                    wtype, subtype = Item.IT_WEAPON, Weapon.MW_KNIFE
+            elif not action.weapon_used:
                 if action.action_type in CombAct.OUCH:
                     return audio.throwing_hands_1 if hit else audio.brawl_struggle
-                elif action.action_type in (CombAct.MELEE_ENGAGE, CombAct.DODGE):
-                    if utils.caseless_in(cfg.POWER_POTENCE_SUPERJUMP, action.unarmed_power_used):
-                        return audio.jump_liftoff_1, "<silence 0.3>", audio.jump_landing_1
-                    elif utils.caseless_in(cfg.POWER_CELERITY_BLINK, action.unarmed_power_used):
-                        return audio.whoosh_1
-                    return audio.fast_footsteps_2 if action.action_type == CombAct.MELEE_ENGAGE else None
                 return None
-            wtype, subtype = action.weapon_used.item_type, action.weapon_used.subtype
+            else:
+                wtype, subtype = action.weapon_used.item_type, action.weapon_used.subtype
+            print(f'\nGET_FIGHT_SOUND ||| wtype = {wtype}, subtype = {subtype}, hit = {hit}')
             if hit:
-                return flavor.IMPACT_SOUNDS[subtype] if wtype == Item.IT_FIREARM else flavor.STRIKE_SOUNDS[subtype]
+                x = flavor.IMPACT_SOUNDS[subtype] if wtype == Item.IT_FIREARM else flavor.STRIKE_SOUNDS[subtype]
+                print(f'option 1: returning {x}')
+                print(f'IMPACT_SOUNDS[{subtype}] = {flavor.IMPACT_SOUNDS[subtype] if subtype in flavor.IMPACT_SOUNDS else None}')
+                print(f'all impact sounds: {", ".join([str(isnd) for isnd in flavor.IMPACT_SOUNDS.items()])}')
+                return x
             elif hit == False:
+                print('option 2')
                 return flavor.WHIFF_SOUNDS[subtype] if wtype == Item.IT_WEAPON else flavor.RICOCHET_SOUNDS[subtype]
             else:  # hit is None
-                return flavor.FIRING_SOUNDS[subtype] if wtype == Item.IT_FIREARM else flavor.RICOCHET_SOUNDS[subtype]
+                print('option 3')
+                x = flavor.FIRING_SOUNDS[subtype] if wtype == Item.IT_FIREARM else flavor.RICOCHET_SOUNDS[subtype]
+                print(f'all ricochet sounds: {", ".join([str(isnd) for isnd in flavor.RICOCHET_SOUNDS.items()])}')
+                return x
 
         @staticmethod
-        def get_damage_type(lethality, target_creature_type):
-            mortal_target = target_creature_type in cfg.REF_MORTALS
+        def get_damage_type(lethality, target_creature_type=None):
+            # If no target is provided, we conservatively assume it's a vampire.
+            mortal_target = target_creature_type in cfg.REF_MORTALS if target_creature_type else False
             if lethality >= 4:  # 4 = Always aggravated
                 return cfg.DMG_AGG
             elif lethality == 3:  # 3 = Unhalved Superficial to vampires/Aggravated to mortals
@@ -172,6 +215,11 @@ init 1 python in game:
 
     USING_FANGS = Weapon(Weapon.MW_FANGS, "Fangs", key="bite_attack", desc="Chomp!", tier=3, lethality=4, dmg_bonus=0, concealable=True)
     FEEDING_IN_COMBAT = Weapon(Weapon.MW_DRAIN, "feeding", key="feeding", desc="Gulp!", tier=3, lethality=0, dmg_bonus=0, concealable=True)
+    # NOTE: Those lethality values for feeding need to change if feeding is changed to go through the normal damage_step.
+    DEVOURING_IN_COMBAT = Weapon(
+        Weapon.MW_MEGADRAIN, "brutal feeding", key="brutal_feeding", desc="holy shit",
+        tier=5, lethality=0, dmg_bonus=0, concealable=True
+    )
 
 
     class Inventory:
@@ -201,7 +249,10 @@ init 1 python in game:
                 ))
 
         def __str__(self):
-            return '\n'.join([itm for itm in self.items])
+            if not len(self):
+                return "(Empty)"
+            # print(f'LEEEEEENNNNNN for {self.owner_name} is {len(self)}')
+            return '\n'.join([f'  {i+1}: {repr(itm)}' for i, itm in enumerate(self.items)])
 
         @property
         def items(self):
@@ -220,6 +271,15 @@ init 1 python in game:
                 key_comp = "item_type"
             elif key in (Weapon.MWEPS + Weapon.RWEPS):
                 key_comp = "subtype"
+            elif str(key).startswith("$"):
+                if not self.cash:
+                    return False
+                try:
+                    check_amount = float(str(key)[1:])
+                except Exception as e:
+                    utils.log(f'Failed wallet check generated exception {e}.')
+                    return False
+                return self.cash.quantity >= check_amount
             else:
                 key_comp = "key"
             if not key_comp:
@@ -237,47 +297,102 @@ init 1 python in game:
         def sidearm(self):
             return self._equipped[Inventory.EQ_WEAPON_ALT]
 
-        def add(self, new_item: Item):
-            if new_item.item_type == Item.IT_MONEY:
-                cash = next((it for it in self.items if it.item_type == Item.IT_MONEY), None)
-                if cash is None:
-                    self._items.append(new_item)
-                else:
-                    cash.quantity += new_item.quantity
-                    if new_item.tier > cash.tier:
-                        cash.desc, cash.tier = new_item.desc, new_item.tier
+        @property
+        def cash(self):
+            return next((it for it in self.items if it.item_type == Item.IT_MONEY), None)
+
+        @property
+        def wallet(self):
+            if self.cash is None:
+                return None
+            return self.cash.quantity
+
+        def update_wallet_params(self):
+            pass
+
+        def add_money(self, amount):
+            if self.cash is None:
+                self._items.append(Item(Item.IT_MONEY, "Wallet", key="wallet_default", num=amount))
             else:
-                self._items.append(new_item)
+                self.cash.quantity += amount
+            self.update_wallet_params()
 
-        # TODO: this is shit; fix it.
-        def lose(self, remove=True, ikey=None, itype=None, cash_amount=None, intended=False, randomly=False):
+        def take_money(self, amount, remove=True):
+            if not self.cash:
+                return None, False
+            taken_cash, took_full_amount, cash_wad = amount, True, None
+            if remove:
+                self.cash.quantity -= amount
+                if self.cash.quantity < 0:
+                    taken_cash -= abs(self.cash.quantity)
+                    self.cash.quantity, took_full_amount = 0, False
+                    self.update_wallet_params()
+            if taken_cash > 0:
+                cash_wad = Item(
+                    Item.IT_MONEY, "Cash taken", key=utils.generate_random_id_str(label="cash_taken_#", leng=6),
+                    num=taken_cash, desc=f'${taken_cash} lost in a transaction or theft.'
+                )
+            return cash_wad, took_full_amount
+
+        def add_item(self, new_item):
+            if isinstance(new_item, Item):
+                if new_item.item_type == Item.IT_MONEY and self.cash:
+                    self.add_money(new_item.quantity)
+                else:
+                    self._items.append(new_item)
+            elif type(new_item) in (list, tuple):
+                for nitem in new_item:
+                    self.add_item(nitem)
+            elif utils.is_number(new_item):
+                self.add_money(new_item)
+            else:
+                raise TypeError("Inventory.add_item() should only be passed an Item object, a list of Items, or a number (cash).")
+
+        def get_random_item(self, remove=True):
+            item = utils.get_random_list_elem(self.items)
+            if remove:
+                self._items.remove(item)
+            return item
+
+        def get_items_by_func(self, grab_func, remove=True):
+            taken, kept = [], []
+            for item in self.items:
+                added_2 = taken if grab_func(item) else kept
+                added_2.append(item)
+            if remove:
+                self._items = kept
+            return taken if len(taken) != 1 else taken[0]
+
+        def get_item_by_id(self, item_id, remove=True):
+            return self.get_items_by_func(lambda itm: itm.key == ikey, remove=remove)
+
+        def get_items_by_key(self, ikey, remove=True):
+            return self.get_items_by_func(lambda itm: itm.key == ikey, remove=remove)
+
+        def get_items_by_subtype(self, subtype, remove=True):
+            return self.get_items_by_func(lambda itm: item.subtype == subtype, remove=remove)
+
+        def get_items_by_type(self, item_type, remove=True):
+            return self.get_items_by_func(lambda itm: item.item_type == item_type, remove=remove)
+
+        def lose(self, remove=True, item_id=None, ikey=None, itype=None, isubtype=None, cash_amount=None, intended=False, randomly=False):
+            if item_id: return self.get_item_by_id(item_id, remove=remove)
+            if ikey: return self.get_items_by_key(ikey, remove=remove)
+            if itype: return self.get_items_by_type(itype, remove=remove)
+            if isubtype: return self.get_items_by_subtype(isubtype, remove=remove)
+            if cash_amount: return self.take_money(cash_amount, remove=remove)
             if randomly:
-                random_item = utils.get_random_list_elem(self.items)
-                if remove:
-                    self._items = [it for it in self.items if it is not random_item]
-                return random_item
-            if ikey:
-                lost_items, remaining_items = [], []
-                for item in self.items:
-                    if item.key != ikey:
-                        remaining_items.append(item)
-                    else:
-                        lost_items.append(item)
-                if remove:
-                    self._items = remaining_items
-                return lost_items if len(lost_items) != 1 else lost_items[0]
-            elif itype:
-                raise NotImplementedError("Hey bub, grip these!")
-            elif cash_amount:
-                cash = next((it for it in self.items if it.item_type == Item.IT_MONEY), None)
-                if cash:
-                    cash.quantity -= cash_amount
-                    if cash.quantity < 0:
-                        cash.quantity = 0
-                return Item(IT_MONEY, "taken_cash", num=cash_amount)
+                return self.get_random_item(remove=remove)
+            return None
 
-        def dupe_from(self, ikey=None, itype=None, cash_amount=None, randomly=False):
-            return self.lose(remove=False, ikey=ikey, itype=itype, cash_amount=cash_amount, randomly=randomly)
+        def dupe_from(self, item_id=None, ikey=None, itype=None, isubtype=None, cash_amount=None, randomly=False):
+            x = self.lose(
+                remove=False,
+                item_id=item_id, ikey=ikey, itype=itype, isubtype=isubtype,
+                cash_amount=cash_amount, randomly=randomly
+            )
+            print(f'WE GOT: {x}')
+            return x
 
         def slot_is_free(self, slot):
             if slot not in self.equipped:

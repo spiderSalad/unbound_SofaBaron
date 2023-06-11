@@ -5,6 +5,7 @@ define you = Character("You")
 define beast = Character("The Beast", color="#e90505")
 define james = Character("Man", color="#662222")
 define security_guard = Character("Security", color="#233492")
+define red_minister = Character("Minister", color="#38b845")
 # define night_vet = Character("")
 
 

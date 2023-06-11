@@ -39,6 +39,7 @@ screen dev_panel(*args):
         yfill False
         python:
             state, ro_text_main, ao_r, rosters_r = renpy.store.state, "", "", ""
+            rr_listcomp_1, rr_listcomp_2 = [], []
 
             # ent_format = lambda ent: " {}   {}".format(">" if state.arena.get_up_next() is ent else " ", ent)
             def ent_format(ent, show_stats=False):
@@ -75,8 +76,10 @@ screen dev_panel(*args):
                 ao_r = "act order:\n\n" + "\n".join([ent_format(ent) for ent in state.arena.action_order])
                 pc_team, enemies = state.arena.pc_team, state.arena.enemies
                 rosters_r = "Team Rosters:\n\n"
-                rosters_r += "PC Team:\n" + "\n".join([ent_format(ent, True) for ent in pc_team]) + "\n"
-                rosters_r += "Enemies:\n" + "\n".join([ent_format(ent, True) for ent in enemies]) + "\n"
+                rr_listcomp_1 = [(ent_format(ent, True), ent) for ent in pc_team]
+                rosters_r += "PC Team:\n" + "\n".join([el[0] for el in rr_listcomp_1]) + "\n"
+                rr_listcomp_2 = [(ent_format(ent, True), ent) for ent in enemies]
+                rosters_r += "Enemies:\n" + "\n".join([el[0] for el in rr_listcomp_2]) + "\n"
                 ro_text_main += "..."
         side "c l":
             viewport id "battle_readout_list" draggable True mousewheel True yinitial 1.0:
@@ -84,7 +87,14 @@ screen dev_panel(*args):
                     vbox spacing 15:
                         text "[ro_text_main]" text_align 0.0 align (0.1, 0.1) size 16
                         hbox spacing 20:
-                            text "[rosters_r]" text_align 0.0 yalign 0.0 size 16
+                            #text "[rosters_r]" text_align 0.0 yalign 0.0 size 16
+                            vbox spacing 5:
+                                text "PC Team:" size 16
+                                for ent_tup in rr_listcomp_1:
+                                    use hovertext(repr(ent_tup[1]), _style="small", tooltip=ent_tup[1].summarize())
+                                text "Enemies:" size 16
+                                for ent_tup in rr_listcomp_2:
+                                    use hovertext(repr(ent_tup[1]), _style="small", tooltip=ent_tup[1].summarize())
                             text "[ao_r]" text_align 0.0 yalign 0.0 size 16
             vbar value YScrollValue("battle_readout_list")
 
@@ -209,7 +219,9 @@ transform fadeout_basic:
 
 
 # Generates textbutton with tooltip, action optional
-screen hovertext(txt, tooltip=None, _style="medium", _xalign=0.0, _action=None, usable=True, activated=False):
+screen hovertext(txt, tooltip=None, _style="medium", _xalign=0.0, _action=None, usable=True, activated=False, ttsize=None):
+    $ tt_width, tt_height = ttsize if ttsize else (600, None)
+    # $ print(f'tt_width = {tt_width}, tt_height = {tt_height}')
     textbutton "[txt]" xalign _xalign:
         if _style == "medium":
             text_style "codex_hoverable_text"
@@ -220,7 +232,7 @@ screen hovertext(txt, tooltip=None, _style="medium", _xalign=0.0, _action=None, 
         selected activated
         sensitive usable or activated
         action If(_action is None, true=NullAction(), false=_action) #daction #_action or NullAction()
-        hovered ShowTransient("hovertip", None, str(tooltip))
+        hovered ShowTransient("hovertip", None, str(tooltip), tt_width=tt_width, tt_height=tt_height)
         unhovered Hide("hovertip", None)
 
 
@@ -577,7 +589,7 @@ screen codexCasefilesPage(*args):
                             textbutton str(title) + " {color=[color_str]}(" + str(itype) + "){/color}":
                                 text_style style.codex_hoverable_text
                                 action NullAction()
-                                hovered ShowTransient("hovertip", None, "{}".format(tooltip))
+                                hovered ShowTransient("hovertip", None, "{}".format(tooltip), tt_width=600)
                                 unhovered Hide("hovertip", None)
             frame id "pane_case_log" xalign 0.5 ysize 315 padding (10, 10):
                 text "This will basically be a quest log."
@@ -700,10 +712,10 @@ screen powerSelectTree(dname, *args):
 
 
 # Used to display tooltips
-screen hovertip(tip, *args):
+screen hovertip(tip, tt_width=400, tt_height=200, *args):
     frame background Frame("gui/frame_original.png", Borders(5, 5, 5, 5)):  # TODO: make a different version of gui/frame.png for this with full opacity
-        xmaximum 400
-        ymaximum 200
+        xmaximum tt_width
+        ymaximum tt_height
         # ysize 80
         pos renpy.get_mouse_pos()
         padding (15, 30)

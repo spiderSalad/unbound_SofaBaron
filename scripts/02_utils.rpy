@@ -17,6 +17,8 @@ init 1 python in utils:
         return dict_obj
 
     def parse_pool_string(pool_str, situational_mod=None, blood_surging=False):
+        if pool_str is None:
+            return [[]]
         log("Parsing pool string \"{}\". {}, {}".format(
             pool_str,
             "Situational mod = {}".format(situational_mod) if situational_mod else "No situational modifier",
@@ -65,18 +67,33 @@ init 1 python in utils:
         pool_obj = parse_pool_string(pool_str, situational_mod=sitmod, blood_surging=add_blood_surge)
         return unparse_pool_object(pool_obj, situational_mod=sitmod, remove_blood_surge=not add_blood_surge)
 
-    def translate_dice_pool_params(pool_params):
-        adjusted_params = []
-        for param in pool_params:
-            if param == cfg.REF_ROLL_LOOKS:
-                adjusted_params.append(malus_color("Nosferatu"))
-            elif param == cfg.BG_BEAUTIFUL:
-                adjusted_params.append(bonus_color("Beautiful"))
-            elif param == cfg.BG_REPULSIVE:
-                adjusted_params.append(malus_color("Repulsive"))
+    def translate_dice_pool_params(main_params, alt_params, **kwargs):
+        adjusted_mains, adjusted_alts, bs_alt = [], [], cfg.REF_BLOOD_SURGE.replace(" ", "")
+        for param in main_params:
+            adjusted_mains.append(str(param).capitalize())
+        for param in alt_params:
+            if param in (cfg.BG_BEAUTIFUL, cfg.BG_STUNNING):
+                adjusted_alts.append(bonus_color(param))
+            elif param in (cfg.BG_REPULSIVE, cfg.BG_UGLY, cfg.REF_IMPAIRMENT_PARAM):
+                adjusted_alts.append(malus_color(param))
+            elif param == cfg.REF_ROLL_LOOKS:
+                adjusted_alts.append(malus_color("Nosferatu"))
+            elif param == cfg.REF_BLOOD_SURGE:
+                adjusted_alts.append(blood_surge_color(cfg.REF_BLOOD_SURGE))
+            elif caseless_equal(param, cfg.REF_ROLL_MULTI_DEFEND_MALUS):
+                times_atkd = "multiple"
+                if cfg.REF_ROLL_MULTI_DEFEND_MALUS in kwargs:
+                    times_atkd = kwargs[cfg.REF_ROLL_MULTI_DEFEND_MALUS]
+                # adjusted_alts.append(malus_color(f'vs_{times_atkd}_attack{"s" if times_atkd != 1 else ""}'))
+                ordinal, plural = get_short_ordinal(times_atkd+1), "" if has_int(times_atkd) else "s"
+                adjusted_alts.append(malus_color(f'{ordinal}_defense{plural}'))
             else:
-                adjusted_params.append(str(param).capitalize())
-        return " + ".join([str(p) for p in adjusted_params])
+                adjusted_alts.append(str(param).capitalize())
+        main_str = " + ".join([str(p) for p in adjusted_mains])
+        if adjusted_alts:
+            alt_str = ",_".join([str(p) for p in adjusted_alts])
+            return f'_[{alt_str}]__{main_str}'
+        return f'_{main_str}'
 
     def get_bp_surge_bonus(potency):
         return 1 + math_ceil(potency / 2)
@@ -112,10 +129,16 @@ init 1 python in utils:
         return 1
 
     def bonus_color(txt):
-        return "{color=#23ed23}" + "{}".format(txt) + "{/color}"
+        # return "{color=}" + "{}".format(txt) + "{/color}"
+        return f'{{color={cfg.COLOR_BONUS_MAIN}}}{txt}{{/color}}'
 
     def malus_color(txt):
-        return "{color=#ed2323}" + "{}".format(txt) + "{/color}"
+        # return "{color=#ed2323}" + "{}".format(txt) + "{/color}"
+        return f'{{color={cfg.COLOR_MALUS_MAIN}}}{txt}{{/color}}'
+        cbb67a
+
+    def blood_surge_color(txt):
+        return f'{{color={cfg.COLOR_BLOOD_SURGE}}}{txt}{{/color}}'
 
     def renpy_tag_wrap(txt, *tags):
         altered_txt = txt
@@ -179,6 +202,14 @@ init 1 python in utils:
         if not excerpt or not str:
             return False
         return caseless_normalize(excerpt) in caseless_normalize(str)
+
+    def get_short_ordinal(num):
+        if not has_int(num):
+            raise TypeError(f'Can only return ordinals for integer values, not "{num}"!')
+        intval = int(num)
+        last_digit, all_else = str(intval)[-1], str(intval)[:-1]
+        print(f'|>| ----- intval = {intval}, all_else = {all_else}, last_digit = {last_digit}')
+        return f'{all_else}{cfg.REF_BASIC_ORDINALS[int(last_digit)][1]}'
 
     def percent_chance(chance_out_of_100):
         threshold = chance_out_of_100 / 100
@@ -284,6 +315,9 @@ init 1 python in utils:
         return [random.randint(1, max_val) for _ in range(num_dice)]
 
     def random_int_range(min_val, max_val):
+        if min_val > max_val:
+            temp, min_val = min_val, max_val
+            max_val = temp
         return random.randint(min_val, max_val)
 
     def get_excerpt(exstr: str, start_token, end_token):
@@ -333,12 +367,16 @@ init 1 python in utils:
         who(what, **kwargs)
 
     def renpy_play(*tracks, at_once=False):
+        print(f'received tracks: {", ".join([str(trk) for trk in tracks])}')
         for i, track in enumerate(tracks):
-            if i == 0:
-                renpy.play(track, channel="sound")
-            elif at_once:
+            if at_once:
+                print(f'{i}: at_once audio play: {track}')
                 renpy.play(track, channel="audio")
+            elif i == 0:
+                print(f'{i}: init sound play: {track}')
+                renpy.play(track, channel="sound")
             else:
+                print(f'{i}: in-order sound queue: {track}')
                 renpy.music.queue(track, channel="sound")
 
     for key in cfg.CHAR_BACKGROUNDS:

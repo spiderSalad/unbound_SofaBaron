@@ -10,16 +10,26 @@ init 1 python in game:
             cfg.REF_ROLL_LOOKS
         ]
 
-        def __init__(self, pool_text, has_opp=False, action=None, sitmod=None, surge=False, **kwargs):
+        ALT_DISPLAY_STATS = [
+            cfg.REF_ROLL_LOOKS, cfg.BG_BEAUTIFUL, cfg.BG_REPULSIVE, cfg.BG_UGLY, cfg.BG_STUNNING,
+            str(cfg.REF_BLOOD_SURGE).replace(" ", ""), cfg.REF_ROLL_MULTI_DEFEND_MALUS, cfg.REF_IMPAIRMENT_PARAM
+        ]
+
+        def __init__(self, pool_text, has_opp=False, action=None, sitmod=None, surge=False, rco_owner=False, **kwargs):
             utils = renpy.store.utils
             self.num_dice = 0
-            self.has_opponent = has_opp
-            self.surge = surge
+            self.has_opponent, self.surge, self.weaving_exemption = has_opp, surge, False
             self.action = action
+            self.is_defend_act = all([self.action, self.has_opponent, self.action.defending])
+            if self.action:
+                self.rco_owner = self.action.user
+            else:
+                self.rco_owner = rco_owner if rco_owner else renpy.store.state.pc
             self.contests = utils.parse_pool_string(pool_text, situational_mod=sitmod, blood_surging=self.surge)
-            utils.log("\n--- {} ---\n{}".format("CONTESTS" if self.has_opponent else "TESTS", self.contests))
+            utils.log(f'\n--- {"CONTESTS" if self.has_opponent else "TESTS"} ---\n{self.contests}')
             if len(self.contests) != 1:
                 raise ValueError("Should be exactly one phase per RollConfig object, not {}.".format(len(self.contests)))
+            self.check_optional_kwargs(**kwargs)
             self.pool_options = self.contests[0]
             self.roll_config_options = [self.evaluate(po) for po in self.pool_options]
             # Here we do a max or something
@@ -30,57 +40,78 @@ init 1 python in game:
             if self.action:
                 self.action.num_dice = self.chosen_rc_opt.num_dice
 
+        def check_optional_kwargs(self, **kwargs):
+            if renpy.store.state.StatusFX.weaving_power_is_valid(self.rco_owner, self.action):
+                self.weaving_exemption = True
+            if "opposing_ranged_attack" in kwargs and self.action:
+                self.action.vs_ranged = kwargs["opposing_ranged_attack"]
+
         def evaluate(self, pool_option):
             required_stats, optional_stats = [], [] # TODO: what was I doing here?
+            roll_stats_main, roll_stats_alt = [], []
             buffed_pool_option = pool_option
             if self.action:
                 self.action, buffed_pool_option = BuffPipeline.process_pool(
                     self.action.user, pool_option, action=self.action
                 )
+            if self.rco_owner.times_attacked_this_turn and self.is_defend_act and not self.weaving_exemption:
+                buffed_pool_option += f' + {cfg.REF_ROLL_MULTI_DEFEND_MALUS}'
+            print(f'| | | buffed_pool_option: {buffed_pool_option}')
             pool_stats = buffed_pool_option.replace(" ", "").split("+")
-            pool_choice = object()
+            pool_choice, pool_text_v2 = object(), ""
             for stat in pool_stats: # self.pool_stats:
                 if stat in RollConfig.OPTIONAL_STATS:
                     optional_stats.append(stat)
                 else:
                     required_stats.append(stat)
+                if stat in RollConfig.ALT_DISPLAY_STATS:
+                    roll_stats_alt.append(stat)
+                else:
+                    roll_stats_main.append(stat)
             pool_choice.num_dice = 0
             pool_choice.has_bonuses = False
-            bonus_key, bonus_total = cfg.REF_ROLL_BONUS_PREFIX, 0
-            pc = renpy.store.state.pc
+            pc, bonus_key, bonus_total = renpy.store.state.pc, cfg.REF_ROLL_BONUS_PREFIX, 0
             for stat in pool_stats:  # self.pool_stats:
                 stat = str(stat).capitalize()
-                if "Bloodsurge" in stat:
+                if utils.caseless_in("Bloodsurge", stat):
                     stat = "Blood Surge"
-                utils.log("RollConfig parameter: {}".format(stat))
+                utils.log(f'RollConfig parameter: {stat}')
                 if str(stat).lower().startswith("pool"):
                     pool_choice.num_dice += int(str(stat)[len("pool"):])
-                elif stat in pc.attrs:
+                elif self.rco_owner.is_pc and stat in pc.attrs:
                     pool_choice.num_dice += pc.attrs[stat]
-                elif stat in pc.skills:
+                elif self.rco_owner.is_pc and stat in pc.skills:
                     pool_choice.num_dice += pc.skills[stat]
-                elif stat in pc.disciplines.get_unlocked():
+                elif self.rco_owner.is_pc and stat in pc.disciplines.get_unlocked():
                     pool_choice.num_dice += pc.disciplines.levels[stat]
-                elif stat == cfg.AT_CHA or stat == cfg.SK_DIPL or stat == cfg.REF_ROLL_LOOKS:
+                elif self.rco_owner.is_pc and stat in (cfg.AT_CHA, cfg.SK_DIPL, cfg.REF_ROLL_LOOKS):
                     bg_names = [bg[cfg.REF_BG_NAME] for bg in pc.backgrounds]
-                    if cfg.BG_BEAUTIFUL in bg_names:
-                        pool_choice.has_bonuses = True
-                        setattr(pool_choice, bonus_key + cfg.BG_BEAUTIFUL, 1)
-                        required_stats.append("Beautiful")
-                    elif cfg.BG_REPULSIVE in bg_names:
-                        pool_choice.has_bonuses = True
-                        setattr(pool_choices, bonus_key + cfg.BG_REPULSIVE, -2)
-                        required_stats.append("Repulsive")
+                    looks_merits = (cfg.BG_BEAUTIFUL, cfg.BG_REPULSIVE, cfg.BG_UGLY, cfg.BG_STUNNING)
+                    # A character should only ever have one Looks merit/flaw at a time.
+                    look_ref = next((lk for lk in bg_names if lk in looks_merits), None)
+                    if look_ref:
+                        look, pool_choice.has_bonuses = cfg.CHAR_BACKGROUNDS[look_ref], True
+                        bonus_malus = -1 if look[cfg.REF_TYPE] == cfg.REF_BG_FLAW else 1
+                        setattr(pool_choice, f'{bonus_key}{look_ref}', bonus_malus * int(look[cfg.REF_DOTS]))
+                        required_stats.append(look_ref)
                 elif utils.is_number(stat) and utils.has_int(stat):
                     pool_choice.has_bonuses = True
                     setattr(pool_choice, cfg.REF_ROLL_EVENT_BONUS, stat)
-                elif stat == cfg.REF_BLOOD_SURGE:
+                elif utils.caseless_equal(stat, cfg.REF_BLOOD_SURGE):
                     pool_choice.has_bonuses = True
-                    setattr(pool_choice, bonus_key + cfg.REF_BLOOD_SURGE, utils.get_bp_surge_bonus(pc.blood_potency))
+                    setattr(pool_choice, bonus_key + cfg.REF_BLOOD_SURGE, utils.get_bp_surge_bonus(self.rco_owner.blood_potency))
+                elif utils.caseless_equal(stat, cfg.REF_IMPAIRMENT_PARAM):
+                    pool_choice.has_bonuses = True
+                    setattr(pool_choice, bonus_key + cfg.REF_IMPAIRMENT_PARAM, -1 * cfg.IMPAIRMENT_PENALTY)
+                elif utils.caseless_equal(stat, cfg.REF_ROLL_MULTI_DEFEND_MALUS):
+                    pool_choice.has_bonuses = True
+                    setattr(pool_choice, cfg.REF_ROLL_MULTI_DEFEND_MALUS, -1 * self.rco_owner.times_attacked_this_turn)
                 else:
                     # TODO: backgrounds, banes
-                    raise ValueError("Stat \"{}\" is not an attribute, skill, or discipline.".format(stat))
-            pool_choice.pool_text = utils.translate_dice_pool_params(required_stats)
+                    raise ValueError(f'Stat "{stat}" is not an attribute, skill, or discipline.')
+            pp_kwargs = {cfg.REF_ROLL_MULTI_DEFEND_MALUS: self.rco_owner.times_attacked_this_turn}
+            pool_choice.pool_text = utils.translate_dice_pool_params(roll_stats_main, roll_stats_alt, **pp_kwargs)
+            print("\n", "\n", "\n", f'At creation, pool_text_v2: {pool_choice.pool_text}', "\n", "\n")
             for key in pool_choice.__dict__:
                 if str(key).startswith(bonus_key):
                     bonus_total += int(getattr(pool_choice, key))
@@ -199,6 +230,11 @@ init 1 python in game:
                     num_rerolls -= 1
             self.calculate()
 
+        @staticmethod
+        def zero_result():
+            roll = V5DiceRoll(0, 0)
+            return roll
+
 
     class DiceRoller:
         def __init__(self):
@@ -213,6 +249,8 @@ init 1 python in game:
             return self.current_roll
 
         def contest(self, pool1, pool2, hunger=1, include_hunger=True, pc_defending=False):
+            if pool2 is None:
+                return self.test(pool1, 0, hunger=hunger, include_hunger=include_hunger), None
             if int(pool1) < 1:
                 pool1 = 1
             if int(pool2) < 1:
@@ -304,18 +342,24 @@ init python in state:
         # if response_roll:
             # del response_roll
 
-        if secondary_rc:
+        if secondary_rc and isinstance(secondary_rc, game.RollConfig):
             active_roll, response_roll = diceroller.contest(
                 pool1=primary_rc.num_dice, pool2=secondary_rc.num_dice, hunger=pc.hunger, pc_defending=pc_defending
             )
+        elif secondary_rc and isinstance(secondary_rc, game.CombatAction):
+            active_roll, response_roll = diceroller.contest(
+                pool1=primary_rc.num_dice, pool2=None, hunger=pc.hunger, pc_defending=pc_defending
+            )
+            active_roll.opp_ws = 0
+            response_roll = game.V5DiceRoll.zero_result()
         elif difficulty:
             active_roll = diceroller.test(primary_rc.num_dice, difficulty=difficulty, hunger=pc.hunger)
         else:
             raise AttributeError("Dice Roll moment must have either an opposition pool or flat difficulty!")
 
-        if primary_rc and primary_rc.action:
+        if primary_rc and isinstance(primary_rc, game.RollConfig) and primary_rc.action:
             primary_rc.action.lifted_num_successes = active_roll.num_successes
-        if secondary_rc and secondary_rc.action:
+        if secondary_rc and isinstance(secondary_rc, game.RollConfig) and secondary_rc.action:
             secondary_rc.action.lifted_num_successes = response_roll.num_successes
 
         if pc_defending:
@@ -335,9 +379,10 @@ init python in state:
     def roll_display(rconfig, rolled):
         delim = " "
         global pool_readout
-        plus_min_tmp = str(rconfig.pool_text).replace(" ", "").replace("+-", " - ")
+        de_pouelle_text = rconfig.pool_text
+        plus_min_tmp = str(de_pouelle_text).replace(" ", "").replace("+-", " - ")
         plus_min_tmp = plus_min_tmp.replace("Bloodsurge", "Blood Surge")
-        pool_readout = plus_min_tmp.replace("+", " + ")
+        pool_readout = plus_min_tmp.replace("+", " + ").replace("_", " ")
         if rconfig.has_opponent:
             test_summary = "Versus {}, margin of {}".format(rolled.opp_ws, rolled.margin)
         else:
@@ -417,15 +462,19 @@ init python in state:
 label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=True, response_a=None):
     # NOTE: active_a is True by default, so contests not involving player character should pass None.
     python:
+        skip_ro = False
         if not state.diceroller:
             state.diceroller = game.DiceRoller()
             state.diceroller_creation_count += 1
         if not state.pc:
             state.pc = game.PlayerChar(anames=state.attr_names, snames=state.skill_names, dnames=state.discipline_names)
 
-    play sound dice_roll_many
+    if response_a and response_a.no_contest:
+        $ skip_ro = True
+    else:
+        play sound dice_roll_many
 
-    "Rolling..."
+        "Rolling..."
 
     python:
         diffic, opp_pool, pc_defending = None, None, None
@@ -453,7 +502,9 @@ label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=
         if (pc_defending and (not active_a or not response_a)):
             raise ValueError("If player is defending, that implies combat which means there should be two actions passed.")
         if is_contest and not opp_pool:
-            raise ValueError("Contests should always have an opp pool.")
+            if active_a and active_a.action_type not in CombAct.NO_CONTEST:
+                if response_a and response_a.action_type not in CombAct.NO_CONTEST:
+                    raise ValueError(f'Contests should always have an opp pool. {opp_pool}, {active_a.action_type}')
 
         state.roll_config = game.RollConfig(
             primary_pool, has_opp=is_contest,
@@ -467,19 +518,27 @@ label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=
                 opp_pool, has_opp=is_contest,
                 sitmod=situational_mod if response_user_pc else None,
                 surge=state.blood_surge_active if response_user_pc else False,
-                action=response_a
+                action=response_a,
+                opposing_ranged_attack=(active_a.action_type == CombAct.RANGED_ATTACK)
             )
+        elif response_a:
+            state.test_rco=response_a
         state.roll_bones(state.roll_config, secondary_rc=state.test_rco, difficulty=diffic, pc_defending=pc_defending)
 
     if pc_defending is None:  # None == NPC on NPC attack.
-        if not cfg.DEV_MODE:
-            $ renpy.block_rollback()
-        jump .end_npc_clash
+        $ skip_ro = True
 
-    if (active_a and active_a.skip_contest) or (response_a and response_a.skip_contest):
-        if not cfg.DEV_MODE:
-            $ renpy.block_rollback()
-        jump .end_npc_clash
+    if (active_a and active_a.autowin) or (response_a and response_a.autowin):
+        $ skip_ro = True
+
+    if response_a and response_a.no_contest:
+        $ skip_ro = True
+
+    label .skip_roll_opts:
+        if skip_ro:
+            if not cfg.DEV_MODE:
+                $ renpy.block_rollback()
+            jump .end_npc_clash
 
     label .reroll_options_menu:
 
@@ -515,14 +574,15 @@ label roll_control(active_pool, test_or_contest, situational_mod=None, active_a=
 
         $ hungrier, hunger_gained = state.rouse_check(num_checks=num_checks, reroll=reroll, q_sound=q_sound)
         $ hunger_roll_desc = flavor.get_rouse_check_blurb(hungrier)
+        $ reroll_desc = ", with Re-roll" if reroll else ""
 
         show roll_desc "{size=+5}[hunger_roll_desc]{/size}"
 
         if num_checks == 1:
             if not hungrier:
-                rollie "Passed Rouse Check."
+                rollie "Passed Rouse Check[reroll_desc]."
             else:
-                rollie "Failed Rouse Check."
+                rollie "Failed Rouse Check[reroll_desc]."
         elif num_checks > 1:
             if not hungrier:
                 rollie "Passed all [num_checks] Rouse Checks."
